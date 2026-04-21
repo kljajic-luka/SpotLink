@@ -1,0 +1,65 @@
+:root {
+  --sl-brand-teal: #0f766e;
+  --sl-brand-teal-dark: #115e59;
+  --sl-brand-blue: #2563eb;
+  --sl-brand-amber: #f59e0b;
+  --sl-brand-ink: #111827;
+  --sl-brand-white: #ffffff;
+
+  --sl-color-bg: #f7f8f5;
+  --sl-color-surface: #ffffff;
+  --sl-color-surface-muted: #eef2f1;
+  --sl-color-border: #d6dedb;
+  --sl-color-border-strong: #9caeaa;
+  --sl-color-text: #1f2937;
+  --sl-color-text-strong: #0f172a;
+  --sl-color-text-muted: #52615d;
+  --sl-color-text-inverse: #ffffff;
+  --sl-color-primary: var(--sl-brand-teal);
+  --sl-color-primary-hover: var(--sl-brand-teal-dark);
+  --sl-color-accent: var(--sl-brand-amber);
+  --sl-color-info: var(--sl-brand-blue);
+  --sl-color-success: #15803d;
+  --sl-color-warning: #a16207;
+  --sl-color-danger: #b91c1c;
+  --sl-color-focus: #2563eb;
+
+  --sl-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --sl-shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.1);
+  --sl-shadow-md: 0 18px 44px rgba(15, 23, 42, 0.12);
+
+  --sl-radius-xs: 4px;
+  --sl-radius-sm: 6px;
+  --sl-radius-md: 8px;
+  --sl-radius-full: 999px;
+
+  --sl-font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --sl-font-size-xs: 0.75rem;
+  --sl-font-size-sm: 0.875rem;
+  --sl-font-size-base: 1rem;
+  --sl-font-size-lg: 1.125rem;
+  --sl-font-size-xl: 1.375rem;
+  --sl-font-size-2xl: 1.75rem;
+  --sl-font-size-3xl: 2.5rem;
+  --sl-line-height-tight: 1.15;
+  --sl-line-height-normal: 1.5;
+
+  --sl-space-1: 0.5rem;
+  --sl-space-2: 1rem;
+  --sl-space-3: 1.5rem;
+  --sl-space-4: 2rem;
+  --sl-space-6: 3rem;
+  --sl-space-8: 4rem;
+}
+
+.theme-dark {
+  --sl-color-bg: #0f172a;
+  --sl-color-surface: #172033;
+  --sl-color-surface-muted: #1f2a3d;
+  --sl-color-border: #334155;
+  --sl-color-border-strong: #64748b;
+  --sl-color-text: #dbe4ef;
+  --sl-color-text-strong: #f8fafc;
+  --sl-color-text-muted: #a7b4c5;
+}

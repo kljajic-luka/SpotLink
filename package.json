@@ -1,0 +1,16 @@
+{
+  "name": "spotlink",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Parking reservation marketplace foundation built with Angular and strict TypeScript.",
+  "scripts": {
+    "start": "npm --prefix apps/frontend run start",
+    "build": "npm --prefix apps/frontend run build",
+    "build:dev": "npm --prefix apps/frontend run build:dev",
+    "test": "npm --prefix apps/frontend run test"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0 <25",
+    "npm": ">=10"
+  }
+}
