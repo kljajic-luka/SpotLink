@@ -81,7 +81,7 @@ public class ReservationService {
     public ReservationDtos.ReservationQuote quote(ReservationDtos.ReservationQuoteRequest request) {
         ParkingResource resource = locationService.requireResource(request.resourceId());
         validateWindow(request.startsAt(), request.endsAt());
-        validateAvailability(resource.getId(), request.startsAt(), request.endsAt());
+        validateAvailability(resource, request.startsAt(), request.endsAt());
         validateVehicleFit(resource, request.vehicleId());
 
         long subtotal = calculateSubtotal(resource, request.startsAt(), request.endsAt());
@@ -116,7 +116,7 @@ public class ReservationService {
             ParkingResource resource = locationService.requireResource(request.resourceId());
             ParkingLocation location = locationService.requireLocation(resource.getLocationId());
             validateWindow(request.startsAt(), request.endsAt());
-            validateAvailability(resource.getId(), request.startsAt(), request.endsAt());
+            validateAvailability(resource, request.startsAt(), request.endsAt());
             validateVehicleFit(resource, request.vehicleId());
             ReservationDtos.ReservationQuote quote = quote(new ReservationDtos.ReservationQuoteRequest(
                     request.resourceId(),
@@ -193,9 +193,9 @@ public class ReservationService {
         }
     }
 
-    private void validateAvailability(UUID resourceId, Instant startsAt, Instant endsAt) {
-        long overlaps = reservations.countOverlaps(resourceId, startsAt, endsAt, BLOCKING_STATUSES);
-        if (overlaps > 0) {
+    private void validateAvailability(ParkingResource resource, Instant startsAt, Instant endsAt) {
+        long overlaps = reservations.countOverlaps(resource.getId(), startsAt, endsAt, BLOCKING_STATUSES);
+        if (overlaps >= resource.getCapacity()) {
             throw new ConflictException("RESOURCE_UNAVAILABLE", "Parking resource is not available for this time window.");
         }
     }
