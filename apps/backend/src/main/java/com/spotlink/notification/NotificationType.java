@@ -1,0 +1,11 @@
+package com.spotlink.notification;
+
+public enum NotificationType {
+    RESERVATION_CONFIRMED,
+    RESERVATION_CANCELLED,
+    PAYMENT_ACTION_REQUIRED,
+    ACCESS_INSTRUCTIONS_READY,
+    SUPPORT_REPLY,
+    OPERATOR_ALERT,
+    SYSTEM
+}
