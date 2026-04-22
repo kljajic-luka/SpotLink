@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+	<!--
+	  PrivacyInfo.xcprivacy – SpotLink iOS
+	  Datum: 2026-04-22
+	  Status: PLACEHOLDER – mora se finalizovati pre App Store slanja.
+
+	  NAPOMENA: Svako polje koje nije tacno popunjeno moze uzrokovati
+	  odbijanje na App Store pregledu. Pre spoljnog TestFlight-a ili
+	  App Store slanja, pregledati svaki odeljak i azurirati u skladu
+	  sa stvarnom upotrebom API-ja i prikupljanjem podataka.
+	-->
+
+	<!-- Da li aplikacija prati korisnike medjuaplikacijski? -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+
+	<!-- Domeni pracenja (prazno jer nema pracenja) -->
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!--
+	  Tipovi prikupljenih podataka.
+	  PLACEHOLDER: Azurirati pre App Store slanja na osnovu
+	  stvarno prikupljenih i koriscenih podataka.
+	-->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!--
+	  Required Reason API – API-ji koji zahtevaju deklaraciju razloga.
+	  Aplikacija koristi UserDefaults za cuvanje sesije i podesavanja.
+	  Razlog CA92.1: obavezna funkcionalnost prikazana korisniku.
+
+	  TODO pre App Store: proveriti sve API-je koji se koriste i dodati
+	  odgovarajuce razloge (FileTimestamp, SystemBootTime, DiskSpace,
+	  ActiveKeyboards ako je primenjivo).
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1: Pristup UserDefaults-u za obaveznu funkcionalnost aplikacije -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+
+</dict>
+</plist>

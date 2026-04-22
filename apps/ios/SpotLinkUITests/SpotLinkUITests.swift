@@ -1,0 +1,43 @@
+import XCTest
+
+// MARK: - SpotLink UI testovi
+//
+// Smoke testovi koji verifikuju da se aplikacija pokrece i prikazuje
+// ocekivano pocetno stanje (splash / auth flow).
+//
+// NAPOMENA: UI testovi zahtevaju pun Xcode i iOS Simulator.
+// Na masinama bez Xcode.app, ovi testovi nece biti izvrseni.
+
+final class SpotLinkUITests: XCTestCase {
+
+    var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        // Postavljamo local okruzenje za UI testove
+        app.launchEnvironment["SPOTLINK_ENV"] = "local"
+    }
+
+    override func tearDownWithError() throws {
+        app = nil
+    }
+
+    // MARK: Pokretanje
+
+    func testAppLaunchesSuccessfully() throws {
+        app.launch()
+        // Aplikacija mora biti u foreground stanju posle pokretanja
+        XCTAssertEqual(app.state, .runningForeground,
+                       "Aplikacija treba biti pokrenuta u prvom planu")
+    }
+
+    func testSplashOrAuthViewAppearsOnLaunch() throws {
+        app.launch()
+        // Pocetni prikaz je ili splash (ucitavanje) ili auth flow
+        // Ne testiramo konkretan sadrzaj – samo da app nije prazna
+        let appExists = app.otherElements.firstMatch.waitForExistence(timeout: 5)
+        XCTAssertTrue(appExists, "Aplikacija treba prikazati sadrzaj posle pokretanja")
+    }
+}

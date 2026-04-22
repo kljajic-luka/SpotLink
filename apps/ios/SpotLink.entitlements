@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+	<!--
+	  SpotLink.entitlements
+	  Datum: 2026-04-22
+	  Status: PLACEHOLDER – mogucnosti su zakomentarisane dok
+	  ne budu konfigurisane u Apple Developer portalu.
+
+	  Pre aktiviranja bilo koje entitlement-a potrebno je:
+	  1. Registrovati Bundle ID u Apple Developer portalu
+	  2. Kreirati odgovarajuci provisioning profile
+	  3. Konfigurisati konkretnu mogucnost (npr. APNs sertifikat)
+	-->
+
+	<!--
+	  Push obavescenja – zahteva APNs sertifikat i konfiguraciju
+	  u Apple Developer portalu. Vrednost "development" za TestFlight,
+	  "production" za App Store distribuciju.
+
+	<key>aps-environment</key>
+	<string>development</string>
+	-->
+
+	<!--
+	  Associated Domains – za deep linking (Universal Links).
+	  Zahteva verifikacionu datoteku na spotlink.app domenu.
+
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:spotlink.app</string>
+		<string>webcredentials:spotlink.app</string>
+	</array>
+	-->
+
+	<!--
+	  Apple Pay – samo ako je PSP odlucen i konfigurisan.
+	  Zahteva Merchant ID u Apple Developer portalu.
+
+	<key>com.apple.developer.in-app-payments</key>
+	<array>
+		<string>merchant.com.spotlink.app</string>
+	</array>
+	-->
+
+</dict>
+</plist>

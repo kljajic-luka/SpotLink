@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+	<!-- Osnovno -->
+	<key>CFBundleDisplayName</key>
+	<string>SpotLink</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!-- iOS platforma -->
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- Okruzenje – resava se iz build settings (SPOTLINK_ENV) -->
+	<key>SPOTLINK_ENV</key>
+	<string>$(SPOTLINK_ENV)</string>
+
+	<!-- Orijentacije ekrana (iPhone) -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- Orijentacije ekrana (iPad) -->
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- Pristup lokaciji – obavezno za prikaz parking mesta -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SpotLink koristi vasu lokaciju da pronadje parking mesta u vasoj blizini.</string>
+
+	<!-- Launch screen (bez storyboard-a – SwiftUI nativni) -->
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<!-- Scene lifecycle – SwiftUI @main app ne zahteva scene manifest -->
+	<!-- Ostavljeno prazno da SwiftUI runtime preuzme kontrolu -->
+
+</dict>
+</plist>
