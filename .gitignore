@@ -5,6 +5,7 @@ node_modules/
 # Angular / frontend build output
 dist/
 build/
+target/
 .angular/
 coverage/
 
@@ -33,3 +34,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Swift Package Manager build artifacts
+apps/ios/SpotLink/.build/
+.build/
+*.xcuserstate
+*.xcbkptlist
+xcuserdata/
