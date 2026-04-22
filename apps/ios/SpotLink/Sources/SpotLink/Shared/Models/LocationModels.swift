@@ -20,7 +20,7 @@ public struct Address: Decodable, Sendable {
 
 // MARK: - Coordinates
 
-public struct GeoCoordinates: Decodable, Sendable {
+public struct GeoCoordinates: Decodable, Equatable, Sendable {
     public let latitude: Double
     public let longitude: Double
 }
@@ -67,6 +67,11 @@ public enum ParkingAccessType: String, Decodable, CaseIterable, Sendable {
     }
 }
 
+public enum ConfirmationMode: String, Decodable, CaseIterable, Sendable {
+    case instant = "INSTANT"
+    case manual  = "MANUAL"
+}
+
 // MARK: - Parking Resource
 
 public struct ParkingResource: Decodable, Identifiable, Sendable {
@@ -82,6 +87,8 @@ public struct ParkingResource: Decodable, Identifiable, Sendable {
     public let currency: String
     public let instantReserve: Bool
     public let active: Bool
+    public let capacity: Int
+    public let confirmationMode: ConfirmationMode
 
     public var hourlyRateFormatted: String {
         formatCents(hourlyRateCents, currency: currency) + "/h"
@@ -163,21 +170,26 @@ public struct LocationSearchFilters: Sendable {
     }
 }
 
+// MARK: - Search Result (ugnjezdena struktura ista kao backend LocationSearchResult)
+
 public struct LocationSearchResult: Decodable, Identifiable, Sendable {
-    public let id: String
-    public let name: String
-    public let address: Address
-    public let coordinates: GeoCoordinates
-    public let accessType: ParkingAccessType
+    public var id: String { location.id }
+    public let location: ParkingLocation
+    public let resources: [ParkingResource]
     public let distanceKm: Double?
-    public let minHourlyRateCents: Int?
-    public let currency: String?
-    public let availableResourceCount: Int?
+    public let startingPriceCents: Int?
+    public let availableResourceCount: Int
 
     public var formattedDistance: String? {
         guard let d = distanceKm else { return nil }
         if d < 1 { return "\(Int(d * 1000))m" }
         return String(format: "%.1f km", d)
+    }
+
+    public var formattedStartingPrice: String? {
+        guard let price = startingPriceCents,
+              let currency = resources.first?.currency else { return nil }
+        return formatCents(price, currency: currency) + "/h"
     }
 }
 

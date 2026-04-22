@@ -11,6 +11,17 @@ public struct MainAppShell: View {
     @State private var selectedTab: AppTab = .search
     @EnvironmentObject private var session: SessionManager
 
+    // SearchMapViewModel se inicijalizuje jednom i celi zivotni vek deli sa tabom
+    @StateObject private var searchViewModel = SearchMapViewModel(
+        locationService: LocationService(
+            apiClient: APIClient(
+                baseURL: AppEnvironment.current().apiBaseURL,
+                tokenProvider: SessionManager.shared
+            )
+        ),
+        locationManager: SpotLinkLocationManager.shared
+    )
+
     public init(sessionInfo: SessionInfo) {
         self.sessionInfo = sessionInfo
     }
@@ -19,7 +30,8 @@ public struct MainAppShell: View {
         TabView(selection: $selectedTab) {
             // Pretraga/Mapa
             NavigationStack {
-                SearchMapPlaceholderView()
+                SearchMapView(viewModel: searchViewModel)
+                    .navigationTitle("Pronadji parking")
             }
             .tabItem {
                 Label("Pretraga", systemImage: "map.fill")
@@ -82,17 +94,6 @@ enum AppTab: String, CaseIterable {
 }
 
 // MARK: - Placeholder Views (zamenjuju se pravim feature views-ima)
-
-struct SearchMapPlaceholderView: View {
-    var body: some View {
-        EmptyStateView(
-            icon: "map.fill",
-            title: "Pronadji parking",
-            message: "Pretraga parkinga po lokaciji bice dostupna u sledecoj fazi.",
-            actionTitle: nil)
-        .navigationTitle("Pronadji parking")
-    }
-}
 
 struct ReservationsPlaceholderView: View {
     var body: some View {

@@ -57,5 +57,9 @@
 	<!-- Scene lifecycle – SwiftUI @main app ne zahteva scene manifest -->
 	<!-- Ostavljeno prazno da SwiftUI runtime preuzme kontrolu -->
 
+	<!-- Mapbox javni token za prikaz karte -->
+	<key>MBXAccessToken</key>
+	<string>pk.eyJ1Ijoia2xqYWphMDEiLCJhIjoiY21pcmV6ZWtkMDgxMDNkcXRkdGg4OGVpbCJ9.Z3UrBxYVEw4tjjLrEaiIgg</string>
+
 </dict>
 </plist>
