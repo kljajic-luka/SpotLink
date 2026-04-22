@@ -4,7 +4,7 @@ import PackageDescription
 
 let testingSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(
-        ["-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"],
+        ["-F", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks"],
         .when(platforms: [.macOS])
     )
 ]
@@ -12,9 +12,9 @@ let testingSwiftSettings: [SwiftSetting] = [
 let testingLinkerSettings: [LinkerSetting] = [
     .unsafeFlags(
         [
-            "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+            "-F", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
             "-Xlinker", "-rpath",
-            "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+            "-Xlinker", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks"
         ],
         .when(platforms: [.macOS])
     )
@@ -27,13 +27,21 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .library(name: "SpotLink", targets: ["SpotLink"]),
+        // Zadrzavamo naziv proizvoda "SpotLink" ali menjamo naziv modula/targeta u "SpotLinkCore"
+        .library(name: "SpotLink", targets: ["SpotLinkCore"]),
         .executable(name: "SpotLinkTestRunner", targets: ["SpotLinkTestRunner"])
     ],
-    dependencies: [],
+    dependencies: [
+        // Mapbox Maps SDK – potreban token u ~/.netrc (api.mapbox.com) za resolving
+        .package(url: "https://github.com/mapbox/mapbox-maps-ios.git", from: "11.0.0")
+    ],
     targets: [
         .target(
-            name: "SpotLink",
+            name: "SpotLinkCore",
+            dependencies: [
+                // Mapbox se linkuje samo na iOS; macOS test runner ne koristi Mapbox
+                .product(name: "MapboxMaps", package: "mapbox-maps-ios", condition: .when(platforms: [.iOS]))
+            ],
             path: "Sources/SpotLink",
             exclude: ["App/SpotLinkApp.swift"],
             swiftSettings: [
@@ -42,7 +50,7 @@ let package = Package(
         ),
         .target(
             name: "SpotLinkTestSupport",
-            dependencies: ["SpotLink"],
+            dependencies: ["SpotLinkCore"],
             path: "TestSupport/SpotLinkTestSupport",
             swiftSettings: testingSwiftSettings,
             linkerSettings: testingLinkerSettings

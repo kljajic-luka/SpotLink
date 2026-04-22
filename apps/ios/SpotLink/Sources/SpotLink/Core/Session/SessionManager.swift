@@ -136,3 +136,4 @@ public final class SessionManager: ObservableObject, TokenProvider {
         preferences.remove(forKey: SessionStorageKey.userProfile)
     }
 }
+

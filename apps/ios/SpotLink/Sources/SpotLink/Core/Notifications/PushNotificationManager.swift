@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Push Notification Manager
 
@@ -72,3 +75,4 @@ public final class PushNotificationManager: NSObject, ObservableObject {
         }
     }
 }
+

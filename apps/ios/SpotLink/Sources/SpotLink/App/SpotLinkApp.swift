@@ -3,7 +3,7 @@ import SwiftUI
 // Xcode app target se zove SpotLink a PRODUCT_MODULE_NAME=SpotLinkApp,
 // pa je ovaj import neophodan da bi kompajler razresio SessionManager,
 // AppEnvironment i RootView koji dolaze iz SPM modula SpotLink.
-import SpotLink
+import SpotLinkCore
 
 // MARK: - SpotLink App Entry Point
 
@@ -32,3 +32,4 @@ public struct SpotLinkApp: App {
         }
     }
 }
+

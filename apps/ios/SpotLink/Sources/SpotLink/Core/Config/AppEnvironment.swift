@@ -64,3 +64,4 @@ public enum AppEnvironment: String, CaseIterable, Sendable {
         #endif
     }
 }
+

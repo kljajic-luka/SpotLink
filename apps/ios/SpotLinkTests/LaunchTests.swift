@@ -1,5 +1,5 @@
 import XCTest
-@testable import SpotLink
+@testable import SpotLinkCore
 
 // MARK: - Testovi pokretanja i bootstrap-a aplikacije
 //
@@ -73,3 +73,4 @@ final class LaunchTests: XCTestCase {
         XCTAssertNil(unauthenticatedState.sessionInfo)
     }
 }
+

@@ -1,5 +1,5 @@
 import Testing
-@testable import SpotLink
+@testable import SpotLinkCore
 
 // MARK: - UserProfile – computed props
 
