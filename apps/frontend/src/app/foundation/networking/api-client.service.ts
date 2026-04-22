@@ -3,10 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { SPOTLINK_APP_CONFIG } from '@foundation/core';
-import { QueryParams } from './api.types';
 
-interface RequestOptions {
-  params?: QueryParams;
+interface RequestOptions<TParams extends object = object> {
+  params?: TParams;
   context?: HttpContext;
 }
 
@@ -15,7 +14,10 @@ export class ApiClient {
   private readonly http = inject(HttpClient);
   private readonly config = inject(SPOTLINK_APP_CONFIG);
 
-  get<T>(path: string, options: RequestOptions = {}): Observable<T> {
+  get<T, TParams extends object = object>(
+    path: string,
+    options: RequestOptions<TParams> = {},
+  ): Observable<T> {
     return this.http.get<T>(this.url(path), {
       params: this.params(options.params),
       context: options.context,
@@ -55,7 +57,10 @@ export class ApiClient {
     });
   }
 
-  delete<T>(path: string, options: RequestOptions = {}): Observable<T> {
+  delete<T, TParams extends object = object>(
+    path: string,
+    options: RequestOptions<TParams> = {},
+  ): Observable<T> {
     return this.http.delete<T>(this.url(path), {
       params: this.params(options.params),
       context: options.context,
@@ -72,7 +77,7 @@ export class ApiClient {
     return `${base}${cleanPath}`;
   }
 
-  private params(params?: QueryParams): HttpParams {
+  private params<TParams extends object>(params?: TParams): HttpParams {
     let httpParams = new HttpParams();
 
     Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -82,16 +87,40 @@ export class ApiClient {
 
       if (Array.isArray(value)) {
         value.forEach((item) => {
-          if (item !== null && item !== undefined) {
-            httpParams = httpParams.append(key, String(item));
+          const serializedItem = this.serializeQueryValue(item);
+          if (serializedItem !== null) {
+            httpParams = httpParams.append(key, serializedItem);
           }
         });
         return;
       }
 
-      httpParams = httpParams.set(key, String(value));
+      const serializedValue = this.serializeQueryValue(value);
+      if (serializedValue !== null) {
+        httpParams = httpParams.set(key, serializedValue);
+      }
     });
 
     return httpParams;
+  }
+
+  private serializeQueryValue(value: unknown): string | null {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? String(value) : null;
+    }
+
+    if (typeof value === 'boolean') {
+      return String(value);
+    }
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+
+    return null;
   }
 }

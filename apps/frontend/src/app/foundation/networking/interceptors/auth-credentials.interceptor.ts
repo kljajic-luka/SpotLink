@@ -1,9 +1,8 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 
 import { RETRIED_REQUEST } from '../http-context.tokens';
+import { INTERCEPTOR_XSRF } from './interceptor.constants';
 
-const XSRF_COOKIE = 'XSRF-TOKEN';
-const XSRF_HEADER = 'X-XSRF-TOKEN';
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export const authCredentialsInterceptor: HttpInterceptorFn = (request, next) => {
@@ -12,12 +11,15 @@ export const authCredentialsInterceptor: HttpInterceptorFn = (request, next) => 
     context: request.context.set(RETRIED_REQUEST, request.context.get(RETRIED_REQUEST)),
   });
 
-  if (MUTATION_METHODS.has(request.method.toUpperCase()) && !request.headers.has(XSRF_HEADER)) {
-    const xsrfToken = readCookie(XSRF_COOKIE);
+  if (
+    MUTATION_METHODS.has(request.method.toUpperCase()) &&
+    !request.headers.has(INTERCEPTOR_XSRF.headerName)
+  ) {
+    const xsrfToken = readCookie(INTERCEPTOR_XSRF.cookieName);
     if (xsrfToken) {
       enriched = enriched.clone({
         setHeaders: {
-          [XSRF_HEADER]: xsrfToken,
+          [INTERCEPTOR_XSRF.headerName]: xsrfToken,
         },
       });
     }

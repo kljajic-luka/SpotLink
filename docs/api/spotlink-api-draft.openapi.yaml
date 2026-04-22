@@ -1,0 +1,1249 @@
+openapi: 3.0.3
+info:
+  title: SpotLink API Draft (frontend expectation)
+  version: 0.1.0-draft
+  description: >-
+    Draft OpenAPI dokument izveden iz frontend foundation servisa.
+    Dokument opisuje ocekivane endpoint-e i DTO granice iz frontend perspektive.
+servers:
+  - url: '{baseApiUrl}'
+    variables:
+      baseApiUrl:
+        default: https://api.spotlink.local
+security:
+  - cookieAuth: []
+tags:
+  - name: Auth
+  - name: UserProfile
+  - name: Vehicles
+  - name: Locations
+  - name: Reservations
+  - name: Payments
+  - name: Support
+  - name: Notifications
+  - name: Operator
+  - name: Admin
+  - name: Analytics
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login korisnika
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/register/customer:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Registracija customer korisnika
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCustomerRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/register/operator:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Registracija operator korisnika
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterOperatorRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /auth/password/reset-request:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Pokretanje reset lozinke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '204':
+          description: Prihvaceno
+  /auth/password/reset:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Zavrsni reset lozinke
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompletePasswordResetRequest'
+      responses:
+        '204':
+          description: Izvrseno
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout korisnika
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204':
+          description: Izvrseno
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Trenutni korisnik iz sesije
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /users/me/profile:
+    get:
+      tags: [UserProfile]
+      summary: Profil trenutnog korisnika
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileDetails'
+    patch:
+      tags: [UserProfile]
+      summary: Parcijalna izmena profila
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileDetails'
+  /users/{userId}/profile:
+    get:
+      tags: [UserProfile]
+      summary: Profil korisnika po ID-u
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileDetails'
+
+  /vehicles/me:
+    get:
+      tags: [Vehicles]
+      summary: Lista vozila korisnika
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VehicleProfile'
+  /vehicles:
+    post:
+      tags: [Vehicles]
+      summary: Kreiranje vehicle profile zapisa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpsertRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleProfile'
+  /vehicles/{vehicleId}:
+    put:
+      tags: [Vehicles]
+      summary: Izmena vehicle profile zapisa
+      parameters:
+        - in: path
+          name: vehicleId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleUpsertRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleProfile'
+    delete:
+      tags: [Vehicles]
+      summary: Brisanje vehicle profile zapisa
+      parameters:
+        - in: path
+          name: vehicleId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Izvrseno
+
+  /locations/search:
+    get:
+      tags: [Locations]
+      summary: Pretraga parking lokacija
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: latitude
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          schema:
+            type: number
+        - in: query
+          name: radiusKm
+          schema:
+            type: number
+        - in: query
+          name: resourceTypes
+          schema:
+            type: array
+            items:
+              type: string
+        - in: query
+          name: evChargingRequired
+          schema:
+            type: boolean
+        - in: query
+          name: startsAt
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endsAt
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: size
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationSearchPage'
+  /locations/geocode:
+    get:
+      tags: [Locations]
+      summary: Geocode pretraga
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GeocodeSuggestion'
+  /locations/{locationId}:
+    get:
+      tags: [Locations]
+      summary: Parking location detalj
+      parameters:
+        - in: path
+          name: locationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParkingLocation'
+  /locations/{locationId}/resources:
+    get:
+      tags: [Locations]
+      summary: Lista parking resource jedinica
+      parameters:
+        - in: path
+          name: locationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParkingResource'
+
+  /reservations/me:
+    get:
+      tags: [Reservations]
+      summary: Lista rezervacija korisnika
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationPage'
+  /reservations/{reservationId}:
+    get:
+      tags: [Reservations]
+      summary: Reservation detalj
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+  /reservations/quote:
+    post:
+      tags: [Reservations]
+      summary: Izracunavanje reservation quote-a
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservationQuoteRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationQuote'
+  /reservations:
+    post:
+      tags: [Reservations]
+      summary: Kreiranje reservation zapisa
+      description: Frontend salje idempotencyKey u payload-u.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+  /reservations/{reservationId}/cancel:
+    post:
+      tags: [Reservations]
+      summary: Otkazivanje reservation zapisa
+      parameters:
+        - in: path
+          name: reservationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+
+  /payments/methods:
+    get:
+      tags: [Payments]
+      summary: Lista payment metoda
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethod'
+  /payments/intents:
+    post:
+      tags: [Payments]
+      summary: Kreiranje payment intent zapisa
+      description: Frontend salje idempotencyKey u payload-u.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentIntentRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+  /payments/intents/{paymentIntentId}/confirm:
+    post:
+      tags: [Payments]
+      summary: Potvrda payment intent zapisa
+      parameters:
+        - in: path
+          name: paymentIntentId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentProviderResult'
+
+  /support/tickets:
+    get:
+      tags: [Support]
+      summary: Lista support ticketa
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketPage'
+    post:
+      tags: [Support]
+      summary: Kreiranje support ticketa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportTicketRequest'
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+  /support/tickets/{ticketId}/messages:
+    get:
+      tags: [Support]
+      summary: Lista poruka za ticket
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportMessage'
+    post:
+      tags: [Support]
+      summary: Slanje poruke u ticket thread
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportMessage'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Lista notifikacija
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Broj neprocitanih notifikacija
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadNotificationCount'
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Obelezavanje notifikacije kao procitane
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '204':
+          description: Izvrseno
+  /notifications/device-tokens:
+    post:
+      tags: [Notifications]
+      summary: Registracija push tokena
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceTokenRequest'
+      responses:
+        '204':
+          description: Izvrseno
+
+  /operator/me:
+    get:
+      tags: [Operator]
+      summary: Trenutni operator nalog
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorAccount'
+  /operator/dashboard/summary:
+    get:
+      tags: [Operator]
+      summary: Operator dashboard summary
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorDashboardSummary'
+  /operator/resources/health:
+    get:
+      tags: [Operator]
+      summary: Stanje parking resource jedinica
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OperatorResourceHealth'
+
+  /admin/dashboard/summary:
+    get:
+      tags: [Admin]
+      summary: Admin dashboard summary
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardSummary'
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Lista korisnika
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 25
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPage'
+  /admin/audit-events:
+    get:
+      tags: [Admin]
+      summary: Lista audit dogadjaja
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 25
+      responses:
+        '200':
+          description: Uspeh
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAuditEventPage'
+
+  /analytics/events:
+    post:
+      tags: [Analytics]
+      summary: Slanje batch analytics event-ova
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AnalyticsEvent'
+      responses:
+        '204':
+          description: Izvrseno
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: spotlink_session
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RegisterCustomerRequest:
+      type: object
+      required: [firstName, lastName, email, password, acceptsTerms]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        password:
+          type: string
+        acceptsTerms:
+          type: boolean
+    RegisterOperatorRequest:
+      allOf:
+        - $ref: '#/components/schemas/RegisterCustomerRequest'
+        - type: object
+          required: [operatorType, acceptsOperatorAgreement]
+          properties:
+            companyName:
+              type: string
+            operatorType:
+              type: string
+              enum: [INDIVIDUAL, BUSINESS]
+            acceptsOperatorAgreement:
+              type: boolean
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    CompletePasswordResetRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/UserProfile'
+        message:
+          type: string
+
+    UserProfile:
+      type: object
+      required: [id, email, firstName, lastName, roles]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        bio:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [CUSTOMER, OPERATOR, SUPPORT, ADMIN]
+        operatorId:
+          type: string
+        registrationStatus:
+          type: string
+          enum: [INCOMPLETE, ACTIVE, SUSPENDED, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+    UserProfileDetails:
+      allOf:
+        - $ref: '#/components/schemas/UserProfile'
+        - type: object
+          required: [stats, preferences]
+          properties:
+            stats:
+              type: object
+              additionalProperties:
+                type: number
+            preferences:
+              type: object
+              additionalProperties: true
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        bio:
+          type: string
+        preferences:
+          type: object
+          additionalProperties: true
+
+    VehicleProfile:
+      type: object
+      required: [id, userId, type, verificationStatus, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+          enum: [CAR, MOTORCYCLE, VAN, TRUCK, BICYCLE, OTHER]
+        verificationStatus:
+          type: string
+          enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+        nickname:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        color:
+          type: string
+        licensePlate:
+          type: string
+        heightMeters:
+          type: number
+        lengthMeters:
+          type: number
+        evCapable:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    VehicleUpsertRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [CAR, MOTORCYCLE, VAN, TRUCK, BICYCLE, OTHER]
+        nickname:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        color:
+          type: string
+        licensePlate:
+          type: string
+        heightMeters:
+          type: number
+        lengthMeters:
+          type: number
+        evCapable:
+          type: boolean
+
+    ParkingLocation:
+      type: object
+      additionalProperties: true
+    ParkingResource:
+      type: object
+      additionalProperties: true
+    GeocodeSuggestion:
+      type: object
+      additionalProperties: true
+    LocationSearchResult:
+      type: object
+      additionalProperties: true
+
+    Reservation:
+      type: object
+      required: [id, customerId, operatorId, locationId, resourceId, startsAt, endsAt, timezone, status, totalAmountCents, currency, accessInstructionsVisible, createdAt]
+      properties:
+        id:
+          type: string
+        customerId:
+          type: string
+        operatorId:
+          type: string
+        locationId:
+          type: string
+        resourceId:
+          type: string
+        vehicleId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PENDING_PAYMENT, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, EXPIRED, DISPUTED]
+        totalAmountCents:
+          type: integer
+        currency:
+          type: string
+        accessInstructionsVisible:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ReservationQuoteRequest:
+      type: object
+      required: [resourceId, startsAt, endsAt]
+      properties:
+        resourceId:
+          type: string
+        vehicleId:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        promoCode:
+          type: string
+    ReservationQuote:
+      type: object
+      additionalProperties: true
+    CreateReservationRequest:
+      allOf:
+        - $ref: '#/components/schemas/ReservationQuoteRequest'
+        - type: object
+          required: [idempotencyKey]
+          properties:
+            quoteId:
+              type: string
+            paymentMethodId:
+              type: string
+            idempotencyKey:
+              type: string
+
+    PaymentMethod:
+      type: object
+      additionalProperties: true
+    CreatePaymentIntentRequest:
+      type: object
+      required: [reservationId, idempotencyKey]
+      properties:
+        reservationId:
+          type: string
+        paymentMethodId:
+          type: string
+        idempotencyKey:
+          type: string
+    PaymentIntent:
+      type: object
+      additionalProperties: true
+    PaymentProviderResult:
+      type: object
+      additionalProperties: true
+
+    CreateSupportTicketRequest:
+      type: object
+      required: [category, subject, body]
+      properties:
+        category:
+          type: string
+          enum: [RESERVATION, PAYMENT, LOCATION_ACCESS, SAFETY, ACCOUNT, OTHER]
+        subject:
+          type: string
+        body:
+          type: string
+        reservationId:
+          type: string
+        locationId:
+          type: string
+    SupportTicket:
+      type: object
+      additionalProperties: true
+    SupportMessage:
+      type: object
+      additionalProperties: true
+
+    NotificationItem:
+      type: object
+      additionalProperties: true
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [deviceToken, platform]
+      properties:
+        deviceToken:
+          type: string
+        platform:
+          type: string
+          enum: [WEB, IOS, ANDROID]
+    UnreadNotificationCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    OperatorAccount:
+      type: object
+      additionalProperties: true
+    OperatorDashboardSummary:
+      type: object
+      additionalProperties: true
+    OperatorResourceHealth:
+      type: object
+      additionalProperties: true
+
+    AdminDashboardSummary:
+      type: object
+      additionalProperties: true
+    AdminUserSummary:
+      type: object
+      additionalProperties: true
+    AdminAuditEvent:
+      type: object
+      additionalProperties: true
+
+    AnalyticsEvent:
+      type: object
+      required: [event, timestamp, url, sessionId]
+      properties:
+        event:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+        url:
+          type: string
+        sessionId:
+          type: string
+
+    LocationSearchPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocationSearchResult'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    ReservationPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    SupportTicketPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicket'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    NotificationPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationItem'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    AdminUserPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    AdminAuditEventPage:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAuditEvent'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer

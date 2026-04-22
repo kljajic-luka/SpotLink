@@ -33,6 +33,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
           [placeholder]="placeholder"
           [disabled]="disabled"
           [required]="required"
+          [attr.aria-describedby]="hint ? hintId : null"
           (input)="handleInput($event)"
           (blur)="onTouched()"
         ></textarea>
@@ -45,12 +46,13 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
           [placeholder]="placeholder"
           [disabled]="disabled"
           [required]="required"
+          [attr.aria-describedby]="hint ? hintId : null"
           (input)="handleInput($event)"
           (blur)="onTouched()"
         />
       }
       @if (hint) {
-        <span class="sl-field__hint">{{ hint }}</span>
+        <span class="sl-field__hint" [id]="hintId">{{ hint }}</span>
       }
     </label>
   `,
@@ -114,6 +116,10 @@ export class TextFieldComponent implements ControlValueAccessor {
 
   onChange: (value: string) => void = () => undefined;
   onTouched: () => void = () => undefined;
+
+  get hintId(): string {
+    return `${this.inputId}-hint`;
+  }
 
   writeValue(value: string | null | undefined): void {
     this.value = value ?? '';

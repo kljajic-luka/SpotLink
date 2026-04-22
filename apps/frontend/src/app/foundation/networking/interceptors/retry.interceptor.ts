@@ -3,13 +3,10 @@ import { timer, throwError } from 'rxjs';
 import { retry } from 'rxjs/operators';
 
 import { SKIP_RETRY } from '../http-context.tokens';
+import { INTERCEPTOR_RETRY } from './interceptor.constants';
 
 const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE']);
 const RETRYABLE_STATUSES = new Set([0, 500, 502, 503, 504]);
-const MAX_RETRIES = 2;
-const BASE_DELAY_MS = 400;
-const MAX_DELAY_MS = 4000;
-const NO_RETRY_ENDPOINTS = ['/auth/login', '/auth/register', '/payments', '/reservations'];
 
 export const retryInterceptor: HttpInterceptorFn = (request, next) => {
   if (request.context.get(SKIP_RETRY) || !shouldRetryRequest(request.method, request.url)) {
@@ -18,7 +15,7 @@ export const retryInterceptor: HttpInterceptorFn = (request, next) => {
 
   return next(request).pipe(
     retry({
-      count: MAX_RETRIES,
+      count: INTERCEPTOR_RETRY.maxRetries,
       delay: (error: HttpErrorResponse, retryIndex: number) => {
         if (!RETRYABLE_STATUSES.has(error.status)) {
           return throwError(() => error);
@@ -33,7 +30,7 @@ export const retryInterceptor: HttpInterceptorFn = (request, next) => {
 function shouldRetryRequest(method: string, url: string): boolean {
   return (
     RETRYABLE_METHODS.has(method.toUpperCase()) &&
-    !NO_RETRY_ENDPOINTS.some((endpoint) => url.includes(endpoint))
+    !INTERCEPTOR_RETRY.noRetryEndpoints.some((endpoint) => url.includes(endpoint))
   );
 }
 
@@ -42,11 +39,11 @@ function calculateDelay(retryIndex: number, error: HttpErrorResponse): number {
   if (retryAfter) {
     const retryAfterMs = Number.parseInt(retryAfter, 10) * 1000;
     if (Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
-      return Math.min(retryAfterMs, MAX_DELAY_MS);
+      return Math.min(retryAfterMs, INTERCEPTOR_RETRY.maxDelayMs);
     }
   }
 
-  const exponentialDelay = BASE_DELAY_MS * 2 ** retryIndex;
+  const exponentialDelay = INTERCEPTOR_RETRY.baseDelayMs * 2 ** retryIndex;
   const jitter = Math.random() * 150;
-  return Math.min(exponentialDelay + jitter, MAX_DELAY_MS);
+  return Math.min(exponentialDelay + jitter, INTERCEPTOR_RETRY.maxDelayMs);
 }

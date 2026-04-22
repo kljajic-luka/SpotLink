@@ -19,7 +19,14 @@ export interface ApiEnvelope<T> {
   requestId?: string;
 }
 
-export type QueryParams = object;
+export type QueryParamPrimitive = string | number | boolean | Date;
+export type QueryParamValue =
+  | QueryParamPrimitive
+  | readonly QueryParamPrimitive[]
+  | null
+  | undefined;
+
+export type QueryParams = Record<string, QueryParamValue>;
 
 export const asApiPage = <T>(content: T[], page = 0, size = content.length): ApiPage<T> => ({
   content,

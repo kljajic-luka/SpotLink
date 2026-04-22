@@ -1,5 +1,10 @@
 import { Reservation, ReservationStatus } from './reservation.models';
 
+const DATETIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
 export interface ReservationCardViewModel {
   id: string;
   title: string;
@@ -41,15 +46,30 @@ function statusTone(status: ReservationStatus): ReservationCardViewModel['status
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  if (!value) {
+    return 'N/A';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'N/A';
+  }
+
+  return DATETIME_FORMATTER.format(parsed);
 }
 
 function formatMoney(amountCents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(amountCents / 100);
+  const normalizedCurrency = currency?.trim().toUpperCase();
+  if (!normalizedCurrency || normalizedCurrency.length !== 3) {
+    return `${(amountCents / 100).toFixed(2)}`;
+  }
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${normalizedCurrency}`;
+  }
 }
