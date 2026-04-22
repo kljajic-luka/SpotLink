@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (Java 21 / Maven)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Podesavanje JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Pokretanje backend testova
+        run: mvn -B -f apps/backend/pom.xml test
+
+  frontend:
+    name: Frontend (Node 22 / Angular)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Podesavanje Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Instalacija zavisnosti
+        run: npm ci --prefix apps/frontend
+
+      - name: Pokretanje testova (headless)
+        run: npm run test --prefix apps/frontend -- --watch=false --browsers=ChromeHeadless
+
+      - name: Produkcioni build
+        run: npm run build --prefix apps/frontend -- --configuration production
+
+  ios:
+    name: iOS (Swift Package / Xcode)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Konfiguracija Mapbox downloads tokena
+        run: |
+          echo "machine api.mapbox.com login mapbox password ${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}" >> ~/.netrc
+          chmod 600 ~/.netrc
+
+      - name: Ciscenje Swift build artifakata
+        run: swift package clean --package-path apps/ios/SpotLink
+
+      - name: Pokretanje Swift testova (SwiftPM runner)
+        run: swift run --package-path apps/ios/SpotLink SpotLinkTestRunner
+
+      - name: Xcode build (genericki iOS Simulator)
+        run: |
+          xcodebuild \
+            -project apps/ios/SpotLink.xcodeproj \
+            -scheme SpotLink \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
