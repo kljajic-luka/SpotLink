@@ -1,166 +1,314 @@
 # SpotLink
 
-SpotLink is a parking reservation marketplace foundation built with Angular, strict TypeScript, and modular service boundaries. The project focuses on the product foundation needed for customers to find parking, operators to manage parking inventory, and administrators to support marketplace operations.
+SpotLink is a parking reservation marketplace foundation. It provides the shared backend, web, and native iOS base that future SpotLink MVP workflows will build on.
+
+The current repository is intentionally foundation-first: it establishes architecture, contracts, security defaults, persistence, native mobile structure, and verification gates without overbuilding product workflows before the domain is ready.
 
 ![SpotLink foundation dashboard](docs/assets/spotlink-foundation.png)
 
 <img src="docs/assets/spotlink-foundation-mobile.png" alt="SpotLink mobile foundation dashboard" width="320" />
 
-## Status
+## Current State
 
-- Frontend foundation is implemented in `apps/frontend`.
-- Backend foundation is implemented in `apps/backend`.
-- iOS foundation is implemented in `apps/ios`.
-- Production build is passing.
-- Foundation migration notes live in `SPOTLINK_FOUNDATION_MIGRATION.md`.
-- Backend migration notes live in `SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md`.
-- Frontend hardening notes live in `SPOTLINK_FRONTEND_FOUNDATION_HARDENING.md`.
-- iOS foundation notes live in `SPOTLINK_IOS_FOUNDATION_MIGRATION.md`.
-- This repository intentionally tracks source, documentation, lockfiles, and README screenshots while excluding dependencies, build output, and local smoke-test artifacts.
+| Area | Status | Notes |
+| --- | --- | --- |
+| Backend | Foundation implemented | Java 21, Spring Boot 3.5, Maven, Flyway, JPA, Security, Actuator, OpenAPI |
+| Frontend | Foundation hardened | Angular 20, strict TypeScript, foundation services, API contracts, targeted tests |
+| iOS | Native foundation implemented | SwiftUI, Swift Package, Xcode project, app resources, test runner |
+| API contracts | Documented | Mobile contract, JSON fixtures, OpenAPI draft, Swift DTO alignment guide |
+| Product workflows | Not complete | MVP flows such as map search, quote, reserve, and payment confirmation are next |
 
-## Product Scope
+## Product Model
 
-SpotLink generalizes marketplace concepts into a parking domain:
+SpotLink uses parking-specific terminology throughout the codebase:
 
-- `customer`: the person searching for and reserving parking.
-- `operator`: the person or team managing parking locations and resources.
-- `reservation`: a booked parking time window.
-- `location/resource`: the parking inventory customers can reserve.
-- `vehicle`: used only for fit, access, and compatibility checks.
+| Term | Meaning |
+| --- | --- |
+| `customer` | Person searching for and reserving parking |
+| `operator` | Person or team managing parking locations and resources |
+| `reservation` | Booked parking time window |
+| `parking location` | Physical place where parking inventory exists |
+| `parking resource` | Reservable parking inventory at a location |
+| `vehicle` | Customer vehicle used for fit, access, and compatibility checks |
 
-Car-rental workflows such as damage claims, rental agreements, driver-license verification, check-in photos, no-show logic, payout ledgers, and rent-a-car compliance are intentionally out of scope for this foundation.
+Car-rental workflows are intentionally out of scope. The foundation does not include driver-license verification, rental agreements, damage claims, no-show flows, payout ledgers, or rent-a-car compliance logic.
 
-## Tech Stack
+## Architecture
 
-- Angular 20 standalone application architecture.
-- Java 21 and Spring Boot 3.5 backend foundation.
-- Maven, Spring Security, Spring Data JPA, Flyway, Validation, Actuator, and OpenAPI.
-- Strict TypeScript configuration.
-- SCSS design-token layer.
-- RxJS service patterns.
-- Angular HTTP interceptors for credentials, retry, and API error handling.
-- Adapter boundary for payment providers.
+```text
+.
+|-- apps/
+|   |-- backend/                  # Spring Boot API foundation
+|   |-- frontend/                 # Angular web foundation
+|   `-- ios/                      # Native SwiftUI iOS foundation
+|-- docs/
+|   |-- api/                      # Frontend API draft and contract notes
+|   |-- ios-enterprise-readiness/ # iOS product, QA, security, and launch readiness docs
+|   `-- mobile-api-contract/      # Authoritative mobile API contract and fixtures
+|-- SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md
+|-- SPOTLINK_FRONTEND_FOUNDATION_HARDENING.md
+|-- SPOTLINK_FOUNDATION_MIGRATION.md
+|-- SPOTLINK_IOS_FOUNDATION_MIGRATION.md
+|-- .env.example
+|-- package.json
+`-- README.md
+```
 
-## Foundation Modules
+## Backend
 
-The current frontend foundation includes:
+Location: [apps/backend](apps/backend)
 
-- Core application services and utilities.
-- Design system primitives.
-- Networking client, pagination contracts, and interceptors.
-- Auth and role-based access boundaries.
-- User profile and vehicle compatibility services.
-- Location and geospatial service boundaries.
-- Reservation models, services, and view models.
-- Payment adapter and mock payment provider.
-- Support, notification, operator, admin, and analytics services.
-- Shared loading, empty, error, and image components.
+The backend is a production-minded Spring Boot foundation with:
 
-The current backend foundation includes:
+- Cookie/session auth for web clients.
+- Bearer-token mobile auth with refresh-token lifecycle.
+- Role model: `CUSTOMER`, `OPERATOR`, `SUPPORT`, `ADMIN`.
+- `/api` routes plus `/api/v1` mobile compatibility aliases.
+- Flyway migrations for a clean SpotLink schema.
+- Global error handling, validation mapping, request correlation IDs, pagination helpers, CORS, CSRF, health, actuator, and OpenAPI.
+- Foundation modules for users, vehicles, locations, reservations, payments, support, notifications, operator, admin, audit, analytics, and idempotency.
 
-- Cookie/session-ready auth endpoints and SpotLink roles.
-- User profiles, preferences, vehicles, parking locations/resources, reservations, payments, support, notifications, operator, admin, audit, and analytics modules.
-- PostgreSQL-ready Flyway baseline migration.
-- Request correlation, CORS, XSRF, validation, error mapping, idempotency, health, actuator, and OpenAPI foundations.
+Default local persistence uses H2. PostgreSQL is supported through environment configuration.
 
-## Quick Start
+## Frontend
 
-Install dependencies:
+Location: [apps/frontend](apps/frontend)
+
+The frontend is an Angular foundation with:
+
+- Strict TypeScript.
+- Modular `foundation` services and models.
+- Auth, profile, vehicles, locations, reservations, payments, support, notifications, operator, admin, and analytics boundaries.
+- HTTP client contracts, retry handling, credential handling, API error types, and idempotency helpers.
+- Design-system primitives and shared loading, empty, error, and image components.
+- Focused Jasmine/Karma tests for the hardened foundation layer.
+
+## iOS
+
+Location: [apps/ios](apps/ios)
+
+The iOS foundation is native Swift/SwiftUI, not a webview shell.
+
+It includes:
+
+- [SpotLink.xcodeproj](apps/ios/SpotLink.xcodeproj)
+- Swift Package foundation under [apps/ios/SpotLink](apps/ios/SpotLink)
+- Session-aware app shell.
+- Typed services and models for the same foundation domains as the backend/frontend.
+- Keychain-ready session storage.
+- Request correlation, analytics, push notification, location, and API client foundations.
+- App resources: Info.plist, privacy manifest, asset catalog, entitlements placeholder.
+- CLI Swift Testing runner: `SpotLinkTestRunner`.
+
+Open this project in Xcode:
+
+```bash
+open apps/ios/SpotLink.xcodeproj
+```
+
+Full simulator build/test requires Xcode.app and accepted Apple SDK licenses.
+
+## Prerequisites
+
+| Tool | Version / Requirement |
+| --- | --- |
+| Node.js | `^20.19.0`, `^22.12.0`, or `>=24 <25` |
+| npm | `>=10` |
+| Java | 21 |
+| Maven | 3.9+ recommended |
+| Swift | Swift 6 toolchain |
+| Xcode | Required for iOS simulator builds and TestFlight preparation |
+| PostgreSQL | Optional for local development; H2 is the default fallback |
+
+If Apple tooling reports a license error, accept the local license before running iOS commands:
+
+```bash
+sudo xcodebuild -license
+```
+
+## Configuration
+
+Start from the checked-in environment template:
+
+```bash
+cp .env.example .env
+```
+
+Do not commit `.env` or real secrets.
+
+Important backend variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | JDBC URL for H2/PostgreSQL |
+| `DATABASE_USERNAME` | Database username |
+| `DATABASE_PASSWORD` | Database password |
+| `JWT_SECRET` | 32+ byte secret string for mobile bearer auth |
+| `JWT_ACCESS_TOKEN_TTL_MINUTES` | Mobile access-token TTL |
+| `JWT_REFRESH_TOKEN_TTL_DAYS` | Mobile refresh-token TTL |
+| `CORS_ORIGINS` | Allowed web origins |
+| `COOKIE_SECURE` | Secure cookie flag |
+| `MOCK_PAYMENT_ENABLED` | Enables/disables mock payment provider |
+
+Production profiles reject the built-in development JWT secret.
+
+## Installation
+
+Install frontend dependencies:
 
 ```bash
 npm install --prefix apps/frontend
 ```
 
-Run the production build from the repository root:
+Maven and SwiftPM resolve backend/iOS dependencies through their own toolchains.
+
+## Common Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run start` | Start Angular dev server |
+| `npm run start:backend` | Start Spring Boot backend |
+| `npm run build` | Build Angular frontend |
+| `npm run build:backend` | Package backend jar |
+| `npm run build:ios` | Build iOS Swift package |
+| `npm run build:dev` | Build Angular development bundle |
+| `npm run test` | Run Angular test target |
+| `npm run test:backend` | Run backend Maven tests |
+| `npm run test:ios` | Run iOS Swift Testing suite through `SpotLinkTestRunner` |
+
+Backend verify:
 
 ```bash
-npm run build
+mvn -f apps/backend/pom.xml verify
 ```
 
-Run backend tests from the repository root:
+Frontend headless test:
 
 ```bash
-npm run test:backend
+npm --prefix apps/frontend run test -- --watch=false --browsers=ChromeHeadless
 ```
 
-Run the iOS package build and tests from the repository root:
+iOS simulator build, after full Xcode is installed:
 
 ```bash
+xcodebuild build \
+  -project apps/ios/SpotLink.xcodeproj \
+  -scheme SpotLink \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
+```
+
+## API Surface
+
+The backend runs under `/api`.
+
+Examples:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/health` | Service health |
+| `POST /api/auth/login` | Web cookie/session login |
+| `POST /api/auth/token` | Mobile bearer-token login |
+| `POST /api/auth/token/refresh` | Refresh-token rotation |
+| `POST /api/auth/token/revoke` | Refresh-token revocation |
+| `GET /api/auth/me` | Current user profile |
+| `GET /api/locations/search` | Location search foundation |
+| `POST /api/reservations/quote` | Reservation quote foundation |
+| `POST /api/reservations` | Idempotent reservation creation |
+
+Mobile clients may use `/api/v1/...` aliases for the mobile-critical API surface.
+
+Authoritative mobile contract:
+
+- [docs/mobile-api-contract/SPOTLINK_MOBILE_API_CONTRACT.md](docs/mobile-api-contract/SPOTLINK_MOBILE_API_CONTRACT.md)
+- [docs/mobile-api-contract/openapi-mobile-v1.yaml](docs/mobile-api-contract/openapi-mobile-v1.yaml)
+- [docs/mobile-api-contract/SWIFT_DTO_ALIGNMENT_GUIDE.md](docs/mobile-api-contract/SWIFT_DTO_ALIGNMENT_GUIDE.md)
+- [docs/mobile-api-contract/json-fixtures](docs/mobile-api-contract/json-fixtures)
+
+## Verification Baseline
+
+The foundation has been verified with:
+
+- Backend Maven tests and package verification.
+- Frontend Angular headless tests.
+- Frontend production build.
+- iOS Swift package build.
+- iOS Swift Testing runner with real pass/fail output.
+- JSON fixture parsing.
+- OpenAPI YAML parsing.
+- Backend local smoke tests for health, mobile token issuance, refresh rotation, and revoke.
+
+Recommended pre-push check:
+
+```bash
+npm --prefix apps/frontend run test -- --watch=false --browsers=ChromeHeadless
+npm --prefix apps/frontend run build
+mvn -f apps/backend/pom.xml verify
 npm run build:ios
 npm run test:ios
 ```
 
-Start the backend locally:
+## Documentation Index
 
-```bash
-npm run start:backend
-```
+| Document | Purpose |
+| --- | --- |
+| [SPOTLINK_FOUNDATION_MIGRATION.md](SPOTLINK_FOUNDATION_MIGRATION.md) | Original frontend foundation transfer notes |
+| [SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md](SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md) | Backend foundation audit, reuse map, modules, endpoints, migrations |
+| [SPOTLINK_FRONTEND_FOUNDATION_HARDENING.md](SPOTLINK_FRONTEND_FOUNDATION_HARDENING.md) | Frontend hardening changes and verification |
+| [SPOTLINK_IOS_FOUNDATION_MIGRATION.md](SPOTLINK_IOS_FOUNDATION_MIGRATION.md) | Native iOS foundation structure and verification |
+| [docs/mobile-api-contract](docs/mobile-api-contract) | Mobile API contract, fixtures, Swift DTO guide, backend gap report |
+| [docs/ios-enterprise-readiness](docs/ios-enterprise-readiness) | iOS UX, architecture, QA, security, TestFlight, App Store readiness |
+| [docs/api](docs/api) | Frontend API contract draft |
 
-Start the Angular development server:
+## Source Control Standards
 
-```bash
-npm run start
-```
+This repository uses a source-control style suitable for staged platform work:
 
-The app is served by Angular CLI from `apps/frontend`.
+- Keep `main` releasable.
+- Prefer small, reviewable commits grouped by architectural concern.
+- Use Conventional Commit style where possible: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`.
+- Do not mix generated artifacts with source changes.
+- Do not commit local state: `.env`, `target`, `dist`, `.build`, `xcuserdata`, `.xcuserstate`.
+- Keep backend, frontend, iOS, and docs changes separated unless a single product slice requires them together.
+- Run the relevant verification commands before pushing.
 
-## Scripts
+Recommended commit order for future vertical slices:
 
-```bash
-npm run start      # Start the Angular dev server
-npm run start:backend # Start the Spring Boot backend
-npm run build      # Production build
-npm run build:backend # Package the Spring Boot backend
-npm run build:ios  # Build the iOS Swift package
-npm run build:dev  # Development build
-npm run test       # Angular test target
-npm run test:backend # Backend Maven tests
-npm run test:ios   # Execute the iOS Swift Testing runner
-```
+1. API contract update.
+2. Backend implementation and tests.
+3. iOS/frontend DTO and client alignment.
+4. UX implementation.
+5. Documentation and release notes.
 
-`npm run test:ios` is the workspace-standard iOS test command. It uses the package-local `SpotLinkTestRunner` executable so Swift Testing executes correctly on Command Line Tools environments where `swift test` only compiles the bundle.
+## Security Notes
 
-## Project Layout
+- Real secrets belong in environment variables or the deployment secret store.
+- `.env.example` is intentionally safe to commit; `.env` is not.
+- Production startup rejects the development JWT secret.
+- Refresh tokens are stored as hashes, not raw token values.
+- Payment and notification providers are abstraction-ready but mock/simple by default.
+- Privacy manifests, entitlements, and App Store declarations must be finalized before external TestFlight or App Store submission.
 
-```text
-.
-├── apps/
-│   ├── backend/
-│   │   ├── src/main/java/com/spotlink/
-│   │   ├── src/main/resources/db/migration/
-│   │   └── pom.xml
-│   ├── ios/
-│   │   ├── SpotLink/
-│   │   ├── SpotLink.xcodeproj/
-│   │   └── Resources/
-│   └── frontend/
-│       ├── src/app/foundation/
-│       ├── src/app/pages/
-│       ├── angular.json
-│       ├── package.json
-│       └── package-lock.json
-├── docs/assets/
-├── SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md
-├── SPOTLINK_FOUNDATION_MIGRATION.md
-├── package.json
-└── README.md
-```
+## Known Foundation Limits
 
-## Verification
+These are intentional limits of the current phase:
 
-Recent local verification:
+- The iOS app shell is native but not yet a complete customer product flow.
+- Map-grade geospatial search is not fully implemented.
+- Payment lifecycle is mock-provider foundation only.
+- APNs provider integration is not production complete.
+- Account deletion and full privacy workflows are not complete.
+- Full iOS simulator validation requires Xcode.app.
 
-- `mvn verify` in `apps/backend` passed.
-- `GET /api/health` returned HTTP 200 with `status: UP` during backend smoke testing.
-- `npm run build` passed.
-- `npm run test:ios` executes the Swift Testing suite and prints a pass/fail summary on CLT-only environments.
+## Next Engineering Slice
 
-## Roadmap
+Recommended first MVP slice:
 
-- Connect the frontend foundation to a real API backend.
-- Add persistence, authentication provider integration, and authorization enforcement.
-- Build map search, availability, pricing, and reservation workflows.
-- Replace the mock payment adapter with provider-specific implementations.
-- Add operator inventory management screens.
-- Add admin moderation and support workflows.
-- Expand unit, integration, and browser coverage.
+1. Mobile auth session restore and refresh.
+2. Map/list search for parking locations.
+3. Location detail with resource compatibility.
+4. Reservation quote.
+5. Idempotent reservation create.
+6. Mock payment confirmation.
+7. Confirmation and notification foundation.
+
+Use [docs/mobile-api-contract](docs/mobile-api-contract) as the source of truth before expanding native UI.
