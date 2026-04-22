@@ -9,8 +9,13 @@ SpotLink is a parking reservation marketplace foundation built with Angular, str
 ## Status
 
 - Frontend foundation is implemented in `apps/frontend`.
+- Backend foundation is implemented in `apps/backend`.
+- iOS foundation is implemented in `apps/ios`.
 - Production build is passing.
 - Foundation migration notes live in `SPOTLINK_FOUNDATION_MIGRATION.md`.
+- Backend migration notes live in `SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md`.
+- Frontend hardening notes live in `SPOTLINK_FRONTEND_FOUNDATION_HARDENING.md`.
+- iOS foundation notes live in `SPOTLINK_IOS_FOUNDATION_MIGRATION.md`.
 - This repository intentionally tracks source, documentation, lockfiles, and README screenshots while excluding dependencies, build output, and local smoke-test artifacts.
 
 ## Product Scope
@@ -18,7 +23,7 @@ SpotLink is a parking reservation marketplace foundation built with Angular, str
 SpotLink generalizes marketplace concepts into a parking domain:
 
 - `customer`: the person searching for and reserving parking.
-- `operator`: the owner or manager of parking locations and resources.
+- `operator`: the person or team managing parking locations and resources.
 - `reservation`: a booked parking time window.
 - `location/resource`: the parking inventory customers can reserve.
 - `vehicle`: used only for fit, access, and compatibility checks.
@@ -28,6 +33,8 @@ Car-rental workflows such as damage claims, rental agreements, driver-license ve
 ## Tech Stack
 
 - Angular 20 standalone application architecture.
+- Java 21 and Spring Boot 3.5 backend foundation.
+- Maven, Spring Security, Spring Data JPA, Flyway, Validation, Actuator, and OpenAPI.
 - Strict TypeScript configuration.
 - SCSS design-token layer.
 - RxJS service patterns.
@@ -49,6 +56,13 @@ The current frontend foundation includes:
 - Support, notification, operator, admin, and analytics services.
 - Shared loading, empty, error, and image components.
 
+The current backend foundation includes:
+
+- Cookie/session-ready auth endpoints and SpotLink roles.
+- User profiles, preferences, vehicles, parking locations/resources, reservations, payments, support, notifications, operator, admin, audit, and analytics modules.
+- PostgreSQL-ready Flyway baseline migration.
+- Request correlation, CORS, XSRF, validation, error mapping, idempotency, health, actuator, and OpenAPI foundations.
+
 ## Quick Start
 
 Install dependencies:
@@ -63,6 +77,25 @@ Run the production build from the repository root:
 npm run build
 ```
 
+Run backend tests from the repository root:
+
+```bash
+npm run test:backend
+```
+
+Run the iOS package build and tests from the repository root:
+
+```bash
+npm run build:ios
+npm run test:ios
+```
+
+Start the backend locally:
+
+```bash
+npm run start:backend
+```
+
 Start the Angular development server:
 
 ```bash
@@ -75,16 +108,31 @@ The app is served by Angular CLI from `apps/frontend`.
 
 ```bash
 npm run start      # Start the Angular dev server
+npm run start:backend # Start the Spring Boot backend
 npm run build      # Production build
+npm run build:backend # Package the Spring Boot backend
+npm run build:ios  # Build the iOS Swift package
 npm run build:dev  # Development build
 npm run test       # Angular test target
+npm run test:backend # Backend Maven tests
+npm run test:ios   # Execute the iOS Swift Testing runner
 ```
+
+`npm run test:ios` is the workspace-standard iOS test command. It uses the package-local `SpotLinkTestRunner` executable so Swift Testing executes correctly on Command Line Tools environments where `swift test` only compiles the bundle.
 
 ## Project Layout
 
 ```text
 .
 ├── apps/
+│   ├── backend/
+│   │   ├── src/main/java/com/spotlink/
+│   │   ├── src/main/resources/db/migration/
+│   │   └── pom.xml
+│   ├── ios/
+│   │   ├── SpotLink/
+│   │   ├── SpotLink.xcodeproj/
+│   │   └── Resources/
 │   └── frontend/
 │       ├── src/app/foundation/
 │       ├── src/app/pages/
@@ -92,6 +140,7 @@ npm run test       # Angular test target
 │       ├── package.json
 │       └── package-lock.json
 ├── docs/assets/
+├── SPOTLINK_BACKEND_FOUNDATION_MIGRATION.md
 ├── SPOTLINK_FOUNDATION_MIGRATION.md
 ├── package.json
 └── README.md
@@ -99,11 +148,12 @@ npm run test       # Angular test target
 
 ## Verification
 
-Latest local verification:
+Recent local verification:
 
-- `npm install` completed with 0 vulnerabilities.
+- `mvn verify` in `apps/backend` passed.
+- `GET /api/health` returned HTTP 200 with `status: UP` during backend smoke testing.
 - `npm run build` passed.
-- Desktop and mobile Playwright smoke tests completed with no console errors or warnings.
+- `npm run test:ios` executes the Swift Testing suite and prints a pass/fail summary on CLT-only environments.
 
 ## Roadmap
 
