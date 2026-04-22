@@ -21,6 +21,14 @@ jobs:
 
       - name: Pokretanje backend testova
         run: mvn -B -f apps/backend/pom.xml test
+        env:
+          # Testovi koriste @ActiveProfiles("test") i H2 in-memory bazu.
+          # Produkcione DATABASE_* varijable su dostupne ako je potrebno pokrenuti
+          # integracionе testove prema Supabase PostgreSQL instanci.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_DRIVER: ${{ secrets.DATABASE_DRIVER }}
 
   frontend:
     name: Frontend (Node 22 / Angular)
