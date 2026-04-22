@@ -1,0 +1,17 @@
+{
+  "content": [
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "type": "RESERVATION_CONFIRMED",
+      "title": "Reservation confirmed",
+      "body": "Your parking reservation is confirmed.",
+      "relatedEntityId": "66666666-6666-4666-8666-666666666666",
+      "read": false,
+      "createdAt": "2026-04-22T12:31:00Z"
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "page": 0,
+  "size": 20
+}

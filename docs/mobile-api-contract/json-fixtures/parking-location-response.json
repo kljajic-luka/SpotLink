@@ -1,0 +1,22 @@
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "operatorId": "44444444-4444-4444-8444-444444444444",
+  "name": "Central Garage",
+  "address": {
+    "line1": "100 Market Street",
+    "line2": null,
+    "city": "San Francisco",
+    "region": "CA",
+    "postalCode": "94105",
+    "country": "US",
+    "formattedAddress": "100 Market Street, San Francisco, CA 94105"
+  },
+  "coordinates": {
+    "latitude": 37.7937,
+    "longitude": -122.3965
+  },
+  "timezone": "America/Los_Angeles",
+  "accessType": "GATE_CODE",
+  "publicNotes": "Covered garage near transit.",
+  "active": true
+}

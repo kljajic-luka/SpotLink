@@ -1,0 +1,14 @@
+{
+  "firstName": "Casey",
+  "lastName": "Customer",
+  "phone": "+15551234567",
+  "avatarUrl": null,
+  "bio": "Downtown commuter.",
+  "preferences": {
+    "locale": "en-US",
+    "marketingOptIn": false,
+    "reservationAlerts": true,
+    "paymentAlerts": true,
+    "supportAlerts": true
+  }
+}

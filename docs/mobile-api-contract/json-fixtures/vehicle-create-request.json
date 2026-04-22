@@ -1,0 +1,11 @@
+{
+  "type": "CAR",
+  "nickname": "Daily driver",
+  "make": "Toyota",
+  "model": "Prius",
+  "color": "Blue",
+  "licensePlate": "SL-2042",
+  "heightMeters": 1.47,
+  "lengthMeters": 4.54,
+  "evCapable": true
+}

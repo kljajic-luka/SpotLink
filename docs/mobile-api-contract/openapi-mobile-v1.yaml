@@ -1,0 +1,2060 @@
+openapi: 3.1.0
+info:
+  title: SpotLink Mobile API Contract
+  version: 0.1.0-mobile-draft
+  summary: Mobile-facing contract for the current SpotLink backend snapshot.
+  description: >
+    This draft mirrors the current unversioned backend paths under /api. A
+    /api/v1 compatibility surface is now implemented for mobile-critical
+    endpoints with the same controller logic and DTOs.
+x-spotlink-v1-alias: "Every /api path listed here is also exposed as /api/v1 by inserting /v1 after /api, for example /api/auth/token -> /api/v1/auth/token."
+servers:
+  - url: https://api.spotlink.app
+    description: Production candidate
+  - url: https://api-staging.spotlink.app
+    description: Staging candidate
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Profile
+  - name: Vehicles
+  - name: Locations
+  - name: Reservations
+  - name: Payments
+  - name: Support
+  - name: Notifications
+  - name: Operator
+  - name: Admin
+  - name: Analytics
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      security: []
+      summary: Health check
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                up:
+                  value:
+                    status: UP
+                    service: spotlink-backend
+                    timestamp: "2026-04-22T13:00:00Z"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Cookie/session login
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              login:
+                value:
+                  email: casey.customer@example.com
+                  password: CorrectHorse123
+      responses:
+        "200":
+          description: Authenticated cookie session
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/token:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Mobile bearer token login
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenRequest"
+            examples:
+              token:
+                value:
+                  email: casey.customer@example.com
+                  password: CorrectHorse123
+      responses:
+        "200":
+          description: Mobile access token
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenResponse"
+              examples:
+                token:
+                  value:
+                    accessToken: eyJhbGciOiJIUzI1NiJ9.example.signature
+                    refreshToken: sl_refresh_example
+                    tokenType: Bearer
+                    expiresIn: 900
+                    expiresInSeconds: 900
+                    refreshExpiresInSeconds: 2592000
+                    issuedAt: "2026-04-22T13:00:00Z"
+                    expiresAt: "2026-04-22T13:15:00Z"
+                    refreshExpiresAt: "2026-05-22T13:00:00Z"
+                    user:
+                      id: 11111111-1111-4111-8111-111111111111
+                      email: casey.customer@example.com
+                      firstName: Casey
+                      lastName: Customer
+                      phone: "+15551234567"
+                      avatarUrl: null
+                      bio: null
+                      roles: [CUSTOMER]
+                      operatorId: null
+                      registrationStatus: ACTIVE
+                      createdAt: "2026-04-22T12:00:00Z"
+                    roles: [CUSTOMER]
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/token/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Rotate mobile refresh token and issue new access token
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Rotated mobile token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/token/revoke:
+    post:
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+        - {}
+      summary: Revoke mobile refresh token or all current user's refresh tokens
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeTokenRequest"
+      responses:
+        "204":
+          description: Revoked; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout current session
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      responses:
+        "204":
+          description: Logged out; no response body
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current authenticated user
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+              examples:
+                user:
+                  $ref: "#/components/examples/UserProfile"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/register/customer:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register customer
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterCustomerRequest"
+      responses:
+        "201":
+          description: Customer registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/register/operator:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register operator
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterOperatorRequest"
+      responses:
+        "201":
+          description: Operator registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/password/reset-request:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "204":
+          description: Accepted; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/auth/password/reset:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Complete password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletePasswordResetRequest"
+      responses:
+        "204":
+          description: Password reset; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/users/me/profile:
+    get:
+      tags: [Profile]
+      summary: Current user's profile details
+      responses:
+        "200":
+          description: Profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDetails"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [Profile]
+      summary: Update profile and preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDetails"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/users/{userId}/profile:
+    get:
+      tags: [Profile]
+      summary: User profile by ID; foundation currently exposes self only
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDetails"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/vehicles/me:
+    get:
+      tags: [Vehicles]
+      summary: List current user's vehicles
+      responses:
+        "200":
+          description: Vehicle list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleProfile"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/vehicles:
+    post:
+      tags: [Vehicles]
+      summary: Create vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleUpsertRequest"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleProfile"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/vehicles/{vehicleId}:
+    put:
+      tags: [Vehicles]
+      summary: Update vehicle
+      parameters:
+        - $ref: "#/components/parameters/VehicleId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleUpsertRequest"
+      responses:
+        "200":
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleProfile"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Vehicles]
+      summary: Delete vehicle
+      parameters:
+        - $ref: "#/components/parameters/VehicleId"
+      responses:
+        "204":
+          description: Vehicle deleted; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/locations/search:
+    get:
+      tags: [Locations]
+      security: []
+      summary: Search parking locations
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: latitude
+          schema:
+            type: number
+        - in: query
+          name: longitude
+          schema:
+            type: number
+        - in: query
+          name: radiusKm
+          schema:
+            type: number
+            minimum: 0.1
+        - in: query
+          name: resourceTypes
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/ParkingResourceType"
+          style: form
+          explode: true
+        - in: query
+          name: evChargingRequired
+          schema:
+            type: boolean
+        - in: query
+          name: startsAt
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endsAt
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paged location search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationSearchPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/locations/geocode:
+    get:
+      tags: [Locations]
+      security: []
+      summary: Geocode suggestions
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeocodeSuggestion"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/locations/{locationId}:
+    get:
+      tags: [Locations]
+      security: []
+      summary: Parking location detail
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          description: Parking location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLocation"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/locations/{locationId}/resources:
+    get:
+      tags: [Locations]
+      security: []
+      summary: Parking resources for a location
+      parameters:
+        - $ref: "#/components/parameters/LocationId"
+      responses:
+        "200":
+          description: Parking resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingResource"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/reservations/me:
+    get:
+      tags: [Reservations]
+      summary: Current user's reservations
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged reservations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/reservations/{reservationId}:
+    get:
+      tags: [Reservations]
+      summary: Reservation detail
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+      responses:
+        "200":
+          description: Reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/reservations/quote:
+    post:
+      tags: [Reservations]
+      summary: Quote reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationQuoteRequest"
+      responses:
+        "200":
+          description: Reservation quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationQuote"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/reservations:
+    post:
+      tags: [Reservations]
+      summary: Create reservation
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationRequest"
+      responses:
+        "201":
+          description: Reservation created
+          headers:
+            X-Idempotency-Key:
+              $ref: "#/components/headers/IdempotencyKey"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/reservations/{reservationId}/cancel:
+    post:
+      tags: [Reservations]
+      summary: Cancel reservation
+      parameters:
+        - $ref: "#/components/parameters/ReservationId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelReservationRequest"
+      responses:
+        "200":
+          description: Cancelled reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/payments/methods:
+    get:
+      tags: [Payments]
+      summary: Payment methods
+      responses:
+        "200":
+          description: Payment methods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/payments/intents:
+    post:
+      tags: [Payments]
+      summary: Create payment intent
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentIntentRequest"
+      responses:
+        "201":
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentIntent"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/payments/intents/{paymentIntentId}/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirm payment intent
+      parameters:
+        - $ref: "#/components/parameters/PaymentIntentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        "200":
+          description: Provider result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentProviderResult"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/support/tickets:
+    get:
+      tags: [Support]
+      summary: List support tickets
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged support tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicketPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Support]
+      summary: Create support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupportTicketRequest"
+      responses:
+        "201":
+          description: Support ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/support/tickets/{ticketId}/messages:
+    get:
+      tags: [Support]
+      summary: List support messages
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportMessage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Support]
+      summary: Create support message
+      parameters:
+        - $ref: "#/components/parameters/TicketId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupportMessageRequest"
+      responses:
+        "201":
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportMessage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Unread notification count
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadNotificationCount"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark notification read
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "204":
+          description: Marked read; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/notifications/device-tokens:
+    post:
+      tags: [Notifications]
+      summary: Register device token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceTokenRequest"
+      responses:
+        "204":
+          description: Token registered; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/operator/me:
+    get:
+      tags: [Operator]
+      summary: Current operator account
+      responses:
+        "200":
+          description: Operator account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorAccount"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/operator/dashboard/summary:
+    get:
+      tags: [Operator]
+      summary: Operator dashboard summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperatorDashboardSummary"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/operator/resources/health:
+    get:
+      tags: [Operator]
+      summary: Operator resource health
+      responses:
+        "200":
+          description: Resource health list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OperatorResourceHealth"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/admin/dashboard/summary:
+    get:
+      tags: [Admin]
+      summary: Admin dashboard summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboardSummary"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: Admin user list
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Paged users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/admin/audit-events:
+    get:
+      tags: [Admin]
+      summary: Admin audit events
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Paged audit events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAuditEventPage"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /api/analytics/events:
+    post:
+      tags: [Analytics]
+      security: []
+      summary: Ingest analytics event batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyticsBatch"
+      responses:
+        "202":
+          description: Accepted; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Current recommended native iOS auth model.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: Current browser/session auth model.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: Required for cookie/session state-changing browser requests.
+
+  parameters:
+    RequestIdHeader:
+      in: header
+      name: X-Request-Id
+      required: false
+      schema:
+        type: string
+      description: Client-generated correlation ID.
+    IdempotencyKeyHeader:
+      in: header
+      name: X-Idempotency-Key
+      required: false
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 160
+      description: Future-safe idempotency header. Current backend still requires body idempotencyKey.
+    Page:
+      in: query
+      name: page
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      in: query
+      name: size
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    VehicleId:
+      in: path
+      name: vehicleId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    LocationId:
+      in: path
+      name: locationId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReservationId:
+      in: path
+      name: reservationId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentIntentId:
+      in: path
+      name: paymentIntentId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TicketId:
+      in: path
+      name: ticketId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationId:
+      in: path
+      name: notificationId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    RequestId:
+      description: Server correlation ID.
+      schema:
+        type: string
+    IdempotencyKey:
+      description: Idempotency key echoed by future backend versions.
+      schema:
+        type: string
+
+  responses:
+    Error:
+      description: Standard error envelope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          examples:
+            validation:
+              $ref: "#/components/examples/ValidationError"
+
+  examples:
+    UserProfile:
+      value:
+        id: 11111111-1111-4111-8111-111111111111
+        email: casey.customer@example.com
+        firstName: Casey
+        lastName: Customer
+        phone: "+15551234567"
+        avatarUrl: null
+        bio: null
+        roles: [CUSTOMER]
+        operatorId: null
+        registrationStatus: ACTIVE
+        createdAt: "2026-04-22T12:00:00Z"
+    ValidationError:
+      value:
+        status: 400
+        code: VALIDATION_ERROR
+        message: Input validation failed
+        requestId: mob-11111111-1111-4111-8111-111111111111
+        details:
+          email: must be a well-formed email address
+        timestamp: "2026-04-22T13:00:00Z"
+        path: /api/auth/token
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    Instant:
+      type: string
+      format: date-time
+    NullableString:
+      type: [string, "null"]
+    HealthResponse:
+      type: object
+      required: [status, service, timestamp]
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        timestamp:
+          $ref: "#/components/schemas/Instant"
+    ApiError:
+      type: object
+      required: [status, code, message, requestId, timestamp, path]
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: [string, "null"]
+        details:
+          type: [object, "null"]
+          additionalProperties: true
+        timestamp:
+          $ref: "#/components/schemas/Instant"
+        path:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    MobileTokenRequest:
+      $ref: "#/components/schemas/LoginRequest"
+    MobileTokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn, expiresInSeconds, refreshExpiresInSeconds, issuedAt, expiresAt, refreshExpiresAt, user, roles]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+          deprecated: true
+          description: Backward-compatible alias of expiresInSeconds.
+        expiresInSeconds:
+          type: integer
+          format: int64
+        refreshExpiresInSeconds:
+          type: integer
+          format: int64
+        tokenType:
+          type: string
+          const: Bearer
+        issuedAt:
+          $ref: "#/components/schemas/Instant"
+        expiresAt:
+          $ref: "#/components/schemas/Instant"
+        refreshExpiresAt:
+          $ref: "#/components/schemas/Instant"
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserRole"
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+        deviceId:
+          type: [string, "null"]
+          maxLength: 160
+    RevokeTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: [string, "null"]
+        allForCurrentUser:
+          type: [boolean, "null"]
+    RegisterCustomerRequest:
+      type: object
+      required: [firstName, lastName, email, password, acceptsTerms]
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, "null"]
+          maxLength: 50
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        acceptsTerms:
+          type: boolean
+    RegisterOperatorRequest:
+      allOf:
+        - $ref: "#/components/schemas/RegisterCustomerRequest"
+        - type: object
+          required: [operatorType, acceptsOperatorAgreement]
+          properties:
+            companyName:
+              type: [string, "null"]
+              maxLength: 160
+            operatorType:
+              $ref: "#/components/schemas/OperatorType"
+            acceptsOperatorAgreement:
+              type: boolean
+    AuthResponse:
+      type: object
+      required: [authenticated, user, message]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        message:
+          type: string
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    CompletePasswordResetRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+    UserRole:
+      type: string
+      enum: [CUSTOMER, OPERATOR, SUPPORT, ADMIN]
+    RegistrationStatus:
+      type: string
+      enum: [INCOMPLETE, ACTIVE, SUSPENDED, DELETED]
+    OperatorType:
+      type: string
+      enum: [INDIVIDUAL, BUSINESS]
+    UserProfile:
+      type: object
+      required: [id, email, firstName, lastName, roles, registrationStatus, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: [string, "null"]
+        avatarUrl:
+          type: [string, "null"]
+          format: uri
+        bio:
+          type: [string, "null"]
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserRole"
+        operatorId:
+          type: [string, "null"]
+          format: uuid
+        registrationStatus:
+          $ref: "#/components/schemas/RegistrationStatus"
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    UserProfileDetails:
+      allOf:
+        - $ref: "#/components/schemas/UserProfile"
+        - type: object
+          required: [stats, preferences]
+          properties:
+            stats:
+              $ref: "#/components/schemas/ProfileStats"
+            preferences:
+              $ref: "#/components/schemas/UserPreferences"
+    ProfileStats:
+      type: object
+      required: [completedReservations, activeVehicles, savedLocations, supportTickets]
+      properties:
+        completedReservations:
+          type: integer
+          format: int64
+        activeVehicles:
+          type: integer
+          format: int64
+        savedLocations:
+          type: integer
+          format: int64
+        supportTickets:
+          type: integer
+          format: int64
+    UserPreferences:
+      type: object
+      required: [locale, marketingOptIn, reservationAlerts, paymentAlerts, supportAlerts]
+      properties:
+        locale:
+          type: string
+        marketingOptIn:
+          type: boolean
+        reservationAlerts:
+          type: boolean
+        paymentAlerts:
+          type: boolean
+        supportAlerts:
+          type: boolean
+    PartialPreferences:
+      type: object
+      properties:
+        locale:
+          type: string
+          maxLength: 20
+        marketingOptIn:
+          type: boolean
+        reservationAlerts:
+          type: boolean
+        paymentAlerts:
+          type: boolean
+        supportAlerts:
+          type: boolean
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          maxLength: 100
+        lastName:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 50
+        avatarUrl:
+          type: string
+          maxLength: 500
+        bio:
+          type: string
+          maxLength: 1000
+        preferences:
+          $ref: "#/components/schemas/PartialPreferences"
+    VehicleType:
+      type: string
+      enum: [CAR, MOTORCYCLE, VAN, TRUCK, BICYCLE, OTHER]
+    VehicleVerificationStatus:
+      type: string
+      enum: [UNVERIFIED, PENDING, VERIFIED, REJECTED]
+    VehicleProfile:
+      type: object
+      required: [id, userId, type, evCapable, verificationStatus, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        userId:
+          $ref: "#/components/schemas/UUID"
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        nickname:
+          type: [string, "null"]
+        make:
+          type: [string, "null"]
+        model:
+          type: [string, "null"]
+        color:
+          type: [string, "null"]
+        licensePlate:
+          type: [string, "null"]
+        heightMeters:
+          type: [number, "null"]
+        lengthMeters:
+          type: [number, "null"]
+        evCapable:
+          type: boolean
+        verificationStatus:
+          $ref: "#/components/schemas/VehicleVerificationStatus"
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        updatedAt:
+          $ref: "#/components/schemas/Instant"
+    VehicleUpsertRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        nickname:
+          type: [string, "null"]
+          maxLength: 100
+        make:
+          type: [string, "null"]
+          maxLength: 100
+        model:
+          type: [string, "null"]
+          maxLength: 100
+        color:
+          type: [string, "null"]
+          maxLength: 60
+        licensePlate:
+          type: [string, "null"]
+          maxLength: 40
+        heightMeters:
+          type: [number, "null"]
+          minimum: 0.1
+        lengthMeters:
+          type: [number, "null"]
+          minimum: 0.1
+        evCapable:
+          type: [boolean, "null"]
+    Address:
+      type: object
+      required: [line1, city, country]
+      properties:
+        line1:
+          type: string
+        line2:
+          type: [string, "null"]
+        city:
+          type: string
+        region:
+          type: [string, "null"]
+        postalCode:
+          type: [string, "null"]
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+        formattedAddress:
+          type: [string, "null"]
+    GeoCoordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+    ParkingAccessType:
+      type: string
+      enum: [SELF_PARK, VALET, GATE_CODE, APP_UNLOCK, ATTENDANT]
+    ParkingResourceType:
+      type: string
+      enum: [PARKING_SPOT, GARAGE, DRIVEWAY, EV_CHARGER, LOT]
+    VehicleFitRule:
+      type: object
+      properties:
+        maxHeightMeters:
+          type: [number, "null"]
+        maxLengthMeters:
+          type: [number, "null"]
+        allowedVehicleTypes:
+          type: [array, "null"]
+          items:
+            $ref: "#/components/schemas/VehicleType"
+        evOnly:
+          type: [boolean, "null"]
+    ParkingLocation:
+      type: object
+      required: [id, operatorId, name, address, coordinates, timezone, accessType, active]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        operatorId:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        coordinates:
+          $ref: "#/components/schemas/GeoCoordinates"
+        timezone:
+          type: string
+        accessType:
+          $ref: "#/components/schemas/ParkingAccessType"
+        publicNotes:
+          type: [string, "null"]
+        active:
+          type: boolean
+    ParkingResource:
+      type: object
+      required: [id, locationId, type, label, hourlyRateCents, currency, instantReserve, active]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        locationId:
+          $ref: "#/components/schemas/UUID"
+        type:
+          $ref: "#/components/schemas/ParkingResourceType"
+        label:
+          type: string
+        floor:
+          type: [string, "null"]
+        bayNumber:
+          type: [string, "null"]
+        fitRule:
+          anyOf:
+            - $ref: "#/components/schemas/VehicleFitRule"
+            - type: "null"
+        hourlyRateCents:
+          type: integer
+          format: int64
+        dailyRateCents:
+          type: [integer, "null"]
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        instantReserve:
+          type: boolean
+        active:
+          type: boolean
+    LocationSearchResult:
+      type: object
+      required: [location, resources, availableResourceCount]
+      properties:
+        location:
+          $ref: "#/components/schemas/ParkingLocation"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParkingResource"
+        distanceKm:
+          type: [number, "null"]
+        startingPriceCents:
+          type: [integer, "null"]
+          format: int64
+        availableResourceCount:
+          type: integer
+          format: int64
+    GeocodeSuggestion:
+      type: object
+      required: [id, address, coordinates]
+      properties:
+        id:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        coordinates:
+          $ref: "#/components/schemas/GeoCoordinates"
+        accuracyMeters:
+          type: [integer, "null"]
+    ReservationStatus:
+      type: string
+      enum: [DRAFT, PENDING_PAYMENT, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, EXPIRED, DISPUTED]
+    Reservation:
+      type: object
+      required: [id, customerId, operatorId, locationId, resourceId, startsAt, endsAt, timezone, status, totalAmountCents, currency, accessInstructionsVisible, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        customerId:
+          $ref: "#/components/schemas/UUID"
+        operatorId:
+          $ref: "#/components/schemas/UUID"
+        locationId:
+          $ref: "#/components/schemas/UUID"
+        resourceId:
+          $ref: "#/components/schemas/UUID"
+        vehicleId:
+          type: [string, "null"]
+          format: uuid
+        startsAt:
+          $ref: "#/components/schemas/Instant"
+        endsAt:
+          $ref: "#/components/schemas/Instant"
+        timezone:
+          type: string
+        status:
+          $ref: "#/components/schemas/ReservationStatus"
+        totalAmountCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        accessInstructionsVisible:
+          type: boolean
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        updatedAt:
+          $ref: "#/components/schemas/Instant"
+    ReservationQuoteRequest:
+      type: object
+      required: [resourceId, startsAt, endsAt]
+      properties:
+        resourceId:
+          $ref: "#/components/schemas/UUID"
+        vehicleId:
+          type: [string, "null"]
+          format: uuid
+        startsAt:
+          $ref: "#/components/schemas/Instant"
+        endsAt:
+          $ref: "#/components/schemas/Instant"
+        promoCode:
+          type: [string, "null"]
+    ReservationQuote:
+      type: object
+      required: [resourceId, startsAt, endsAt, subtotalCents, feesCents, discountCents, totalAmountCents, currency, expiresAt]
+      properties:
+        resourceId:
+          $ref: "#/components/schemas/UUID"
+        startsAt:
+          $ref: "#/components/schemas/Instant"
+        endsAt:
+          $ref: "#/components/schemas/Instant"
+        subtotalCents:
+          type: integer
+          format: int64
+        feesCents:
+          type: integer
+          format: int64
+        discountCents:
+          type: integer
+          format: int64
+        totalAmountCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        expiresAt:
+          $ref: "#/components/schemas/Instant"
+    CreateReservationRequest:
+      allOf:
+        - $ref: "#/components/schemas/ReservationQuoteRequest"
+        - type: object
+          required: [idempotencyKey]
+          properties:
+            quoteId:
+              type: [string, "null"]
+            paymentMethodId:
+              type: [string, "null"]
+            idempotencyKey:
+              type: string
+              minLength: 8
+              maxLength: 160
+    CancelReservationRequest:
+      type: object
+      properties:
+        reason:
+          type: [string, "null"]
+    PaymentStatus:
+      type: string
+      enum: [REQUIRES_METHOD, REQUIRES_ACTION, AUTHORIZED, CAPTURED, FAILED, REFUNDED, CANCELLED]
+    PaymentMethod:
+      type: object
+      required: [id, brand, last4, default]
+      properties:
+        id:
+          type: string
+        brand:
+          type: [string, "null"]
+        last4:
+          type: [string, "null"]
+        expMonth:
+          type: [integer, "null"]
+        expYear:
+          type: [integer, "null"]
+        default:
+          type: boolean
+    PaymentIntent:
+      type: object
+      required: [id, reservationId, amountCents, currency, status]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        reservationId:
+          $ref: "#/components/schemas/UUID"
+        amountCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        redirectUrl:
+          type: [string, "null"]
+        clientSecret:
+          type: [string, "null"]
+    CreatePaymentIntentRequest:
+      type: object
+      required: [reservationId, idempotencyKey]
+      properties:
+        reservationId:
+          $ref: "#/components/schemas/UUID"
+        paymentMethodId:
+          type: [string, "null"]
+        idempotencyKey:
+          type: string
+          minLength: 8
+          maxLength: 160
+    PaymentProviderResult:
+      type: object
+      required: [status, paymentIntentId]
+      properties:
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        paymentIntentId:
+          $ref: "#/components/schemas/UUID"
+        redirectUrl:
+          type: [string, "null"]
+        message:
+          type: [string, "null"]
+    SupportTicketCategory:
+      type: string
+      enum: [RESERVATION, PAYMENT, LOCATION_ACCESS, SAFETY, ACCOUNT, OTHER]
+    SupportTicketStatus:
+      type: string
+      enum: [OPEN, WAITING_ON_CUSTOMER, WAITING_ON_OPERATOR, RESOLVED]
+    SupportTicket:
+      type: object
+      required: [id, category, status, subject, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        category:
+          $ref: "#/components/schemas/SupportTicketCategory"
+        status:
+          $ref: "#/components/schemas/SupportTicketStatus"
+        subject:
+          type: string
+        reservationId:
+          type: [string, "null"]
+          format: uuid
+        locationId:
+          type: [string, "null"]
+          format: uuid
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        updatedAt:
+          $ref: "#/components/schemas/Instant"
+    SupportMessage:
+      type: object
+      required: [id, ticketId, senderUserId, body, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        ticketId:
+          $ref: "#/components/schemas/UUID"
+        senderUserId:
+          $ref: "#/components/schemas/UUID"
+        senderName:
+          type: [string, "null"]
+        body:
+          type: string
+        attachmentUrl:
+          type: [string, "null"]
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    CreateSupportTicketRequest:
+      type: object
+      required: [category, subject, body]
+      properties:
+        category:
+          $ref: "#/components/schemas/SupportTicketCategory"
+        subject:
+          type: string
+          maxLength: 180
+        body:
+          type: string
+          maxLength: 4000
+        reservationId:
+          type: [string, "null"]
+          format: uuid
+        locationId:
+          type: [string, "null"]
+          format: uuid
+    CreateSupportMessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+          maxLength: 4000
+    NotificationType:
+      type: string
+      enum: [RESERVATION_CONFIRMED, RESERVATION_CANCELLED, PAYMENT_ACTION_REQUIRED, ACCESS_INSTRUCTIONS_READY, SUPPORT_REPLY, OPERATOR_ALERT, SYSTEM]
+    DevicePlatform:
+      type: string
+      enum: [WEB, IOS, ANDROID]
+    NotificationItem:
+      type: object
+      required: [id, type, title, body, read, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        title:
+          type: string
+        body:
+          type: string
+        relatedEntityId:
+          type: [string, "null"]
+          format: uuid
+        read:
+          type: boolean
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    UnreadNotificationCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          format: int64
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [deviceToken, platform]
+      properties:
+        deviceToken:
+          type: string
+          maxLength: 500
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+    OperatorAccount:
+      type: object
+      required: [id, displayName, active, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        displayName:
+          type: string
+        legalName:
+          type: [string, "null"]
+        supportEmail:
+          type: [string, "null"]
+          format: email
+        active:
+          type: boolean
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    OperatorDashboardSummary:
+      type: object
+      required: [activeLocations, activeResources, reservationsToday, occupancyRate, pendingSupportTickets, grossRevenueCents, currency]
+      properties:
+        activeLocations:
+          type: integer
+          format: int64
+        activeResources:
+          type: integer
+          format: int64
+        reservationsToday:
+          type: integer
+          format: int64
+        occupancyRate:
+          type: number
+        pendingSupportTickets:
+          type: integer
+          format: int64
+        grossRevenueCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+    OperatorResourceHealth:
+      type: object
+      required: [resourceId, label, online]
+      properties:
+        resourceId:
+          $ref: "#/components/schemas/UUID"
+        label:
+          type: string
+        online:
+          type: boolean
+        currentReservationId:
+          type: [string, "null"]
+          format: uuid
+        nextReservationAt:
+          type: [string, "null"]
+          format: date-time
+        attentionRequired:
+          type: [string, "null"]
+    AdminDashboardSummary:
+      type: object
+      required: [users, operators, activeReservations, openSupportTickets, grossMarketplaceVolumeCents, currency]
+      properties:
+        users:
+          type: integer
+          format: int64
+        operators:
+          type: integer
+          format: int64
+        activeReservations:
+          type: integer
+          format: int64
+        openSupportTickets:
+          type: integer
+          format: int64
+        grossMarketplaceVolumeCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+    AdminUserSummary:
+      type: object
+      required: [id, email, name, roles, status, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserRole"
+        status:
+          $ref: "#/components/schemas/RegistrationStatus"
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+    AdminAuditEvent:
+      type: object
+      required: [id, actorUserId, action, resourceType, resourceId, createdAt]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        actorUserId:
+          $ref: "#/components/schemas/UUID"
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        metadata:
+          type: [object, "null"]
+          additionalProperties: true
+    AnalyticsEvent:
+      type: object
+      required: [event, sessionId]
+      properties:
+        event:
+          type: string
+          maxLength: 160
+        properties:
+          type: [object, "null"]
+          additionalProperties: true
+        timestamp:
+          type: [string, "null"]
+          format: date-time
+        url:
+          type: [string, "null"]
+          maxLength: 1000
+        sessionId:
+          type: string
+          maxLength: 120
+    AnalyticsBatch:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/AnalyticsEvent"
+
+    LocationSearchPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/LocationSearchResult"
+    ReservationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/Reservation"
+    SupportTicketPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/SupportTicket"
+    NotificationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/NotificationItem"
+    AdminUserPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminUserSummary"
+    AdminAuditEventPage:
+      allOf:
+        - $ref: "#/components/schemas/PageBase"
+        - type: object
+          required: [content]
+          properties:
+            content:
+              type: array
+              items:
+                $ref: "#/components/schemas/AdminAuditEvent"
+    PageBase:
+      type: object
+      required: [content, totalElements, totalPages, page, size]
+      properties:
+        content:
+          type: array
+          items: {}
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer

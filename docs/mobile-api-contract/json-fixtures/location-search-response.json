@@ -1,0 +1,60 @@
+{
+  "content": [
+    {
+      "location": {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "operatorId": "44444444-4444-4444-8444-444444444444",
+        "name": "Central Garage",
+        "address": {
+          "line1": "100 Market Street",
+          "line2": null,
+          "city": "San Francisco",
+          "region": "CA",
+          "postalCode": "94105",
+          "country": "US",
+          "formattedAddress": "100 Market Street, San Francisco, CA 94105"
+        },
+        "coordinates": {
+          "latitude": 37.7937,
+          "longitude": -122.3965
+        },
+        "timezone": "America/Los_Angeles",
+        "accessType": "GATE_CODE",
+        "publicNotes": "Covered garage near transit.",
+        "active": true
+      },
+      "resources": [
+        {
+          "id": "55555555-5555-4555-8555-555555555555",
+          "locationId": "33333333-3333-4333-8333-333333333333",
+          "type": "PARKING_SPOT",
+          "label": "Level 2",
+          "floor": "2",
+          "bayNumber": "A-12",
+          "fitRule": {
+            "maxHeightMeters": 2.1,
+            "maxLengthMeters": 5.2,
+            "allowedVehicleTypes": [
+              "CAR",
+              "MOTORCYCLE",
+              "VAN"
+            ],
+            "evOnly": false
+          },
+          "hourlyRateCents": 450,
+          "dailyRateCents": 2800,
+          "currency": "USD",
+          "instantReserve": true,
+          "active": true
+        }
+      ],
+      "distanceKm": 1.24,
+      "startingPriceCents": 450,
+      "availableResourceCount": 1
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "page": 0,
+  "size": 20
+}

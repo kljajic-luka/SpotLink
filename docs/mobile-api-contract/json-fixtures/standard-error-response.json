@@ -1,0 +1,9 @@
+{
+  "status": 409,
+  "code": "RESOURCE_UNAVAILABLE",
+  "message": "Parking resource is not available for this time window.",
+  "requestId": "mob-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "details": {},
+  "timestamp": "2026-04-22T13:15:00Z",
+  "path": "/api/reservations"
+}

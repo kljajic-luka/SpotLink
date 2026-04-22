@@ -1,0 +1,23 @@
+{
+  "id": "55555555-5555-4555-8555-555555555555",
+  "locationId": "33333333-3333-4333-8333-333333333333",
+  "type": "PARKING_SPOT",
+  "label": "Level 2",
+  "floor": "2",
+  "bayNumber": "A-12",
+  "fitRule": {
+    "maxHeightMeters": 2.1,
+    "maxLengthMeters": 5.2,
+    "allowedVehicleTypes": [
+      "CAR",
+      "MOTORCYCLE",
+      "VAN"
+    ],
+    "evOnly": false
+  },
+  "hourlyRateCents": 450,
+  "dailyRateCents": 2800,
+  "currency": "USD",
+  "instantReserve": true,
+  "active": true
+}

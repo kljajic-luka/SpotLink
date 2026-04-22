@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "event": "app_open",
+      "properties": {
+        "platform": "ios",
+        "appVersion": "0.1.0"
+      },
+      "timestamp": "2026-04-22T13:10:00Z",
+      "url": null,
+      "sessionId": "ios-session-20260422-001"
+    }
+  ]
+}

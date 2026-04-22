@@ -1,0 +1,8 @@
+{
+  "firstName": "Casey",
+  "lastName": "Customer",
+  "email": "casey.customer@example.com",
+  "phone": "+15551234567",
+  "password": "CorrectHorse123",
+  "acceptsTerms": true
+}

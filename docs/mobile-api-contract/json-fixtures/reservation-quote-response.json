@@ -1,0 +1,11 @@
+{
+  "resourceId": "55555555-5555-4555-8555-555555555555",
+  "startsAt": "2026-05-01T16:00:00Z",
+  "endsAt": "2026-05-01T20:00:00Z",
+  "subtotalCents": 1800,
+  "feesCents": 144,
+  "discountCents": 0,
+  "totalAmountCents": 1944,
+  "currency": "USD",
+  "expiresAt": "2026-05-01T15:45:00Z"
+}
