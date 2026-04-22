@@ -1,6 +1,7 @@
 package com.spotlink.location;
 
 import com.spotlink.core.AuditableEntity;
+import com.spotlink.partner.ConfirmationMode;
 import com.spotlink.vehicle.VehicleType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -56,6 +57,13 @@ public class ParkingResource extends AuditableEntity {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Column(nullable = false)
+    private int capacity = 1;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ConfirmationMode confirmationMode = ConfirmationMode.INSTANT;
 
     public UUID getLocationId() {
         return locationId;
@@ -167,6 +175,22 @@ public class ParkingResource extends AuditableEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+
+    public ConfirmationMode getConfirmationMode() {
+        return confirmationMode;
+    }
+
+    public void setConfirmationMode(ConfirmationMode confirmationMode) {
+        this.confirmationMode = confirmationMode;
     }
 
     public boolean allowsVehicleType(VehicleType vehicleType) {

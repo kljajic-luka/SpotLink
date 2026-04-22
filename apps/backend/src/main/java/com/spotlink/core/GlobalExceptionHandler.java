@@ -37,6 +37,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), null, request);
     }
 
+    @ExceptionHandler(ValidationException.class)
+    ResponseEntity<ApiErrorResponse> handleValidationException(ValidationException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), ex.getFields(), request);
+    }
+
     @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
     ResponseEntity<ApiErrorResponse> handleAuthentication(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Invalid email or password", null, request);

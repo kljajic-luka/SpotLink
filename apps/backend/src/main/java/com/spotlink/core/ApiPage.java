@@ -18,4 +18,9 @@ public record ApiPage<T>(
                 page.getNumber(),
                 page.getSize());
     }
+
+    public static <T> ApiPage<T> of(List<T> content, int page, int size, long totalElements) {
+        int totalPages = size == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
+        return new ApiPage<>(content, totalElements, totalPages, page, size);
+    }
 }

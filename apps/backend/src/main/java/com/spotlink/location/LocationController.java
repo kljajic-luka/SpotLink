@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -94,5 +95,42 @@ public class LocationController {
             @PathVariable UUID resourceId,
             @Valid @RequestBody LocationDtos.UpsertResourceRequest request) {
         return locationService.updateResource(locationId, resourceId, request);
+    }
+
+    // Radno vreme lokacije
+
+    @GetMapping({"/locations/{locationId}/availability/hours", "/v1/locations/{locationId}/availability/hours"})
+    List<LocationDtos.LocationHoursDto> getLocationHours(@PathVariable UUID locationId) {
+        return locationService.getLocationHours(locationId);
+    }
+
+    @PutMapping({"/locations/{locationId}/availability/hours", "/v1/locations/{locationId}/availability/hours"})
+    List<LocationDtos.LocationHoursDto> setLocationHours(
+            @PathVariable UUID locationId,
+            @Valid @RequestBody LocationDtos.UpsertLocationHoursRequest request) {
+        return locationService.setLocationHours(locationId, request);
+    }
+
+    // Izuzeci dostupnosti
+
+    @GetMapping({"/locations/{locationId}/availability/exceptions", "/v1/locations/{locationId}/availability/exceptions"})
+    List<LocationDtos.AvailabilityExceptionDto> getAvailabilityExceptions(@PathVariable UUID locationId) {
+        return locationService.getAvailabilityExceptions(locationId);
+    }
+
+    @PostMapping({"/locations/{locationId}/availability/exceptions", "/v1/locations/{locationId}/availability/exceptions"})
+    @ResponseStatus(HttpStatus.CREATED)
+    LocationDtos.AvailabilityExceptionDto createAvailabilityException(
+            @PathVariable UUID locationId,
+            @Valid @RequestBody LocationDtos.CreateAvailabilityExceptionRequest request) {
+        return locationService.createAvailabilityException(locationId, request);
+    }
+
+    @DeleteMapping({"/locations/{locationId}/availability/exceptions/{exceptionId}", "/v1/locations/{locationId}/availability/exceptions/{exceptionId}"})
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteAvailabilityException(
+            @PathVariable UUID locationId,
+            @PathVariable UUID exceptionId) {
+        locationService.deleteAvailabilityException(locationId, exceptionId);
     }
 }

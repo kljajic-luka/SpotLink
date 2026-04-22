@@ -1,12 +1,14 @@
 package com.spotlink.location;
 
 import com.spotlink.vehicle.VehicleDtos;
+import com.spotlink.partner.ConfirmationMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -60,7 +62,9 @@ public final class LocationDtos {
             Long dailyRateCents,
             String currency,
             boolean instantReserve,
-            boolean active
+            boolean active,
+            int capacity,
+            ConfirmationMode confirmationMode
     ) {
     }
 
@@ -102,7 +106,44 @@ public final class LocationDtos {
             @Min(0) Long dailyRateCents,
             @NotBlank @Size(min = 3, max = 3) String currency,
             Boolean instantReserve,
-            Boolean active
+            Boolean active,
+            @Min(1) Integer capacity,
+            ConfirmationMode confirmationMode
+    ) {
+    }
+
+    public record LocationHoursDto(
+            UUID id,
+            String dayOfWeek,
+            String openTime,
+            String closeTime
+    ) {
+    }
+
+    public record UpsertLocationHoursRequest(
+            @NotNull List<@Valid LocationHoursEntry> entries
+    ) {
+    }
+
+    public record LocationHoursEntry(
+            @NotBlank @Size(max = 9) String dayOfWeek,
+            @NotBlank @Pattern(regexp = "\\d{2}:\\d{2}") String openTime,
+            @NotBlank @Pattern(regexp = "\\d{2}:\\d{2}") String closeTime
+    ) {
+    }
+
+    public record AvailabilityExceptionDto(
+            UUID id,
+            String label,
+            Instant startsAt,
+            Instant endsAt
+    ) {
+    }
+
+    public record CreateAvailabilityExceptionRequest(
+            @Size(max = 180) String label,
+            @NotNull Instant startsAt,
+            @NotNull Instant endsAt
     ) {
     }
 

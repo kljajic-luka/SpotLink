@@ -1,5 +1,6 @@
 package com.spotlink.location;
 
+import com.spotlink.partner.ConfirmationMode;
 import com.spotlink.vehicle.VehicleDtos;
 import com.spotlink.vehicle.VehicleType;
 import java.util.Arrays;
@@ -39,7 +40,9 @@ public class LocationMapper {
                 resource.getDailyRateCents(),
                 resource.getCurrency(),
                 resource.isInstantReserve(),
-                resource.isActive());
+                resource.isActive(),
+                resource.getCapacity(),
+                resource.getConfirmationMode());
     }
 
     public LocationDtos.AddressDto toDto(Address address) {

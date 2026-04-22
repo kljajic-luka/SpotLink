@@ -4,6 +4,7 @@ import com.spotlink.core.ConflictException;
 import com.spotlink.core.NotFoundException;
 import com.spotlink.operator.OperatorAccount;
 import com.spotlink.operator.OperatorAccountRepository;
+import com.spotlink.partner.PartnerService;
 import com.spotlink.user.RegistrationStatus;
 import com.spotlink.user.User;
 import com.spotlink.user.UserPreferences;
@@ -36,6 +37,7 @@ public class AuthService {
     private final OperatorAccountRepository operators;
     private final PasswordResetTokenRepository resetTokens;
     private final PasswordEncoder passwordEncoder;
+    private final PartnerService partnerService;
     private final Clock clock;
 
     public AuthService(
@@ -44,12 +46,14 @@ public class AuthService {
             OperatorAccountRepository operators,
             PasswordResetTokenRepository resetTokens,
             PasswordEncoder passwordEncoder,
+            PartnerService partnerService,
             Clock clock) {
         this.users = users;
         this.preferences = preferences;
         this.operators = operators;
         this.resetTokens = resetTokens;
         this.passwordEncoder = passwordEncoder;
+        this.partnerService = partnerService;
         this.clock = clock;
     }
 
@@ -78,7 +82,8 @@ public class AuthService {
                 .orElse(saved.getFirstName() + " " + saved.getLastName()));
         operator.setLegalName(request.companyName());
         operator.setSupportEmail(saved.getEmail());
-        operators.save(operator);
+        OperatorAccount savedOperator = operators.save(operator);
+        partnerService.createDefaultProfile(savedOperator.getId());
         return saved;
     }
 
