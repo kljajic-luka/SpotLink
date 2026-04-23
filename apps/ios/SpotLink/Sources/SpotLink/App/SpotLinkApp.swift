@@ -2,7 +2,7 @@ import SwiftUI
 // Eksplicitni import SPM biblioteke.
 // Xcode app target se zove SpotLink a PRODUCT_MODULE_NAME=SpotLinkApp,
 // pa je ovaj import neophodan da bi kompajler razresio SessionManager,
-// AppEnvironment i RootView koji dolaze iz SPM modula SpotLink.
+// AppEnvironment i RootView koji dolaze iz SPM modula SpotLinkCore.
 import SpotLinkCore
 
 // MARK: - SpotLink App Entry Point
@@ -17,19 +17,30 @@ import SpotLinkCore
 public struct SpotLinkApp: App {
 
     @StateObject private var session = SessionManager.shared
-    private let environment = AppEnvironment.current()
+    @StateObject private var appContainer: SpotLinkAppContainer
+    private let environment: AppEnvironment
 
-    public init() {}
+#if canImport(UIKit)
+    @UIApplicationDelegateAdaptor(SpotLinkAppDelegate.self) private var appDelegate
+#endif
+
+    public init() {
+        let environment = AppEnvironment.current()
+        self.environment = environment
+        _appContainer = StateObject(wrappedValue: SpotLinkAppContainer(environment: environment))
+    }
 
     public var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(session)
+                .environmentObject(appContainer)
+                .environmentObject(appContainer.pushManager)
                 .environment(\.appEnvironment, environment)
                 .task {
                     await session.restoreSession()
+                    await appContainer.pushManager.checkPermissionStatus()
                 }
         }
     }
 }
-

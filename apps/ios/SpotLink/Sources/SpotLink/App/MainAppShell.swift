@@ -10,17 +10,7 @@ public struct MainAppShell: View {
 
     @State private var selectedTab: AppTab = .search
     @EnvironmentObject private var session: SessionManager
-
-    // SearchMapViewModel se inicijalizuje jednom i celi zivotni vek deli sa tabom
-    @StateObject private var searchViewModel = SearchMapViewModel(
-        locationService: LocationService(
-            apiClient: APIClient(
-                baseURL: AppEnvironment.current().apiBaseURL,
-                tokenProvider: SessionManager.shared
-            )
-        ),
-        locationManager: SpotLinkLocationManager.shared
-    )
+    @EnvironmentObject private var appContainer: SpotLinkAppContainer
 
     public init(sessionInfo: SessionInfo) {
         self.sessionInfo = sessionInfo
@@ -30,7 +20,7 @@ public struct MainAppShell: View {
         TabView(selection: $selectedTab) {
             // Pretraga/Mapa
             NavigationStack {
-                SearchMapView(viewModel: searchViewModel)
+                SearchMapView(viewModel: appContainer.searchViewModel)
                     .navigationTitle("Pronadji parking")
             }
             .tabItem {
@@ -41,7 +31,11 @@ public struct MainAppShell: View {
 
             // Rezervacije
             NavigationStack {
-                ReservationsPlaceholderView()
+                ReservationsView(
+                    service: appContainer.reservationService,
+                    locationService: appContainer.locationService,
+                    supportService: appContainer.supportService
+                )
             }
             .tabItem {
                 Label("Rezervacije", systemImage: "calendar")
@@ -51,7 +45,7 @@ public struct MainAppShell: View {
 
             // Vozila
             NavigationStack {
-                VehiclesPlaceholderView()
+                VehiclesView(service: appContainer.vehicleService)
             }
             .tabItem {
                 Label("Vozila", systemImage: "car.fill")
@@ -61,7 +55,7 @@ public struct MainAppShell: View {
 
             // Podrska
             NavigationStack {
-                SupportPlaceholderView()
+                SupportTicketsView(service: appContainer.supportService)
             }
             .tabItem {
                 Label("Podrska", systemImage: "questionmark.circle.fill")
@@ -71,7 +65,7 @@ public struct MainAppShell: View {
 
             // Profil
             NavigationStack {
-                ProfilePlaceholderView()
+                ProfileOverviewView(sessionInfo: sessionInfo)
             }
             .tabItem {
                 Label("Profil", systemImage: "person.circle.fill")
@@ -93,90 +87,67 @@ enum AppTab: String, CaseIterable {
     case profile     = "profile"
 }
 
-// MARK: - Placeholder Views (zamenjuju se pravim feature views-ima)
+struct ProfileOverviewView: View {
+    let sessionInfo: SessionInfo
 
-struct ReservationsPlaceholderView: View {
-    var body: some View {
-        EmptyStateView(
-            icon: "calendar",
-            title: "Nema rezervacija",
-            message: "Rezervacije ce se prikazati ovde nakon prve rezervacije.",
-            actionTitle: "Pronadji parking")
-        .navigationTitle("Rezervacije")
-    }
-}
-
-struct VehiclesPlaceholderView: View {
-    var body: some View {
-        EmptyStateView(
-            icon: "car.fill",
-            title: "Nema vozila",
-            message: "Dodajte vozilo da biste ubrzali rezervaciju.",
-            actionTitle: "Dodaj vozilo")
-        .navigationTitle("Vozila")
-    }
-}
-
-struct SupportPlaceholderView: View {
-    var body: some View {
-        EmptyStateView(
-            icon: "questionmark.circle.fill",
-            title: "Podrska",
-            message: "Ovde mozete kreirati tikete za podrsku.",
-            actionTitle: "Novi tiket")
-        .navigationTitle("Podrska")
-    }
-}
-
-struct ProfilePlaceholderView: View {
     @EnvironmentObject private var session: SessionManager
+    @EnvironmentObject private var appContainer: SpotLinkAppContainer
+    @EnvironmentObject private var pushManager: PushNotificationManager
 
     var body: some View {
         List {
-            if let user = session.state.user {
-                Section {
-                    HStack(spacing: SpotLinkDesign.Spacing.md) {
-                        Circle()
-                            .fill(SpotLinkDesign.Colors.tint)
-                            .frame(width: 56, height: 56)
-                            .overlay {
-                                Text(user.initials)
-                                    .font(.headline)
-                                    .foregroundStyle(.white)
-                            }
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(user.fullName)
-                                .font(SpotLinkDesign.Typography.headline)
-                            Text(user.email)
-                                .font(SpotLinkDesign.Typography.subheadline)
-                                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            Section {
+                HStack(spacing: SpotLinkDesign.Spacing.md) {
+                    Circle()
+                        .fill(SpotLinkDesign.Colors.tint)
+                        .frame(width: 56, height: 56)
+                        .overlay {
+                            Text(sessionInfo.user.initials)
+                                .font(.headline)
+                                .foregroundStyle(.white)
                         }
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(sessionInfo.user.fullName)
+                            .font(SpotLinkDesign.Typography.headline)
+                        Text(sessionInfo.user.email)
+                            .font(SpotLinkDesign.Typography.subheadline)
+                            .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                     }
-                    .padding(.vertical, SpotLinkDesign.Spacing.sm)
+                }
+                .padding(.vertical, SpotLinkDesign.Spacing.sm)
+            }
+
+            Section("Status naloga") {
+                infoRow(title: "Uloge", value: sessionInfo.user.roles.map(\.rawValue).joined(separator: ", "))
+                infoRow(title: "Okruzenje", value: appContainer.environment.displayName)
+                infoRow(title: "Sesija", value: sessionInfo.isExpired ? "Zahteva osvezavanje" : "Aktivna")
+            }
+
+            Section("Obavestenja") {
+                infoRow(title: "Dozvola", value: notificationStatusTitle)
+                if let token = pushManager.deviceToken {
+                    infoRow(title: "Token", value: String(token.prefix(12)) + "...")
+                }
+
+                Button {
+                    Task {
+                        await pushManager.requestPermission()
+                    }
+                } label: {
+                    Label("Omoguci push obavestenja", systemImage: "bell.badge")
                 }
             }
 
             Section("Nalog") {
-                NavigationLink("Podaci o nalogu") {
-                    Text("Podaci o nalogu")
-                        .navigationTitle("Nalog")
-                }
-                NavigationLink("Podesavanja") {
-                    Text("Podesavanja")
-                        .navigationTitle("Podesavanja")
-                }
+                infoRow(title: "Tip korisnika", value: sessionInfo.user.isOperator ? "Partner / operator" : "Kupac")
+                infoRow(title: "Podrska", value: sessionInfo.user.isSupport ? "Ukljucena" : "Standardna korisnicka podrska")
             }
 
             Section {
                 Button(role: .destructive) {
                     Task {
-                        let authService = AuthService(
-                            apiClient: APIClient(
-                                baseURL: AppEnvironment.current().apiBaseURL,
-                                tokenProvider: session),
-                            session: session)
-                        await authService.logout()
+                        await appContainer.authService.logout()
                     }
                 } label: {
                     Label("Odjava", systemImage: "rectangle.portrait.and.arrow.right")
@@ -185,5 +156,29 @@ struct ProfilePlaceholderView: View {
         }
         .navigationTitle("Profil")
         .spotlinkListStyle()
+    }
+
+    private var notificationStatusTitle: String {
+        switch pushManager.permissionStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "Dozvoljeno"
+        case .denied:
+            return "Odbijeno"
+        case .notDetermined:
+            return "Nije odluceno"
+        @unknown default:
+            return "Nepoznato"
+        }
+    }
+
+    @ViewBuilder
+    private func infoRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
+                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }

@@ -70,6 +70,13 @@ public enum ParkingAccessType: String, Decodable, CaseIterable, Sendable {
 public enum ConfirmationMode: String, Decodable, CaseIterable, Sendable {
     case instant = "INSTANT"
     case manual  = "MANUAL"
+
+    public var displayName: String {
+        switch self {
+        case .instant: return "Instant potvrda"
+        case .manual:  return "Rucna potvrda"
+        }
+    }
 }
 
 // MARK: - Parking Resource
@@ -98,9 +105,16 @@ public struct ParkingResource: Decodable, Identifiable, Sendable {
         guard let daily = dailyRateCents else { return nil }
         return formatCents(daily, currency: currency) + "/dan"
     }
+
+    public var capacitySummary: String {
+        if capacity == 1 {
+            return "1 garantovano mesto"
+        }
+        return "\(capacity) mesta na raspolaganju"
+    }
 }
 
-private func formatCents(_ cents: Int, currency: String) -> String {
+func formatCents(_ cents: Int, currency: String) -> String {
     let amount = Double(cents) / 100.0
     let formatter = NumberFormatter()
     formatter.numberStyle = .currency
@@ -193,9 +207,14 @@ public struct LocationSearchResult: Decodable, Identifiable, Sendable {
     }
 }
 
-public struct GeocodeSuggestion: Decodable, Sendable {
-    public let displayName: String
-    public let latitude: Double
-    public let longitude: Double
-    public let placeId: String?
+public struct GeocodeSuggestion: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let address: Address
+    public let coordinates: GeoCoordinates
+    public let accuracyMeters: Int?
+
+    public var displayName: String { address.displayAddress }
+    public var latitude: Double { coordinates.latitude }
+    public var longitude: Double { coordinates.longitude }
+    public var placeId: String? { id }
 }

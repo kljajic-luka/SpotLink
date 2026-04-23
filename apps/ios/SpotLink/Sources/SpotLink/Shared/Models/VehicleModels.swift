@@ -26,21 +26,19 @@ public struct VehicleProfile: Decodable, Identifiable, Sendable {
 
 public enum VehicleType: String, Codable, CaseIterable, Sendable {
     case car         = "CAR"
-    case suv         = "SUV"
-    case truck       = "TRUCK"
     case motorcycle  = "MOTORCYCLE"
     case van         = "VAN"
-    case rv          = "RV"
+    case truck       = "TRUCK"
+    case bicycle     = "BICYCLE"
     case other       = "OTHER"
 
     public var displayName: String {
         switch self {
         case .car:        return "Automobil"
-        case .suv:        return "SUV"
-        case .truck:      return "Kamion"
         case .motorcycle: return "Motocikl"
         case .van:        return "Kombi"
-        case .rv:         return "Kamper"
+        case .truck:      return "Kamion"
+        case .bicycle:    return "Bicikl"
         case .other:      return "Ostalo"
         }
     }
@@ -48,11 +46,10 @@ public enum VehicleType: String, Codable, CaseIterable, Sendable {
     public var systemIcon: String {
         switch self {
         case .car:        return "car.fill"
-        case .suv:        return "car.fill"
-        case .truck:      return "truck.box.fill"
         case .motorcycle: return "bicycle"
         case .van:        return "bus.fill"
-        case .rv:         return "car.rear.road.lane"
+        case .truck:      return "truck.box.fill"
+        case .bicycle:    return "bicycle.circle.fill"
         case .other:      return "car.circle"
         }
     }

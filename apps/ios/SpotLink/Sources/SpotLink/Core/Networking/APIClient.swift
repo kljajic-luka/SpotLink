@@ -26,14 +26,22 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let decoder: JSONDecoder
     private let tokenProvider: TokenProvider
 
-    public init(baseURL: URL, tokenProvider: TokenProvider) {
-        self.baseURL = baseURL
-        self.tokenProvider = tokenProvider
-
+    public convenience init(baseURL: URL, tokenProvider: TokenProvider) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
-        self.session = URLSession(configuration: config)
+        self.init(
+            baseURL: baseURL,
+            tokenProvider: tokenProvider,
+            session: URLSession(configuration: config)
+        )
+    }
+
+    init(baseURL: URL, tokenProvider: TokenProvider, session: URLSession) {
+        self.baseURL = baseURL
+        self.tokenProvider = tokenProvider
+
+        self.session = session
 
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
@@ -84,7 +92,7 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
             components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
         }
         guard let url = components.url else {
-            throw APIError.unknown(0, "Neispravna URL putanja: \(path)")
+            throw APIError.unknown(0, APIErrorContext(message: "Neispravna URL putanja: \(path)"))
         }
 
         var request = URLRequest(url: url)
@@ -116,18 +124,17 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.unknown(0, "Neocekivan tip odgovora")
-        }
-
-        if httpResponse.statusCode == 204 || data.isEmpty {
-            // No content - create the typed empty response when callers requested one.
-            if T.self == EmptyResponse.self {
-                return EmptyResponse() as! T
-            }
-            throw APIError.decodingFailed("Ocekivao se sadrzaj ali je odgovor bio prazan")
+            throw APIError.unknown(0, APIErrorContext(message: "Neocekivan tip odgovora"))
         }
 
         if (200..<300).contains(httpResponse.statusCode) {
+            if allowsEmptySuccessResponse(data: data, statusCode: httpResponse.statusCode) {
+                if T.self == EmptyResponse.self {
+                    return EmptyResponse() as! T
+                }
+                throw APIError.decodingFailed("Ocekivao se sadrzaj ali je odgovor bio prazan")
+            }
+
             do {
                 return try decoder.decode(T.self, from: data)
             } catch {
@@ -137,7 +144,12 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
 
         // Greska – pokusaj parsirati APIErrorEnvelope
         let errorEnvelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
-        let message = errorEnvelope?.message ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+        let context = APIErrorContext(
+            message: errorEnvelope?.message ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+            code: errorEnvelope?.code,
+            requestId: errorEnvelope?.requestId ?? httpResponse.value(forHTTPHeaderField: "X-Request-Id"),
+            details: errorEnvelope?.details ?? [:]
+        )
 
         switch httpResponse.statusCode {
         case 401:
@@ -145,17 +157,23 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
         case 403:
             throw APIError.forbidden
         case 404:
-            throw APIError.notFound(message)
+            throw APIError.notFound(context)
         case 409:
-            throw APIError.conflict(message)
+            throw APIError.conflict(context)
         case 422:
-            let details = errorEnvelope?.details ?? [:]
-            throw APIError.validation(details)
+            throw APIError.validation(context)
         case 500...599:
-            throw APIError.serverError(httpResponse.statusCode, message)
+            throw APIError.serverError(httpResponse.statusCode, context)
         default:
-            throw APIError.unknown(httpResponse.statusCode, message)
+            throw APIError.unknown(httpResponse.statusCode, context)
         }
+    }
+
+    private func allowsEmptySuccessResponse(data: Data, statusCode: Int) -> Bool {
+        guard statusCode == 202 || statusCode == 204 else {
+            return false
+        }
+        return data.isEmpty || data.trimmingWhitespaceAndNewlines.isEmpty
     }
 }
 
@@ -173,4 +191,11 @@ private struct EmptyBody: Encodable {}
 
 public struct EmptyResponse: Decodable, Sendable {
     public init() {}
+}
+
+private extension Data {
+    var trimmingWhitespaceAndNewlines: Data {
+        guard let string = String(data: self, encoding: .utf8) else { return self }
+        return Data(string.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+    }
 }

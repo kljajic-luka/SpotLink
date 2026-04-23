@@ -3,44 +3,43 @@ import Foundation
 // MARK: - Support Ticket
 
 public enum TicketStatus: String, Decodable, CaseIterable, Sendable {
-    case open       = "OPEN"
-    case inProgress = "IN_PROGRESS"
-    case resolved   = "RESOLVED"
-    case closed     = "CLOSED"
+    case open              = "OPEN"
+    case waitingOnCustomer = "WAITING_ON_CUSTOMER"
+    case waitingOnOperator = "WAITING_ON_OPERATOR"
+    case resolved          = "RESOLVED"
 
     public var displayName: String {
         switch self {
-        case .open:       return "Otvoreno"
-        case .inProgress: return "U toku"
-        case .resolved:   return "Reseno"
-        case .closed:     return "Zatvoreno"
+        case .open:              return "Otvoreno"
+        case .waitingOnCustomer: return "Ceka vas odgovor"
+        case .waitingOnOperator: return "Ceka partnera"
+        case .resolved:          return "Reseno"
         }
     }
 }
 
 public enum TicketCategory: String, Codable, CaseIterable, Sendable {
-    case reservationIssue   = "RESERVATION_ISSUE"
-    case paymentIssue       = "PAYMENT_ISSUE"
-    case accessIssue        = "ACCESS_ISSUE"
-    case accountIssue       = "ACCOUNT_ISSUE"
-    case generalInquiry     = "GENERAL_INQUIRY"
-    case other              = "OTHER"
+    case reservation   = "RESERVATION"
+    case payment       = "PAYMENT"
+    case locationAccess = "LOCATION_ACCESS"
+    case safety        = "SAFETY"
+    case account       = "ACCOUNT"
+    case other         = "OTHER"
 
     public var displayName: String {
         switch self {
-        case .reservationIssue: return "Problem sa rezervacijom"
-        case .paymentIssue:     return "Problem sa placan­jem"
-        case .accessIssue:      return "Problem sa pristupom"
-        case .accountIssue:     return "Problem sa nalogom"
-        case .generalInquiry:   return "Opste pitanje"
-        case .other:            return "Ostalo"
+        case .reservation:    return "Rezervacija"
+        case .payment:        return "Placanje"
+        case .locationAccess: return "Ulaz i pristup"
+        case .safety:         return "Bezbednost"
+        case .account:        return "Nalog"
+        case .other:          return "Ostalo"
         }
     }
 }
 
 public struct SupportTicket: Decodable, Identifiable, Sendable {
     public let id: String
-    public let requesterUserId: String
     public let category: TicketCategory
     public let status: TicketStatus
     public let subject: String

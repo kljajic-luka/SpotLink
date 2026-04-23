@@ -69,10 +69,14 @@ public struct CreatePaymentIntentRequest: Encodable, Sendable {
     public let paymentMethodId: String?
     public let idempotencyKey: String
 
-    public init(reservationId: String, paymentMethodId: String? = nil) {
+    public init(
+        reservationId: String,
+        paymentMethodId: String? = nil,
+        idempotencyKey: String = IdempotencyKey.generate(prefix: "pay")
+    ) {
         self.reservationId = reservationId
         self.paymentMethodId = paymentMethodId
-        self.idempotencyKey = IdempotencyKey.generate(prefix: "pay")
+        self.idempotencyKey = idempotencyKey
     }
 }
 

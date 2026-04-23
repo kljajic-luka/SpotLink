@@ -73,4 +73,3 @@ final class LaunchTests: XCTestCase {
         XCTAssertNil(unauthenticatedState.sessionInfo)
     }
 }
-

@@ -1,6 +1,7 @@
 #if canImport(MapboxMaps)
 import MapboxMaps
-#else
+#endif
+#if canImport(MapKit)
 import MapKit
 #endif
 import SwiftUI
@@ -12,13 +13,13 @@ import SwiftUI
 /// Podrazumevani centar – Beograd (44.8125, 20.4612) kada lokacija nije dostupna.
 public struct SearchMapView: View {
 
-    @StateObject private var viewModel: SearchMapViewModel
-    @EnvironmentObject private var locationManager: SpotLinkLocationManager
+    @ObservedObject private var viewModel: SearchMapViewModel
+    @EnvironmentObject private var appContainer: SpotLinkAppContainer
 
     @State private var showResultsList = false
 
     public init(viewModel: SearchMapViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+        _viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     public var body: some View {
@@ -52,8 +53,14 @@ public struct SearchMapView: View {
             Text("Omogucite pristup lokaciji u Podesavanjima da biste koristili pretragu u blizini.")
         }
         .sheet(item: $viewModel.selectedResult) { result in
-            LocationPreviewSheet(result: result)
-                .presentationDetents([.medium])
+            NavigationStack {
+                LocationPreviewSheet(
+                    result: result,
+                    searchStartsAt: viewModel.searchStartsAt,
+                    searchEndsAt: viewModel.searchEndsAt
+                )
+            }
+            .presentationDetents([.medium, .large])
         }
         .onAppear {
             viewModel.searchWithCurrentCenter()
@@ -63,11 +70,18 @@ public struct SearchMapView: View {
     // MARK: - Mapa
 
     private var mapLayer: some View {
-        #if canImport(MapboxMaps)
-        MapboxMapLayer(viewModel: viewModel)
-        #else
-        MapKitMapLayer(viewModel: viewModel)
-        #endif
+        Group {
+            switch appContainer.mapProvider {
+            case .mapbox:
+                #if canImport(MapboxMaps)
+                MapboxMapLayer(viewModel: viewModel)
+                #else
+                MapKitMapLayer(viewModel: viewModel)
+                #endif
+            case .mapKitFallback:
+                MapKitMapLayer(viewModel: viewModel)
+            }
+        }
     }
 
     // MARK: - Pretraga
@@ -319,7 +333,9 @@ private struct MapboxMapLayer: View {
         }
     }
 }
-#else
+#endif
+
+#if canImport(MapKit)
 private struct MapKitMapLayer: View {
     @ObservedObject var viewModel: SearchMapViewModel
     @State private var mapPosition: MapCameraPosition = .region(MKCoordinateRegion(
@@ -493,6 +509,8 @@ private struct TimeWindowControl: View {
 
 private struct LocationPreviewSheet: View {
     let result: LocationSearchResult
+    let searchStartsAt: Date
+    let searchEndsAt: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.md) {
@@ -524,10 +542,38 @@ private struct LocationPreviewSheet: View {
                     icon: result.location.accessType.systemIcon,
                     label: result.location.accessType.displayName
                 )
+                if let resource = result.resources.first {
+                    infoChip(icon: "checkmark.seal", label: resource.confirmationMode.displayName)
+                }
                 infoChip(
                     icon: "car.2",
                     label: "\(result.availableResourceCount) dostupno"
                 )
+            }
+
+            if let resource = result.resources.first {
+                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                    Text("Poverenje i pristup")
+                        .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                        .textCase(.uppercase)
+                    Text("Garantovana rezervacija kroz partner inventar. \(resource.capacitySummary).")
+                        .font(SpotLinkDesign.Typography.callout)
+                    Text("Kasnjenje do 15 minuta je tolerisano kao privremeni placeholder dok partner pravila ne budu finalizovana.")
+                        .font(SpotLinkDesign.Typography.footnote)
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                }
+            }
+
+            if let notes = result.location.publicNotes, !notes.isBlank {
+                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                    Text("Napomena lokacije")
+                        .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                        .textCase(.uppercase)
+                    Text(notes)
+                        .font(SpotLinkDesign.Typography.callout)
+                }
             }
 
             // Lista resursa
@@ -546,8 +592,12 @@ private struct LocationPreviewSheet: View {
             }
 
             // Dugme za rezervaciju
-            Button {
-                // Navigacija na rezervaciju – implementirati u roditeljskom view-u
+            NavigationLink {
+                ReservationBookingFlowView(
+                    result: result,
+                    initialStartsAt: searchStartsAt,
+                    initialEndsAt: searchEndsAt
+                )
             } label: {
                 Text("Rezervisi")
                     .font(SpotLinkDesign.Typography.headline)
@@ -557,6 +607,8 @@ private struct LocationPreviewSheet: View {
             .tint(SpotLinkDesign.Colors.brand)
         }
         .padding(SpotLinkDesign.Spacing.lg)
+        .navigationTitle("Detalji lokacije")
+        .spotlinkInlineNavigationTitle()
     }
 
     private func infoChip(icon: String, label: String) -> some View {

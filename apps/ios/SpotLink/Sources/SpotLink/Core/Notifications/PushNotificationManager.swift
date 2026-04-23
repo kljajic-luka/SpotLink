@@ -15,11 +15,15 @@ public final class PushNotificationManager: NSObject, ObservableObject {
     @Published public private(set) var permissionStatus: UNAuthorizationStatus = .notDetermined
     @Published public private(set) var deviceToken: String?
 
-    private let notificationService: NotificationService?
+    private var notificationService: NotificationService?
 
     public init(notificationService: NotificationService? = nil) {
         self.notificationService = notificationService
         super.init()
+    }
+
+    public func configure(notificationService: NotificationService) {
+        self.notificationService = notificationService
     }
 
     // MARK: - Permission
