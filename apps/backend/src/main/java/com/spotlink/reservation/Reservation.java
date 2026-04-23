@@ -50,6 +50,9 @@ public class Reservation extends AuditableEntity {
     @Column(nullable = false)
     private boolean accessInstructionsVisible;
 
+    @Column
+    private Instant paymentExpiresAt;
+
     @Column(length = 160)
     private String idempotencyKey;
 
@@ -147,6 +150,14 @@ public class Reservation extends AuditableEntity {
 
     public void setAccessInstructionsVisible(boolean accessInstructionsVisible) {
         this.accessInstructionsVisible = accessInstructionsVisible;
+    }
+
+    public Instant getPaymentExpiresAt() {
+        return paymentExpiresAt;
+    }
+
+    public void setPaymentExpiresAt(Instant paymentExpiresAt) {
+        this.paymentExpiresAt = paymentExpiresAt;
     }
 
     public String getIdempotencyKey() {

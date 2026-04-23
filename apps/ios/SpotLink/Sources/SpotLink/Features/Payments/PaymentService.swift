@@ -17,7 +17,7 @@ public final class PaymentService: Sendable {
         try await apiClient.post("/payments/intents", body: request)
     }
 
-    public func confirmIntent(_ intentId: String) async throws -> PaymentIntent {
+    public func confirmIntent(_ intentId: String) async throws -> PaymentProviderResult {
         try await apiClient.post("/payments/intents/\(intentId)/confirm", body: EmptyPayload())
     }
 }

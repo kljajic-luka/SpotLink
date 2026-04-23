@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SpotLinkCore
 
@@ -68,3 +69,40 @@ struct RegisterCustomerRequestTests {
     }
 }
 
+@Suite("MobileTokenResponse – Refresh token")
+struct MobileTokenResponseTests {
+
+    @Test("backend token response decodes refresh lifecycle fields")
+    func refreshFieldsDecode() throws {
+        let json = """
+        {
+          "accessToken": "access",
+          "refreshToken": "refresh",
+          "tokenType": "Bearer",
+          "expiresIn": 900,
+          "expiresInSeconds": 900,
+          "refreshExpiresInSeconds": 2592000,
+          "issuedAt": "2026-04-23T12:00:00Z",
+          "expiresAt": "2026-04-23T12:15:00Z",
+          "refreshExpiresAt": "2026-05-23T12:00:00Z",
+          "user": {
+            "id": "u1",
+            "email": "marko@example.com",
+            "firstName": "Marko",
+            "lastName": "Markovic",
+            "roles": ["CUSTOMER"]
+          },
+          "roles": ["CUSTOMER"]
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode(MobileTokenResponse.self, from: Data(json.utf8))
+
+        #expect(response.accessToken == "access")
+        #expect(response.refreshToken == "refresh")
+        #expect(response.refreshExpiresInSeconds == 2_592_000)
+        #expect(response.user.isCustomer)
+    }
+}

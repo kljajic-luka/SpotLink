@@ -24,6 +24,7 @@ public final class ReservationDtos {
             long totalAmountCents,
             String currency,
             boolean accessInstructionsVisible,
+            Instant paymentExpiresAt,
             Instant createdAt,
             Instant updatedAt
     ) {

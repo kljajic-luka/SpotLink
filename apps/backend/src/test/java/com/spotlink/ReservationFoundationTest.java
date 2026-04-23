@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spotlink.reservation.Reservation;
+import com.spotlink.reservation.ReservationRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -30,6 +32,9 @@ class ReservationFoundationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private ReservationRepository reservationRepository;
 
     @Test
     void reservationCreationIsIdempotentAndBlocksOverlaps() throws Exception {
@@ -58,6 +63,7 @@ class ReservationFoundationTest {
         MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, idempotencyKey)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.paymentExpiresAt").exists())
                 .andReturn();
         JsonNode first = objectMapper.readTree(created.getResponse().getContentAsString());
 
@@ -71,6 +77,14 @@ class ReservationFoundationTest {
         createReservation(customerSession, resourceId, startsAt.plus(30, ChronoUnit.MINUTES), endsAt.plus(30, ChronoUnit.MINUTES), "sl_test_" + UUID.randomUUID())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RESOURCE_UNAVAILABLE"));
+
+        Reservation staleHold = reservationRepository.findById(UUID.fromString(first.get("id").asText())).orElseThrow();
+        staleHold.setPaymentExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
+        reservationRepository.saveAndFlush(staleHold);
+
+        createReservation(customerSession, resourceId, startsAt.plus(30, ChronoUnit.MINUTES), endsAt.plus(30, ChronoUnit.MINUTES), "sl_test_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
     }
 
     private org.springframework.test.web.servlet.ResultActions createReservation(

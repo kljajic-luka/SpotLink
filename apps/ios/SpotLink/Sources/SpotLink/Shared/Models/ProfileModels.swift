@@ -24,7 +24,10 @@ public struct UserProfileDetails: Decodable, Sendable {
 public struct ProfileStats: Decodable, Sendable {
     public let completedReservations: Int
     public let activeVehicles: Int
-    public let openSupportTickets: Int
+    public let savedLocations: Int
+    public let supportTickets: Int
+
+    public var openSupportTickets: Int { supportTickets }
 }
 
 public struct UserPreferences: Decodable, Sendable {

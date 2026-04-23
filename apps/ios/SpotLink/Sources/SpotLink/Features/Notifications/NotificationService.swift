@@ -19,15 +19,15 @@ public final class NotificationService: Sendable {
     }
 
     public func markRead(_ notificationId: String) async throws {
-        try await apiClient.delete("/notifications/\(notificationId)/read")
+        let _: EmptyResponse = try await apiClient.post("/notifications/\(notificationId)/read", body: EmptyPayload())
     }
 
     /// Registruje APNs device token na backendu.
     public func registerDeviceToken(_ token: String) async throws {
-        let _: DeviceTokenResponse = try await apiClient.post(
+        let _: EmptyResponse = try await apiClient.post(
             "/notifications/device-tokens",
             body: RegisterDeviceTokenRequest(deviceToken: token))
     }
 }
 
-private struct DeviceTokenResponse: Decodable {}
+private struct EmptyPayload: Encodable {}

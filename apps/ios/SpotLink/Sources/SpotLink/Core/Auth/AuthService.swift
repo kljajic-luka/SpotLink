@@ -43,13 +43,13 @@ public final class AuthService: ObservableObject {
     // MARK: - Password Reset
 
     public func requestPasswordReset(email: String) async throws {
-        let _: NoContentResponse = try await apiClient.post(
+        let _: EmptyResponse = try await apiClient.post(
             "/auth/password/reset-request",
             body: PasswordResetRequest(email: email))
     }
 
     public func completePasswordReset(token: String, newPassword: String) async throws {
-        let _: NoContentResponse = try await apiClient.post(
+        let _: EmptyResponse = try await apiClient.post(
             "/auth/password/reset",
             body: CompletePasswordResetRequest(token: token, newPassword: newPassword))
     }
@@ -57,7 +57,26 @@ public final class AuthService: ObservableObject {
     // MARK: - Logout
 
     public func logout() async {
+        if let refreshToken = session.currentRefreshToken() {
+            do {
+                let _: EmptyResponse = try await apiClient.post(
+                    "/auth/token/revoke",
+                    body: RevokeTokenRequest(refreshToken: refreshToken))
+            } catch {
+                // Local sign-out should still proceed if server revocation cannot complete.
+            }
+        }
         session.signOut()
+    }
+
+    public func refreshSession() async throws {
+        guard let refreshToken = session.currentRefreshToken() else {
+            throw APIError.unauthorized
+        }
+        let tokenResponse: MobileTokenResponse = try await apiClient.post(
+            "/auth/token/refresh",
+            body: RefreshTokenRequest(refreshToken: refreshToken))
+        session.establish(tokenResponse)
     }
 
     // MARK: - Session Restore
@@ -73,5 +92,3 @@ private struct AuthResponseEnvelope: Decodable {
     let authenticated: Bool
     let message: String?
 }
-
-private struct NoContentResponse: Decodable {}

@@ -10,7 +10,9 @@ import com.spotlink.reservation.ReservationStatus;
 import com.spotlink.security.CurrentUserService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -31,8 +33,7 @@ public class LocationService {
 
     private static final double DEFAULT_RADIUS_KM = 10.0;
 
-    private static final Collection<ReservationStatus> BLOCKING_STATUSES = List.of(
-            ReservationStatus.PENDING_PAYMENT,
+    private static final Collection<ReservationStatus> CONFIRMED_BLOCKING_STATUSES = List.of(
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED);
@@ -45,6 +46,7 @@ public class LocationService {
     private final ReservationRepository reservations;
     private final CurrentUserService currentUser;
     private final LocationMapper mapper;
+    private final Clock clock;
 
     public LocationService(
             ParkingLocationRepository locations,
@@ -54,7 +56,8 @@ public class LocationService {
             AvailabilityExceptionRepository availabilityExceptions,
             ReservationRepository reservations,
             CurrentUserService currentUser,
-            LocationMapper mapper) {
+            LocationMapper mapper,
+            Clock clock) {
         this.locations = locations;
         this.resources = resources;
         this.operators = operators;
@@ -63,6 +66,7 @@ public class LocationService {
         this.reservations = reservations;
         this.currentUser = currentUser;
         this.mapper = mapper;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -181,7 +185,12 @@ public class LocationService {
 
     private long availableCapacity(ParkingResource resource, LocationDtos.SearchFilters filters) {
         long overlappingReservations = reservations.countOverlaps(
-                resource.getId(), filters.startsAt(), filters.endsAt(), BLOCKING_STATUSES);
+                resource.getId(),
+                filters.startsAt(),
+                filters.endsAt(),
+                CONFIRMED_BLOCKING_STATUSES,
+                ReservationStatus.PENDING_PAYMENT,
+                Instant.now(clock));
         return Math.max(0, resource.getCapacity() - overlappingReservations);
     }
 
@@ -272,6 +281,11 @@ public class LocationService {
 
     public ParkingResource requireResource(UUID resourceId) {
         return resources.findById(resourceId)
+                .orElseThrow(() -> new NotFoundException("Parking resource was not found."));
+    }
+
+    public ParkingResource requireResourceForUpdate(UUID resourceId) {
+        return resources.findByIdForUpdate(resourceId)
                 .orElseThrow(() -> new NotFoundException("Parking resource was not found."));
     }
 

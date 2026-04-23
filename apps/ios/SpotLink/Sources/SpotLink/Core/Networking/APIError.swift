@@ -12,18 +12,37 @@ public enum HTTPMethod: String, Sendable {
 
 // MARK: - API Error
 
+public struct APIErrorContext: Sendable, Equatable {
+    public let message: String
+    public let code: String?
+    public let requestId: String?
+    public let details: [String: String]
+
+    public init(
+        message: String,
+        code: String? = nil,
+        requestId: String? = nil,
+        details: [String: String] = [:]
+    ) {
+        self.message = message
+        self.code = code
+        self.requestId = requestId
+        self.details = details
+    }
+}
+
 /// Mapira backend ApiErrorResponse na Swift error.
 public enum APIError: Error, Sendable {
     case unauthorized
     case forbidden
-    case notFound(String)
-    case conflict(String)
-    case validation([String: String])
-    case serverError(Int, String)
+    case notFound(APIErrorContext)
+    case conflict(APIErrorContext)
+    case validation(APIErrorContext)
+    case serverError(Int, APIErrorContext)
     case offline
     case cancelled
     case decodingFailed(String)
-    case unknown(Int, String)
+    case unknown(Int, APIErrorContext)
 
     public var userFacingMessage: String {
         switch self {
@@ -31,28 +50,53 @@ public enum APIError: Error, Sendable {
             return "Niste prijavljeni. Prijavite se da biste nastavili."
         case .forbidden:
             return "Nemate dozvolu za ovu akciju."
-        case .notFound(let msg):
-            return msg.isEmpty ? "Trazeni resurs nije pronadjen." : msg
-        case .conflict(let msg):
-            return msg.isEmpty ? "Doslo je do konflikta. Pokusajte ponovo." : msg
-        case .validation(let errors):
-            return errors.values.joined(separator: "\n")
-        case .serverError(_, let msg):
-            return msg.isEmpty ? "Greska na serveru. Pokusajte ponovo." : msg
+        case .notFound(let context):
+            return context.message.isEmpty ? "Trazeni resurs nije pronadjen." : context.message
+        case .conflict(let context):
+            return context.message.isEmpty ? "Doslo je do konflikta. Pokusajte ponovo." : context.message
+        case .validation(let context):
+            if !context.details.isEmpty {
+                return context.details.values.joined(separator: "\n")
+            }
+            return context.message.isEmpty ? "Proverite unete podatke." : context.message
+        case .serverError(_, let context):
+            return context.message.isEmpty ? "Greska na serveru. Pokusajte ponovo." : context.message
         case .offline:
             return "Nema internet veze. Proverite konekciju."
         case .cancelled:
             return "Zahtev je otkazan."
         case .decodingFailed(let detail):
             return "Greska pri obradi odgovora: \(detail)"
-        case .unknown(let status, let msg):
-            return "Nepoznata greska (\(status)): \(msg)"
+        case .unknown(let status, let context):
+            return "Nepoznata greska (\(status)): \(context.message)"
         }
     }
 
     public var isAuthError: Bool {
         if case .unauthorized = self { return true }
         return false
+    }
+
+    public var code: String? {
+        switch self {
+        case .notFound(let context), .conflict(let context), .validation(let context):
+            return context.code
+        case .serverError(_, let context), .unknown(_, let context):
+            return context.code
+        default:
+            return nil
+        }
+    }
+
+    public var requestId: String? {
+        switch self {
+        case .notFound(let context), .conflict(let context), .validation(let context):
+            return context.requestId
+        case .serverError(_, let context), .unknown(_, let context):
+            return context.requestId
+        default:
+            return nil
+        }
     }
 }
 

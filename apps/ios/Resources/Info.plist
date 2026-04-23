@@ -29,6 +29,10 @@
 	<key>SPOTLINK_ENV</key>
 	<string>$(SPOTLINK_ENV)</string>
 
+	<!-- Javni Mapbox token za debug ili CI injekciju. -->
+	<key>SPOTLINK_MAPBOX_PUBLIC_TOKEN</key>
+	<string>$(SPOTLINK_MAPBOX_PUBLIC_TOKEN)</string>
+
 	<!-- Orijentacije ekrana (iPhone) -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -56,10 +60,6 @@
 
 	<!-- Scene lifecycle – SwiftUI @main app ne zahteva scene manifest -->
 	<!-- Ostavljeno prazno da SwiftUI runtime preuzme kontrolu -->
-
-	<!-- Mapbox javni token za prikaz karte -->
-	<key>MBXAccessToken</key>
-	<string>pk.eyJ1Ijoia2xqYWphMDEiLCJhIjoiY21pcmV6ZWtkMDgxMDNkcXRkdGg4OGVpbCJ9.Z3UrBxYVEw4tjjLrEaiIgg</string>
 
 </dict>
 </plist>

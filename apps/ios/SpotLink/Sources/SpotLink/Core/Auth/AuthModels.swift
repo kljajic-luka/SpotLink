@@ -87,15 +87,39 @@ public struct MobileTokenRequest: Encodable, Sendable {
     }
 }
 
+public struct RefreshTokenRequest: Encodable, Sendable {
+    public let refreshToken: String
+    public init(refreshToken: String) {
+        self.refreshToken = refreshToken
+    }
+}
+
+public struct RevokeTokenRequest: Encodable, Sendable {
+    public let refreshToken: String?
+    public let allForCurrentUser: Bool?
+
+    public init(refreshToken: String? = nil, allForCurrentUser: Bool? = nil) {
+        self.refreshToken = refreshToken
+        self.allForCurrentUser = allForCurrentUser
+    }
+}
+
 /// Odgovor sa JWT access tokenom.
 public struct MobileTokenResponse: Decodable, Sendable {
     public let accessToken: String
+    public let refreshToken: String
     public let expiresIn: Int
+    public let expiresInSeconds: Int?
+    public let refreshExpiresInSeconds: Int?
+    public let issuedAt: Date?
+    public let expiresAt: Date?
+    public let refreshExpiresAt: Date?
     public let tokenType: String
     public let user: UserProfile
 
     enum CodingKeys: String, CodingKey {
-        case accessToken, expiresIn, tokenType, user
+        case accessToken, refreshToken, expiresIn, expiresInSeconds, refreshExpiresInSeconds
+        case issuedAt, expiresAt, refreshExpiresAt, tokenType, user
     }
 }
 
@@ -123,6 +147,7 @@ public struct UserProfile: Codable, Identifiable, Sendable {
     public var isOperator: Bool { roles.contains(.operator_) }
     public var isAdmin: Bool    { roles.contains(.admin) }
     public var isCustomer: Bool { roles.contains(.customer) }
+    public var isSupport: Bool  { roles.contains(.support) }
 
     enum CodingKeys: String, CodingKey {
         case id, email, firstName, lastName, phone, avatarUrl, bio, roles
@@ -133,6 +158,7 @@ public struct UserProfile: Codable, Identifiable, Sendable {
 public enum UserRole: String, Codable, Sendable {
     case customer  = "CUSTOMER"
     case operator_ = "OPERATOR"
+    case support   = "SUPPORT"
     case admin     = "ADMIN"
 }
 

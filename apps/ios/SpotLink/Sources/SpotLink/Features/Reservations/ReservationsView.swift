@@ -64,9 +64,15 @@ public final class ReservationsViewModel: ObservableObject {
 
 public struct ReservationsView: View {
     @StateObject private var viewModel: ReservationsViewModel
+    private let service: ReservationService
+    private let locationService: LocationService
+    private let supportService: SupportService
 
-    public init(service: ReservationService) {
+    public init(service: ReservationService, locationService: LocationService, supportService: SupportService) {
         _viewModel = StateObject(wrappedValue: ReservationsViewModel(service: service))
+        self.service = service
+        self.locationService = locationService
+        self.supportService = supportService
     }
 
     public var body: some View {
@@ -85,8 +91,16 @@ public struct ReservationsView: View {
                             .listRowBackground(Color.clear)
                     }
                     ForEach(viewModel.filteredReservations) { reservation in
-                        ReservationRow(reservation: reservation) {
-                            Task { await viewModel.cancel(reservation.id) }
+                        NavigationLink {
+                            ReservationDetailView(
+                                reservationId: reservation.id,
+                                reservationService: service,
+                                locationService: locationService,
+                                supportService: supportService,
+                                reservation: reservation
+                            )
+                        } label: {
+                            ReservationRow(reservation: reservation)
                         }
                     }
                     if viewModel.hasMore {
@@ -105,7 +119,6 @@ public struct ReservationsView: View {
 
 struct ReservationRow: View {
     let reservation: Reservation
-    let onCancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
@@ -124,13 +137,9 @@ struct ReservationRow: View {
                     .font(SpotLinkDesign.Typography.caption)
                     .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
             }
-            if reservation.status.canCancel {
-                Button(role: .destructive, action: onCancel) {
-                    Label("Otkaži rezervaciju", systemImage: "xmark.circle")
-                        .font(SpotLinkDesign.Typography.caption)
-                }
-                .buttonStyle(.borderless)
-            }
+            Text("Booking code: \(reservation.bookingCodePlaceholder)")
+                .font(SpotLinkDesign.Typography.caption)
+                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
         }
         .padding(.vertical, SpotLinkDesign.Spacing.sm)
         .accessibilityElement(children: .combine)

@@ -4,7 +4,7 @@ import Foundation
 
 public struct SpotLinkNotification: Decodable, Identifiable, Sendable {
     public let id: String
-    public let userId: String
+    public let userId: String?
     public let type: String
     public let title: String
     public let body: String
@@ -15,7 +15,7 @@ public struct SpotLinkNotification: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, userId, type, title, body
         case relatedEntityId
-        case read = "readFlag"
+        case read
         case createdAt
     }
 }
@@ -32,6 +32,6 @@ public struct RegisterDeviceTokenRequest: Encodable, Sendable {
 
     public init(deviceToken: String) {
         self.deviceToken = deviceToken
-        self.platform = "iOS"
+        self.platform = "IOS"
     }
 }

@@ -28,8 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ReservationService {
 
-    private static final List<ReservationStatus> BLOCKING_STATUSES = List.of(
-            ReservationStatus.PENDING_PAYMENT,
+    private static final List<ReservationStatus> CONFIRMED_BLOCKING_STATUSES = List.of(
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED);
@@ -102,6 +101,8 @@ public class ReservationService {
     @Transactional
     public ReservationDtos.ReservationDto create(ReservationDtos.CreateReservationRequest request) {
         UUID userId = currentUser.userId();
+        Instant now = Instant.now(clock);
+        reservations.expirePaymentHolds(now);
         IdempotencyRecord idempotencyRecord = idempotency.begin(userId, "reservation:create", request.idempotencyKey());
         if (idempotencyRecord.getStatus() == IdempotencyStatus.COMPLETED) {
             return reservations.findByCustomerIdAndIdempotencyKey(userId, request.idempotencyKey())
@@ -113,7 +114,7 @@ public class ReservationService {
         }
 
         try {
-            ParkingResource resource = locationService.requireResource(request.resourceId());
+            ParkingResource resource = locationService.requireResourceForUpdate(request.resourceId());
             ParkingLocation location = locationService.requireLocation(resource.getLocationId());
             validateWindow(request.startsAt(), request.endsAt());
             validateAvailability(resource, request.startsAt(), request.endsAt());
@@ -138,6 +139,7 @@ public class ReservationService {
             reservation.setTotalAmountCents(quote.totalAmountCents());
             reservation.setCurrency(quote.currency());
             reservation.setAccessInstructionsVisible(false);
+            reservation.setPaymentExpiresAt(quote.expiresAt());
             reservation.setIdempotencyKey(request.idempotencyKey());
             Reservation saved = reservations.save(reservation);
             ReservationDtos.ReservationDto dto = toDto(saved);
@@ -180,6 +182,7 @@ public class ReservationService {
                 reservation.getTotalAmountCents(),
                 reservation.getCurrency(),
                 reservation.isAccessInstructionsVisible(),
+                reservation.getPaymentExpiresAt(),
                 reservation.getCreatedAt(),
                 reservation.getUpdatedAt());
     }
@@ -194,7 +197,13 @@ public class ReservationService {
     }
 
     private void validateAvailability(ParkingResource resource, Instant startsAt, Instant endsAt) {
-        long overlaps = reservations.countOverlaps(resource.getId(), startsAt, endsAt, BLOCKING_STATUSES);
+        long overlaps = reservations.countOverlaps(
+                resource.getId(),
+                startsAt,
+                endsAt,
+                CONFIRMED_BLOCKING_STATUSES,
+                ReservationStatus.PENDING_PAYMENT,
+                Instant.now(clock));
         if (overlaps >= resource.getCapacity()) {
             throw new ConflictException("RESOURCE_UNAVAILABLE", "Parking resource is not available for this time window.");
         }

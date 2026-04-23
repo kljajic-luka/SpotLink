@@ -75,6 +75,12 @@ struct UserProfileComputedTests {
         let profile = makeProfile(firstName: "X", lastName: "Y", roles: [.admin])
         #expect(profile.isAdmin)
     }
+
+    @Test("isSupport prepoznaje rolu podrske")
+    func isSupport() {
+        let profile = makeProfile(firstName: "X", lastName: "Y", roles: [.support])
+        #expect(profile.isSupport)
+    }
 }
 
 // MARK: - UserRole
@@ -97,10 +103,16 @@ struct UserRoleTests {
         #expect(UserRole.admin.rawValue == "ADMIN")
     }
 
+    @Test("UserRole.support ima ocekivanu raw vrednost")
+    func supportRaw() {
+        #expect(UserRole.support.rawValue == "SUPPORT")
+    }
+
     @Test("UserRole se kreira iz raw vrednosti")
     func fromRaw() {
         #expect(UserRole(rawValue: "CUSTOMER") == .customer)
         #expect(UserRole(rawValue: "OPERATOR") == .operator_)
+        #expect(UserRole(rawValue: "SUPPORT") == .support)
         #expect(UserRole(rawValue: "ADMIN") == .admin)
         #expect(UserRole(rawValue: "UNKNOWN") == nil)
     }

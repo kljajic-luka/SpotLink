@@ -69,8 +69,9 @@ public struct Reservation: Decodable, Identifiable, Sendable {
     public let totalAmountCents: Int
     public let currency: String
     public let accessInstructionsVisible: Bool
-    public let idempotencyKey: String?
+    public let paymentExpiresAt: Date?
     public let createdAt: Date
+    public let updatedAt: Date?
 
     public var totalAmountFormatted: String {
         let amount = Double(totalAmountCents) / 100.0
@@ -79,6 +80,10 @@ public struct Reservation: Decodable, Identifiable, Sendable {
         formatter.currencyCode = currency
         return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
     }
+
+    public var bookingCodePlaceholder: String {
+        "SL-\(id.prefix(8).uppercased())"
+    }
 }
 
 // MARK: - Quote
@@ -86,12 +91,12 @@ public struct Reservation: Decodable, Identifiable, Sendable {
 public struct ReservationQuoteRequest: Encodable, Sendable {
     public let resourceId: String
     public let vehicleId: String?
-    public let startsAt: String
-    public let endsAt: String
+    public let startsAt: Date
+    public let endsAt: Date
     public let promoCode: String?
 
     public init(resourceId: String, vehicleId: String? = nil,
-                startsAt: String, endsAt: String, promoCode: String? = nil) {
+                startsAt: Date, endsAt: Date, promoCode: String? = nil) {
         self.resourceId = resourceId
         self.vehicleId = vehicleId
         self.startsAt = startsAt
@@ -101,14 +106,15 @@ public struct ReservationQuoteRequest: Encodable, Sendable {
 }
 
 public struct ReservationQuote: Decodable, Sendable {
-    public let quoteId: String?
     public let resourceId: String
-    public let startsAt: String
-    public let endsAt: String
-    public let durationHours: Double
+    public let startsAt: Date
+    public let endsAt: Date
+    public let subtotalCents: Int
+    public let feesCents: Int
+    public let discountCents: Int
     public let totalAmountCents: Int
     public let currency: String
-    public let expiresAt: String?
+    public let expiresAt: Date?
 
     public var totalAmountFormatted: String {
         let amount = Double(totalAmountCents) / 100.0
@@ -117,6 +123,18 @@ public struct ReservationQuote: Decodable, Sendable {
         formatter.currencyCode = currency
         return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
     }
+
+    public var subtotalFormatted: String {
+        formatCents(subtotalCents, currency: currency)
+    }
+
+    public var feesFormatted: String {
+        formatCents(feesCents, currency: currency)
+    }
+
+    public var discountFormatted: String {
+        formatCents(discountCents, currency: currency)
+    }
 }
 
 // MARK: - Create Reservation
@@ -124,8 +142,8 @@ public struct ReservationQuote: Decodable, Sendable {
 public struct CreateReservationRequest: Encodable, Sendable {
     public let resourceId: String
     public let vehicleId: String?
-    public let startsAt: String
-    public let endsAt: String
+    public let startsAt: Date
+    public let endsAt: Date
     public let promoCode: String?
     public let quoteId: String?
     public let paymentMethodId: String?
@@ -134,11 +152,12 @@ public struct CreateReservationRequest: Encodable, Sendable {
     public init(
         resourceId: String,
         vehicleId: String? = nil,
-        startsAt: String,
-        endsAt: String,
+        startsAt: Date,
+        endsAt: Date,
         promoCode: String? = nil,
         quoteId: String? = nil,
         paymentMethodId: String? = nil
+        , idempotencyKey: String = IdempotencyKey.generate(prefix: "res")
     ) {
         self.resourceId = resourceId
         self.vehicleId = vehicleId
@@ -147,7 +166,7 @@ public struct CreateReservationRequest: Encodable, Sendable {
         self.promoCode = promoCode
         self.quoteId = quoteId
         self.paymentMethodId = paymentMethodId
-        self.idempotencyKey = IdempotencyKey.generate(prefix: "res")
+        self.idempotencyKey = idempotencyKey
     }
 }
 

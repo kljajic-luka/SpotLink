@@ -272,3 +272,38 @@ struct ConfirmationModeTests {
         #expect(mode == .manual)
     }
 }
+
+@Suite("GeocodeSuggestion – backend shape")
+struct GeocodeSuggestionTests {
+
+    @Test("geocode suggestion dekodira ugnjezdenu adresu i koordinate")
+    func geocodeSuggestionDecode() throws {
+        let json = """
+        {
+          "id": "mock-belgrade-1",
+          "address": {
+            "line1": "Knez Mihailova 1",
+            "line2": null,
+            "city": "Beograd",
+            "region": null,
+            "postalCode": "11000",
+            "country": "RS",
+            "formattedAddress": "Knez Mihailova 1, Beograd 11000"
+          },
+          "coordinates": {
+            "latitude": 44.8125,
+            "longitude": 20.4612
+          },
+          "accuracyMeters": 150
+        }
+        """
+
+        let suggestion = try JSONDecoder().decode(GeocodeSuggestion.self, from: Data(json.utf8))
+
+        #expect(suggestion.id == "mock-belgrade-1")
+        #expect(suggestion.displayName == "Knez Mihailova 1, Beograd 11000")
+        #expect(suggestion.latitude == 44.8125)
+        #expect(suggestion.longitude == 20.4612)
+        #expect(suggestion.accuracyMeters == 150)
+    }
+}

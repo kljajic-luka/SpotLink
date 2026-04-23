@@ -18,21 +18,21 @@ private final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
         if let err = shouldThrowError { throw err }
         guard let handler = getHandler,
               let result = try handler(path, query) as? T else {
-            throw APIError.serverError(500, "Mock nije konfigurisan")
+            throw APIError.serverError(500, APIErrorContext(message: "Mock nije konfigurisan"))
         }
         return result
     }
 
     func post<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
-        throw APIError.serverError(500, "Post nije implementiran u mock-u")
+        throw APIError.serverError(500, APIErrorContext(message: "Post nije implementiran u mock-u"))
     }
 
     func put<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
-        throw APIError.serverError(500, "Put nije implementiran u mock-u")
+        throw APIError.serverError(500, APIErrorContext(message: "Put nije implementiran u mock-u"))
     }
 
     func patch<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
-        throw APIError.serverError(500, "Patch nije implementiran u mock-u")
+        throw APIError.serverError(500, APIErrorContext(message: "Patch nije implementiran u mock-u"))
     }
 
     func delete(_ path: String) async throws {}
@@ -212,7 +212,7 @@ struct SearchMapViewModelTests {
     @Test("API greska postavlja state na error sa porukom")
     func apiGreska() async {
         let client = MockAPIClient()
-        client.shouldThrowError = .serverError(500, "Interna greska servera")
+        client.shouldThrowError = .serverError(500, APIErrorContext(message: "Interna greska servera"))
 
         let vm = makeViewModel(client: client)
         vm.searchWithCurrentCenter()

@@ -36,10 +36,12 @@ public final class SupportViewModel: ObservableObject {
 
 public struct SupportTicketsView: View {
     @StateObject private var viewModel: SupportViewModel
+    private let service: SupportService
     @State private var showCreateSheet = false
 
     public init(service: SupportService) {
         _viewModel = StateObject(wrappedValue: SupportViewModel(service: service))
+        self.service = service
     }
 
     public var body: some View {
@@ -81,8 +83,12 @@ public struct SupportTicketsView: View {
         }
         .task { await viewModel.loadTickets() }
         .sheet(isPresented: $showCreateSheet) {
-            Text("Forma za kreiranje tiketa – dolazi u sledecoj fazi")
-                .presentationDetents([.medium])
+            NavigationStack {
+                SupportTicketComposerView(service: service) { _ in
+                    Task { await viewModel.loadTickets() }
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 }
@@ -120,10 +126,10 @@ struct TicketRow: View {
 
     private var statusColor: Color {
         switch ticket.status {
-        case .open:       return .blue
-        case .inProgress: return .orange
-        case .resolved:   return .green
-        case .closed:     return .gray
+        case .open:              return .blue
+        case .waitingOnCustomer: return .orange
+        case .waitingOnOperator: return .mint
+        case .resolved:          return .green
         }
     }
 }
