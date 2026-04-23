@@ -171,7 +171,12 @@ struct ProfilePlaceholderView: View {
             Section {
                 Button(role: .destructive) {
                     Task {
-                        session.signOut()
+                        let authService = AuthService(
+                            apiClient: APIClient(
+                                baseURL: AppEnvironment.current().apiBaseURL,
+                                tokenProvider: session),
+                            session: session)
+                        await authService.logout()
                     }
                 } label: {
                     Label("Odjava", systemImage: "rectangle.portrait.and.arrow.right")

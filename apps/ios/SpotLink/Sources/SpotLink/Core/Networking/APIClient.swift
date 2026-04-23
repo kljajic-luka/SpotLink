@@ -119,12 +119,12 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
             throw APIError.unknown(0, "Neocekivan tip odgovora")
         }
 
-        if httpResponse.statusCode == 204 {
-            // No content – kreiraj prazni odgovor
+        if httpResponse.statusCode == 204 || data.isEmpty {
+            // No content - create the typed empty response when callers requested one.
             if T.self == EmptyResponse.self {
                 return EmptyResponse() as! T
             }
-            throw APIError.decodingFailed("Ocekivao se sadrzaj ali je vratio 204")
+            throw APIError.decodingFailed("Ocekivao se sadrzaj ali je odgovor bio prazan")
         }
 
         if (200..<300).contains(httpResponse.statusCode) {
@@ -170,4 +170,7 @@ public protocol TokenProvider: Sendable {
 // MARK: - Helpers
 
 private struct EmptyBody: Encodable {}
-private struct EmptyResponse: Decodable {}
+
+public struct EmptyResponse: Decodable, Sendable {
+    public init() {}
+}

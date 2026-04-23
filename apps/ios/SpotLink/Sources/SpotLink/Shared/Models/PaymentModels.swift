@@ -36,15 +36,15 @@ public enum PaymentStatus: String, Decodable, CaseIterable, Sendable {
 public struct PaymentIntent: Decodable, Identifiable, Sendable {
     public let id: String
     public let reservationId: String
-    public let customerId: String
+    public let customerId: String?
     public let amountCents: Int
     public let currency: String
     public let status: PaymentStatus
     public let redirectUrl: String?
     public let clientSecret: String?
     public let providerReference: String?
-    public let createdAt: Date
-    public let updatedAt: Date
+    public let createdAt: Date?
+    public let updatedAt: Date?
 
     public var amountFormatted: String {
         let amount = Double(amountCents) / 100.0
@@ -53,6 +53,13 @@ public struct PaymentIntent: Decodable, Identifiable, Sendable {
         formatter.currencyCode = currency
         return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
     }
+}
+
+public struct PaymentProviderResult: Decodable, Sendable {
+    public let status: PaymentStatus
+    public let paymentIntentId: String
+    public let redirectUrl: String?
+    public let message: String?
 }
 
 // MARK: - Create Payment Intent
@@ -73,15 +80,23 @@ public struct CreatePaymentIntentRequest: Encodable, Sendable {
 
 public struct PaymentMethod: Decodable, Identifiable, Sendable {
     public let id: String
-    public let type: String
-    public let displayName: String
+    public let type: String?
+    public let displayName: String?
     public let last4: String?
     public let expiryMonth: Int?
     public let expiryYear: Int?
     public let brand: String?
+    public let isDefault: Bool
 
     public var formattedDescription: String {
-        if let last4 { return "\(brand ?? type) •••• \(last4)" }
-        return displayName
+        if let last4 { return "\(brand ?? type ?? "Kartica") •••• \(last4)" }
+        return displayName ?? type ?? "Nacin placanja"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, brand, last4, type, displayName
+        case expiryMonth = "expMonth"
+        case expiryYear = "expYear"
+        case isDefault = "default"
     }
 }

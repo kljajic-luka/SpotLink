@@ -6,6 +6,8 @@ import com.spotlink.reservation.Reservation;
 import com.spotlink.reservation.ReservationRepository;
 import com.spotlink.reservation.ReservationStatus;
 import com.spotlink.security.CurrentUserService;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,16 +21,19 @@ public class PaymentService {
     private final ReservationRepository reservations;
     private final PaymentProvider paymentProvider;
     private final CurrentUserService currentUser;
+    private final Clock clock;
 
     public PaymentService(
             PaymentIntentRepository intents,
             ReservationRepository reservations,
             PaymentProvider paymentProvider,
-            CurrentUserService currentUser) {
+            CurrentUserService currentUser,
+            Clock clock) {
         this.intents = intents;
         this.reservations = reservations;
         this.paymentProvider = paymentProvider;
         this.currentUser = currentUser;
+        this.clock = clock;
     }
 
     public List<PaymentDtos.PaymentMethodDto> methods() {
@@ -54,6 +59,7 @@ public class PaymentService {
             throw new AccessDeniedException("Payment intent does not belong to the current user.");
         }
         if (intent.getStatus() == PaymentStatus.AUTHORIZED || intent.getStatus() == PaymentStatus.CAPTURED) {
+            confirmReservation(intent.getReservationId(), Instant.now(clock));
             return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), "Already confirmed");
         }
         PaymentProvider.ProviderResult result = paymentProvider.authorize(new PaymentProvider.ProviderRequest(
@@ -63,6 +69,9 @@ public class PaymentService {
                 null,
                 intent.getIdempotencyKey()));
         applyProviderResult(intent, result);
+        if (intent.getStatus() == PaymentStatus.AUTHORIZED) {
+            confirmReservation(intent.getReservationId(), Instant.now(clock));
+        }
         return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), result.message());
     }
 
@@ -78,12 +87,21 @@ public class PaymentService {
     }
 
     private PaymentDtos.PaymentIntentDto createNewIntent(PaymentDtos.CreatePaymentIntentRequest request, UUID userId) {
+        Instant now = Instant.now(clock);
+        reservations.expirePaymentHolds(now);
         Reservation reservation = reservations.findById(request.reservationId())
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
         if (!reservation.getCustomerId().equals(userId)) {
             throw new AccessDeniedException("Reservation does not belong to the current user.");
         }
-        if (reservation.getStatus() == ReservationStatus.CANCELLED || reservation.getStatus() == ReservationStatus.EXPIRED) {
+        if (reservation.getStatus() == ReservationStatus.PENDING_PAYMENT
+                && reservation.getPaymentExpiresAt() != null
+                && !reservation.getPaymentExpiresAt().isAfter(now)) {
+            reservation.setStatus(ReservationStatus.EXPIRED);
+            reservation.setAccessInstructionsVisible(false);
+            throw new ConflictException("PAYMENT_HOLD_EXPIRED", "Reservation payment hold has expired.");
+        }
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
             throw new ConflictException("PAYMENT_NOT_ALLOWED", "Payment is not allowed for this reservation.");
         }
 
@@ -105,10 +123,31 @@ public class PaymentService {
                 request.idempotencyKey()));
         applyProviderResult(saved, result);
         if (saved.getStatus() == PaymentStatus.AUTHORIZED) {
-            reservation.setStatus(ReservationStatus.CONFIRMED);
-            reservation.setAccessInstructionsVisible(true);
+            confirmReservation(reservation, now);
         }
         return toDto(saved);
+    }
+
+    private void confirmReservation(UUID reservationId, Instant now) {
+        Reservation reservation = reservations.findById(reservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
+        confirmReservation(reservation, now);
+    }
+
+    private void confirmReservation(Reservation reservation, Instant now) {
+        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
+            return;
+        }
+        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
+            throw new ConflictException("PAYMENT_NOT_ALLOWED", "Payment is not allowed for this reservation.");
+        }
+        if (reservation.getPaymentExpiresAt() != null && !reservation.getPaymentExpiresAt().isAfter(now)) {
+            reservation.setStatus(ReservationStatus.EXPIRED);
+            reservation.setAccessInstructionsVisible(false);
+            throw new ConflictException("PAYMENT_HOLD_EXPIRED", "Reservation payment hold has expired.");
+        }
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+        reservation.setAccessInstructionsVisible(true);
     }
 
     private void applyProviderResult(PaymentIntent intent, PaymentProvider.ProviderResult result) {

@@ -23,17 +23,22 @@ public enum SessionState: Sendable {
 public struct SessionInfo: Sendable {
     public let user: UserProfile
     public let accessToken: String
+    public let refreshToken: String
     public let tokenExpiresAt: Date
+    public let refreshExpiresAt: Date
 
     public var isExpired: Bool { Date() >= tokenExpiresAt }
     public var isExpiringSoon: Bool { Date().addingTimeInterval(300) >= tokenExpiresAt }
+    public var isRefreshExpired: Bool { Date() >= refreshExpiresAt }
 }
 
 // MARK: - Session Keys
 
 enum SessionStorageKey {
     static let accessToken = "session.accessToken"
+    static let refreshToken = "session.refreshToken"
     static let tokenExpiresAt = "session.tokenExpiresAt"
+    static let refreshExpiresAt = "session.refreshExpiresAt"
     static let userProfile = "session.userProfile"
 }
 
@@ -63,7 +68,7 @@ public final class SessionManager: ObservableObject, TokenProvider {
     // MARK: - TokenProvider
 
     public nonisolated func currentToken() async -> String? {
-        await MainActor.run { state.sessionInfo?.accessToken }
+        await refreshableAccessToken()
     }
 
     // MARK: - Public API
@@ -72,8 +77,11 @@ public final class SessionManager: ObservableObject, TokenProvider {
     public func restoreSession() async {
         guard
             let token = keychain.read(forKey: SessionStorageKey.accessToken),
+            let refreshToken = keychain.read(forKey: SessionStorageKey.refreshToken),
             let expiryString = preferences.string(forKey: SessionStorageKey.tokenExpiresAt),
             let expiryTimestamp = Double(expiryString),
+            let refreshExpiryString = preferences.string(forKey: SessionStorageKey.refreshExpiresAt),
+            let refreshExpiryTimestamp = Double(refreshExpiryString),
             let userData = preferences.string(forKey: SessionStorageKey.userProfile),
             let profile = try? JSONDecoder().decode(UserProfile.self, from: Data(userData.utf8))
         else {
@@ -82,22 +90,45 @@ public final class SessionManager: ObservableObject, TokenProvider {
         }
 
         let expiry = Date(timeIntervalSince1970: expiryTimestamp)
-        if expiry <= Date() {
-            // Token istekao
+        let refreshExpiry = Date(timeIntervalSince1970: refreshExpiryTimestamp)
+        if refreshExpiry <= Date() {
+            // Refresh token istekao
             clearSession()
             state = .unauthenticated
             return
         }
 
-        let info = SessionInfo(user: profile, accessToken: token, tokenExpiresAt: expiry)
+        let info = SessionInfo(
+            user: profile,
+            accessToken: token,
+            refreshToken: refreshToken,
+            tokenExpiresAt: expiry,
+            refreshExpiresAt: refreshExpiry)
         state = .authenticated(info)
+
+        if expiry <= Date() {
+            _ = await refreshAccessToken(refreshToken)
+        }
     }
 
     /// Postavlja novu sesiju nakon uspesne prijave.
     public func establish(_ response: MobileTokenResponse) {
-        let expiry = Date().addingTimeInterval(TimeInterval(response.expiresIn))
-        persistSession(token: response.accessToken, expiry: expiry, user: response.user)
-        let info = SessionInfo(user: response.user, accessToken: response.accessToken, tokenExpiresAt: expiry)
+        let now = Date()
+        let expiry = response.expiresAt ?? now.addingTimeInterval(TimeInterval(response.expiresIn))
+        let refreshExpiry = response.refreshExpiresAt
+            ?? now.addingTimeInterval(TimeInterval(response.refreshExpiresInSeconds ?? 0))
+        persistSession(
+            token: response.accessToken,
+            refreshToken: response.refreshToken,
+            expiry: expiry,
+            refreshExpiry: refreshExpiry,
+            user: response.user)
+        let info = SessionInfo(
+            user: response.user,
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            tokenExpiresAt: expiry,
+            refreshExpiresAt: refreshExpiry)
         state = .authenticated(info)
     }
 
@@ -105,8 +136,17 @@ public final class SessionManager: ObservableObject, TokenProvider {
     public func updateUser(_ user: UserProfile) {
         guard case .authenticated(let info) = state else { return }
         persistUser(user)
-        let updated = SessionInfo(user: user, accessToken: info.accessToken, tokenExpiresAt: info.tokenExpiresAt)
+        let updated = SessionInfo(
+            user: user,
+            accessToken: info.accessToken,
+            refreshToken: info.refreshToken,
+            tokenExpiresAt: info.tokenExpiresAt,
+            refreshExpiresAt: info.refreshExpiresAt)
         state = .authenticated(updated)
+    }
+
+    public func currentRefreshToken() -> String? {
+        state.sessionInfo?.refreshToken ?? keychain.read(forKey: SessionStorageKey.refreshToken)
     }
 
     /// Odjava – brise token i postavlja unauthenticated state.
@@ -117,10 +157,52 @@ public final class SessionManager: ObservableObject, TokenProvider {
 
     // MARK: - Private
 
-    private func persistSession(token: String, expiry: Date, user: UserProfile) {
+    private func persistSession(token: String, refreshToken: String, expiry: Date, refreshExpiry: Date, user: UserProfile) {
         try? keychain.save(token, forKey: SessionStorageKey.accessToken)
+        try? keychain.save(refreshToken, forKey: SessionStorageKey.refreshToken)
         preferences.set("\(expiry.timeIntervalSince1970)", forKey: SessionStorageKey.tokenExpiresAt)
+        preferences.set("\(refreshExpiry.timeIntervalSince1970)", forKey: SessionStorageKey.refreshExpiresAt)
         persistUser(user)
+    }
+
+    private func refreshableAccessToken() async -> String? {
+        guard let info = state.sessionInfo else { return nil }
+        if info.isRefreshExpired {
+            clearSession()
+            state = .unauthenticated
+            return nil
+        }
+        guard info.isExpiringSoon else { return info.accessToken }
+        return await refreshAccessToken(info.refreshToken)
+    }
+
+    private func refreshAccessToken(_ refreshToken: String) async -> String? {
+        let url = AppEnvironment.current().apiBaseURL.appendingPathComponent("auth/token/refresh")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        do {
+            request.httpBody = try encoder.encode(RefreshTokenRequest(refreshToken: refreshToken))
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                clearSession()
+                state = .unauthenticated
+                return nil
+            }
+            let tokenResponse = try decoder.decode(MobileTokenResponse.self, from: data)
+            establish(tokenResponse)
+            return tokenResponse.accessToken
+        } catch {
+            clearSession()
+            state = .unauthenticated
+            return nil
+        }
     }
 
     private func persistUser(_ user: UserProfile) {
@@ -132,8 +214,9 @@ public final class SessionManager: ObservableObject, TokenProvider {
 
     private func clearSession() {
         keychain.delete(forKey: SessionStorageKey.accessToken)
+        keychain.delete(forKey: SessionStorageKey.refreshToken)
         preferences.remove(forKey: SessionStorageKey.tokenExpiresAt)
+        preferences.remove(forKey: SessionStorageKey.refreshExpiresAt)
         preferences.remove(forKey: SessionStorageKey.userProfile)
     }
 }
-
