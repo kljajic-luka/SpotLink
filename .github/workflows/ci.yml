@@ -66,8 +66,8 @@ jobs:
       - name: Ciscenje Swift build artifakata
         run: swift package clean --package-path apps/ios/SpotLink
 
-      - name: Pokretanje Swift testova (SwiftPM runner)
-        run: swift run --package-path apps/ios/SpotLink SpotLinkTestRunner
+      - name: Pokretanje Swift testova
+        run: swift test --package-path apps/ios/SpotLink
 
       - name: Xcode build (genericki iOS Simulator)
         run: |
