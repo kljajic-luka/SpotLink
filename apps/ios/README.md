@@ -14,10 +14,10 @@ apps/ios/
 │   ├── project.pbxproj
 │   └── xcshareddata/xcschemes/SpotLink.xcscheme
 │
-├── SpotLink/                        # Swift Package (biblioteka + CLI test runner)
+├── SpotLink/                        # Swift Package (biblioteka + test support)
 │   ├── Package.swift
 │   ├── Sources/SpotLink/            # Core, Features, Shared, App
-│   ├── Sources/SpotLinkTestRunner/  # CLI Swift Testing runner
+│   ├── Sources/SpotLinkTestRunner/  # Legacy ostatak, nije aktivan target
 │   └── TestSupport/SpotLinkTestSupport/
 │
 ├── Resources/                       # App target resursi
@@ -41,10 +41,10 @@ apps/ios/
 ```bash
 cd apps/ios/SpotLink
 swift build
-swift run SpotLinkTestRunner
+swift test
 ```
 
-`SpotLinkTestRunner` je standardni CLI test entrypoint za ovaj repozitorijum. Na ovoj kombinaciji SwiftPM + Command Line Tools, `swift test` gradi Swift Testing bundle ali ne izvrsava suite-ove pouzdano, pa runner eksplicitno poziva Swift Testing entry point i ispisuje normalan test run summary.
+`swift test` je standardni CLI test entrypoint za iOS paket. Root komanda `npm run test:ios` delegira na isti `swift test --package-path apps/ios/SpotLink` tok.
 
 ### Xcode projekat (zahteva pun Xcode.app)
 
@@ -78,6 +78,12 @@ xcodebuild test \
 
 Za override u Debug build-u: postaviti `SPOTLINK_ENV` env varijablu u Xcode scheme argumentima.
 
+### Mapa i token
+
+- `SPOTLINK_MAPBOX_PUBLIC_TOKEN` se cita u runtime-u iz `Info.plist` / build settings konfiguracije.
+- Ako token nije dostupan, aplikacija koristi `MapKit` fallback bez rupe u shell-u.
+- Produkcioni token treba obezbediti kroz lokalni xcconfig ili CI secret, ne hardkodirati ga direktno u repozitorijum.
+
 ---
 
 ## Bundle metadata
@@ -101,7 +107,6 @@ Za override u Debug build-u: postaviti `SPOTLINK_ENV` env varijablu u Xcode sche
 
 ## Poznata ogranicenja
 
-- Xcode.app nije dostupan na razvojnoj masini – `xcodebuild` nije moguce izvrsiti lokalno.
-- `swift test` i dalje nije pouzdan CLI runner na ovoj kombinaciji Command Line Tools + SwiftPM; koristi se `swift run SpotLinkTestRunner`.
+- `swift test` koristi Swift Testing izlaz koji prvo prikazuje prazan XCTest summary, pa zatim stvarni Swift Testing run summary.
 - `DEVELOPMENT_TEAM` je prazno – potrebno podesiti pre TestFlight slanja.
 - App icon je placeholder (nema stvarne slike).

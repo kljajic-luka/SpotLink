@@ -11,7 +11,7 @@ i instrukcije za pokretanje.
 - Dodat asset catalog sa AppIcon, AccentColor i Background color set-ovima
 - Dodat `Info.plist`, `PrivacyInfo.xcprivacy` i `SpotLink.entitlements`
 - Uklonjena duplikacija `AppEnvironmentKey` iz `SpotLinkApp.swift`
-- `swift build` i `swift run SpotLinkTestRunner` prolaze
+- `swift build`, `swift test`, `npm run test:ios` i `xcodebuild build` prolaze
 
 ---
 
@@ -189,15 +189,13 @@ rm -rf .build && swift build
 
 ```bash
 cd apps/ios/SpotLink
-swift run SpotLinkTestRunner
+swift test
 # Ocekivani izlaz: Swift Testing summary sa stvarno izvrsenim testovima
 ```
 
-> **Napomena**: Na ovoj kombinaciji Command Line Tools + SwiftPM, `swift test`
-> kompajlira Swift Testing bundle ali ne pokrece suite-ove konzistentno.
-> Zbog toga paket sadrzi namenski `SpotLinkTestRunner` executable target koji
-> direktno poziva Swift Testing entry point i daje stvarni pass/fail izlaz bez
-> potrebe za punim Xcode-om.
+> **Napomena**: `swift test` i `npm run test:ios` sada daju isti Swift Testing
+> izlaz. Prvi XCTest summary moze prikazati `Executed 0 tests`, a odmah zatim
+> sledi stvarni Swift Testing run summary koji je relevantan za verifikaciju.
 
 ### Generisanje Xcode projekta (opciono)
 
@@ -239,7 +237,7 @@ iOS app podrзava 4 okruzenja konfigurabilna putem `SPOTLINK_ENV` env varijable 
 1. **XcodeGen projekat** – Kreirati `project.yml` za generisanje `.xcodeproj` fajla
 2. **TestFlight distribucija** – Definisati `Bundle ID`, provisioning profile i CI/CD pipeline
 3. **Refresh token tok** – Implementirati auto-obnavljanje JWT pre isteka (5 min pre)
-4. **Mapa lokacija** – Integrisati `LocationsView` sa `MapKit` za prikaz parking mesta
+4. **Mapa lokacija** – Dodat Mapbox prikaz sa `MapKit` fallback-om; sledeci korak je produkciono upravljanje tokenom i dublji UX polish
 5. **Placanja** – Integrisati `PaymentService` sa Stripe iOS SDK
 6. **Podrska za iPad** – Prilagoditi layout za vece ekrane
 7. **Lokalizacija** – Dodati srpske i engleske `Localizable.strings` fajlove
@@ -251,7 +249,8 @@ iOS app podrзava 4 okruzenja konfigurabilna putem `SPOTLINK_ENV` env varijable 
 
 ### iOS (SPM)
 
-Nema spoljnih zavisnosti – koristi se iskljucivo Apple Swift standardna biblioteka i SwiftUI.
+- `mapbox-maps-ios` je dodat za iOS mapu.
+- `MapKit` ostaje fallback kada javni Mapbox token nije dostupan ili kada build ne ukljucuje Mapbox.
 
 ### Backend (Maven)
 
@@ -294,6 +293,9 @@ mvn verify
 cd apps/ios/SpotLink
 swift build
 # Ocekivani izlaz: Build complete!
+
+swift test
+# Ocekivani izlaz: Swift Testing suite pass
 ```
 
 ### iOS (Xcode – zahteva pun Xcode.app)
@@ -304,7 +306,7 @@ xcodebuild -list -project apps/ios/SpotLink.xcodeproj
 xcodebuild build \
   -project apps/ios/SpotLink.xcodeproj \
   -scheme SpotLink \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO
 ```
 

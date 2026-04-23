@@ -98,7 +98,7 @@ It includes:
 - Keychain-ready session storage.
 - Request correlation, analytics, push notification, location, and API client foundations.
 - App resources: Info.plist, privacy manifest, asset catalog, entitlements placeholder.
-- CLI Swift Testing runner: `SpotLinkTestRunner`.
+- Native SwiftUI customer MVP slice za pretragu, rezervaciju, potvrdu i podrsku.
 
 Open this project in Xcode:
 
@@ -152,6 +152,16 @@ Important backend variables:
 
 Production profiles reject the built-in development JWT secret.
 
+Vazno za iOS mapu:
+
+| Variable | Purpose |
+| --- | --- |
+| `SPOTLINK_MAPBOX_PUBLIC_TOKEN` | Javni Mapbox token koji se ucitava u runtime-u za iOS mapu |
+
+- iOS app target koristi `SPOTLINK_MAPBOX_PUBLIC_TOKEN` umesto oslanjanja na hardkodovan `MBXAccessToken`.
+- Ako token nije dostupan, aplikacija automatski pada nazad na `MapKit` fallback prikaz.
+- Produkcioni token treba uneti kroz build settings, xcconfig ili CI secret, ne direktno u repozitorijum.
+
 ## Installation
 
 Install frontend dependencies:
@@ -174,7 +184,7 @@ Maven and SwiftPM resolve backend/iOS dependencies through their own toolchains.
 | `npm run build:dev` | Build Angular development bundle |
 | `npm run test` | Run Angular test target |
 | `npm run test:backend` | Run backend Maven tests |
-| `npm run test:ios` | Run iOS Swift Testing suite through `SpotLinkTestRunner` |
+| `npm run test:ios` | Pokrece iOS Swift test suite preko `swift test --package-path apps/ios/SpotLink` |
 
 Backend verify:
 
@@ -232,7 +242,7 @@ The foundation has been verified with:
 - Frontend Angular headless tests.
 - Frontend production build.
 - iOS Swift package build.
-- iOS Swift Testing runner with real pass/fail output.
+- iOS Swift test suite preko `swift test` i `npm run test:ios`.
 - JSON fixture parsing.
 - OpenAPI YAML parsing.
 - Backend local smoke tests for health, mobile token issuance, refresh rotation, and revoke.
