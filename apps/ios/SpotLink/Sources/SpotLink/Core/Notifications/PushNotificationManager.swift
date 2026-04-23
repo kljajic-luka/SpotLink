@@ -31,16 +31,14 @@ public final class PushNotificationManager: NSObject, ObservableObject {
             if granted {
                 await registerForRemoteNotifications()
             }
-            let settings = await center.notificationSettings()
-            permissionStatus = settings.authorizationStatus
+            permissionStatus = await fetchAuthorizationStatus()
         } catch {
             SpotLinkLogger.warn("APNs permission request failed: \(error.localizedDescription)")
         }
     }
 
     public func checkPermissionStatus() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        permissionStatus = settings.authorizationStatus
+        permissionStatus = await fetchAuthorizationStatus()
     }
 
     // MARK: - Device Token
@@ -73,6 +71,12 @@ public final class PushNotificationManager: NSObject, ObservableObject {
         } catch {
             SpotLinkLogger.warn("Device token upload failed: \(error.localizedDescription)")
         }
+    }
+
+    // Vraca samo Sendable UNAuthorizationStatus, bez prenosa non-Sendable
+    // UNNotificationSettings preko granice izolacije aktora.
+    nonisolated private func fetchAuthorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 }
 
