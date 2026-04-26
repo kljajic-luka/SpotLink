@@ -119,6 +119,7 @@ func formatCents(_ cents: Int, currency: String) -> String {
     let formatter = NumberFormatter()
     formatter.numberStyle = .currency
     formatter.currencyCode = currency
+    formatter.locale = Locale(identifier: "sr_RS")
     return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
 }
 
