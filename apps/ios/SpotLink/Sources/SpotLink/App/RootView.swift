@@ -47,4 +47,3 @@ struct SplashView: View {
         .accessibilityLabel("SpotLink se ucitava")
     }
 }
-

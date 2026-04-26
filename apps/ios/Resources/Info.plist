@@ -29,6 +29,10 @@
 	<key>SPOTLINK_ENV</key>
 	<string>$(SPOTLINK_ENV)</string>
 
+	<!-- Debug URL za testiranje na fizickom iPhone-u preko backend-a na Mac-u. -->
+	<key>SPOTLINK_LOCAL_DEVICE_API_BASE_URL</key>
+	<string>$(SPOTLINK_LOCAL_DEVICE_API_BASE_URL)</string>
+
 	<!-- Javni Mapbox token za debug ili CI injekciju. -->
 	<key>SPOTLINK_MAPBOX_PUBLIC_TOKEN</key>
 	<string>$(SPOTLINK_MAPBOX_PUBLIC_TOKEN)</string>
@@ -53,6 +57,15 @@
 	<!-- Pristup lokaciji – obavezno za prikaz parking mesta -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SpotLink koristi vasu lokaciju da pronadje parking mesta u vasoj blizini.</string>
+
+	<!-- Debug pristup lokalnom backend-u na istoj Wi-Fi mrezi. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SpotLink koristi lokalnu mrezu za povezivanje sa razvojnim backendom na vasem Mac racunaru.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 
 	<!-- Launch screen (bez storyboard-a – SwiftUI nativni) -->
 	<key>UILaunchScreen</key>
