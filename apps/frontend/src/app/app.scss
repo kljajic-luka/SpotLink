@@ -54,6 +54,19 @@
   color: var(--sl-color-primary);
 }
 
+.shell-login {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--sl-color-border-strong);
+  border-radius: var(--sl-radius-sm);
+  padding: 0 0.75rem;
+  color: var(--sl-color-text-strong);
+  font-size: var(--sl-font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .shell-actions {
   display: inline-flex;
   align-items: center;

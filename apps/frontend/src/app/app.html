@@ -5,14 +5,22 @@
   </a>
 
   <nav class="shell-nav" aria-label="Primary">
-    <a href="#pregled">Pregled</a>
-    <a href="#rezervacije">Rezervacije</a>
-    <a href="#kapacitet">Kapacitet</a>
+    @if (canOpenOperator()) {
+      <a routerLink="/operator">Operator</a>
+    }
+    @if (canOpenAdmin()) {
+      <a routerLink="/admin">Admin</a>
+      <a routerLink="/foundation">Foundation</a>
+    }
   </nav>
 
   <div class="shell-actions">
     <sl-status-pill tone="success">Beograd pilot</sl-status-pill>
-    <sl-ui-button variant="secondary" size="sm" [disabled]="true">Operator</sl-ui-button>
+    @if (auth.isAuthenticated()) {
+      <sl-ui-button variant="secondary" size="sm" (clicked)="logout()">Logout</sl-ui-button>
+    } @else {
+      <a routerLink="/login" class="shell-login">Login</a>
+    }
   </div>
 </header>
 

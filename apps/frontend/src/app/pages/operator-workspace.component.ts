@@ -1185,6 +1185,9 @@ export class OperatorWorkspaceComponent implements OnInit {
     if (!reservation) {
       return;
     }
+    if ((action === 'no-show' || action === 'cancel') && !this.confirmOperatorAction(this.bookingActionConfirmation(action))) {
+      return;
+    }
 
     this.detailError.set(null);
     this.bookingActionBusy.set(action);
@@ -1217,6 +1220,10 @@ export class OperatorWorkspaceComponent implements OnInit {
   }
 
   pauseSales(resource: OperatorResourceHealth): void {
+    if (!this.confirmOperatorAction('Pauzirati prodaju za ovaj resurs?')) {
+      return;
+    }
+
     this.inventoryActionKey.set(`${resource.resourceId}:pause`);
     this.operatorService
       .pauseSales(resource.resourceId, this.optionalValue(this.resourceReason(resource.resourceId)))
@@ -1233,6 +1240,10 @@ export class OperatorWorkspaceComponent implements OnInit {
   }
 
   unpauseSales(resource: OperatorResourceHealth): void {
+    if (!this.confirmOperatorAction('Vratiti prodaju za ovaj resurs?')) {
+      return;
+    }
+
     this.inventoryActionKey.set(`${resource.resourceId}:unpause`);
     this.operatorService
       .unpauseSales(resource.resourceId)
@@ -1252,6 +1263,9 @@ export class OperatorWorkspaceComponent implements OnInit {
     const sellableCapacity = this.resourceCapacity(resource.resourceId);
     if (sellableCapacity === null || Number.isNaN(sellableCapacity)) {
       this.flashMessage.set('Unesite novi prodajni limit pre cuvanja.');
+      return;
+    }
+    if (!this.confirmOperatorAction('Sacuvati novi prodajni limit za ovaj resurs?')) {
       return;
     }
 
@@ -1477,6 +1491,21 @@ export class OperatorWorkspaceComponent implements OnInit {
       case 'cancel':
         return 'Rezervacija je otkazana.';
     }
+  }
+
+  private bookingActionConfirmation(action: 'check-in' | 'no-show' | 'cancel'): string {
+    switch (action) {
+      case 'check-in':
+        return 'Evidentirati dolazak vozaca?';
+      case 'no-show':
+        return 'Oznaciti rezervaciju kao no-show?';
+      case 'cancel':
+        return 'Otkazati ovu rezervaciju?';
+    }
+  }
+
+  private confirmOperatorAction(message: string): boolean {
+    return window.confirm(message);
   }
 
   private toErrorMessage(error: unknown, fallback: string): string {
