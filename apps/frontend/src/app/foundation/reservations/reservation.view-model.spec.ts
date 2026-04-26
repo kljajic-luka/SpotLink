@@ -11,8 +11,9 @@ const baseReservation: Reservation = {
   endsAt: '2026-04-22T14:00:00.000Z',
   timezone: 'Europe/Belgrade',
   status: 'PENDING_PAYMENT',
+  paymentMode: 'PAY_ON_ARRIVAL',
   totalAmountCents: 1299,
-  currency: 'USD',
+  currency: 'RSD',
   accessInstructionsVisible: false,
   createdAt: '2026-04-22T10:00:00.000Z',
 };

@@ -10,7 +10,7 @@ public class AppProperties {
     private final Cors cors = new Cors();
     private final Cookie cookie = new Cookie();
     private final Jwt jwt = new Jwt();
-    private String defaultCurrency = "USD";
+    private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
     private boolean mockPaymentEnabled = true;
     private long holdExpiryScanMs = 60000;

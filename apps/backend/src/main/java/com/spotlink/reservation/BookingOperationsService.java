@@ -548,7 +548,9 @@ public class BookingOperationsService {
     }
 
     private PaymentMode resolvePaymentMode(InventoryPool pool, PaymentMode requestedMode) {
-        PaymentMode paymentMode = requestedMode == null ? PaymentMode.ONLINE : requestedMode;
+        PaymentMode paymentMode = requestedMode == null
+                ? (pool.isPayOnArrivalEnabled() ? PaymentMode.PAY_ON_ARRIVAL : PaymentMode.ONLINE)
+                : requestedMode;
         if (paymentMode == PaymentMode.PAY_ON_ARRIVAL && !pool.isPayOnArrivalEnabled()) {
             throw new ConflictException("PAY_ON_ARRIVAL_NOT_AVAILABLE", "Pay on arrival is not available for this inventory.");
         }

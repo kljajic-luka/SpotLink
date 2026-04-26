@@ -88,7 +88,7 @@ class BookingOpsHardeningTest {
         Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
-        MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, null, "sl_hold_" + UUID.randomUUID())
+        MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, "ONLINE", "sl_hold_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andReturn();
@@ -100,7 +100,7 @@ class BookingOpsHardeningTest {
                 .extracting(event -> event.getEventType().name())
                 .contains("CREATED", "HOLD_CREATED");
 
-        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), null, "sl_overlap_" + UUID.randomUUID())
+        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "ONLINE", "sl_overlap_" + UUID.randomUUID())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RESOURCE_UNAVAILABLE"));
 
@@ -111,7 +111,7 @@ class BookingOpsHardeningTest {
         assertThat(bookingHoldRepository.findById(hold.getId()).orElseThrow().getStatus()).isEqualTo(BookingHoldStatus.EXPIRED);
         assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus()).isEqualTo(ReservationStatus.EXPIRED);
 
-        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), null, "sl_after_expiry_" + UUID.randomUUID())
+        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "ONLINE", "sl_after_expiry_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
     }
@@ -157,7 +157,7 @@ class BookingOpsHardeningTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paused").value(false));
 
-        MvcResult pendingReservation = createReservation(customerSession, resourceId, startsAt, endsAt, null, "sl_pending_" + UUID.randomUUID())
+        MvcResult pendingReservation = createReservation(customerSession, resourceId, startsAt, endsAt, "ONLINE", "sl_pending_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andReturn();
@@ -311,7 +311,7 @@ class BookingOpsHardeningTest {
         Instant startsAt = Instant.now().plus(5, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
-        MvcResult paidReservation = createReservation(customerSession, resourceId, startsAt, endsAt, null, "sl_pay_ok_" + UUID.randomUUID())
+        MvcResult paidReservation = createReservation(customerSession, resourceId, startsAt, endsAt, "ONLINE", "sl_pay_ok_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
                 .andReturn();
         String paidReservationId = objectMapper.readTree(paidReservation.getResponse().getContentAsString()).get("id").asText();
@@ -336,7 +336,7 @@ class BookingOpsHardeningTest {
                 resourceId,
                 startsAt.plus(3, ChronoUnit.HOURS),
                 endsAt.plus(3, ChronoUnit.HOURS),
-                null,
+                "ONLINE",
                 "sl_pay_fail_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
                 .andReturn();
@@ -516,7 +516,7 @@ class BookingOpsHardeningTest {
                                   "type": "PARKING_SPOT",
                                   "label": "A-01",
                                   "hourlyRateCents": 200,
-                                  "currency": "USD",
+                                  "currency": "RSD",
                                   "instantReserve": true,
                                   "active": true,
                                   "capacity": %s

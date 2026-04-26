@@ -3,5 +3,5 @@ export const environment = {
   appName: 'SpotLink',
   baseApiUrl: '/api',
   supportEmail: 'support@spotlink.local',
-  defaultLocale: 'en-US',
+  defaultLocale: 'sr-RS',
 };

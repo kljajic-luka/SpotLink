@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 
 import { ApiClient, ApiPage } from '@foundation/networking';
 import {
+  BookingDetail,
   CreateReservationRequest,
   Reservation,
   ReservationQuote,
@@ -24,6 +25,10 @@ export class ReservationService {
 
   getReservation(reservationId: string): Observable<Reservation> {
     return this.api.get<Reservation>(`/reservations/${encodeURIComponent(reservationId)}`);
+  }
+
+  getReservationDetail(reservationId: string): Observable<BookingDetail> {
+    return this.api.get<BookingDetail>(`/reservations/${encodeURIComponent(reservationId)}/detail`);
   }
 
   quote(payload: ReservationQuoteRequest): Observable<ReservationQuote> {

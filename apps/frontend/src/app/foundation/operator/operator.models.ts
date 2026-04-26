@@ -1,3 +1,6 @@
+import { ApiPage } from '@foundation/networking';
+import { BookingDetail, Reservation } from '@foundation/reservations';
+
 export interface OperatorAccount {
   id: string;
   displayName: string;
@@ -25,3 +28,25 @@ export interface OperatorResourceHealth {
   nextReservationAt?: string;
   attentionRequired?: string;
 }
+
+export interface InventoryControl {
+  resourceId: string;
+  inventoryPoolId: string;
+  paused: boolean;
+  pauseReason?: string;
+  baseCapacity: number;
+}
+
+export interface OperatorBookingActionRequest {
+  reason?: string;
+  notes?: string;
+}
+
+export interface CapacityOverrideRequest {
+  sellableCapacity: number;
+  reason?: string;
+}
+
+export interface OperatorUpcomingBookingsPage extends ApiPage<Reservation> {}
+
+export interface OperatorBookingDetail extends BookingDetail {}

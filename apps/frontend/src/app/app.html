@@ -1,18 +1,18 @@
 <header class="shell-header">
   <a routerLink="/" class="brand" aria-label="SpotLink home">
     <span class="brand__mark" aria-hidden="true"></span>
-    <span>SpotLink</span>
+    <span>SpotLink Operativa</span>
   </a>
 
   <nav class="shell-nav" aria-label="Primary">
-    <a routerLink="/">Foundation</a>
-    <a href="#modules">Modules</a>
-    <a href="#next">Next</a>
+    <a href="#pregled">Pregled</a>
+    <a href="#rezervacije">Rezervacije</a>
+    <a href="#kapacitet">Kapacitet</a>
   </nav>
 
   <div class="shell-actions">
-    <sl-status-pill tone="success">MVP foundation</sl-status-pill>
-    <sl-ui-button variant="secondary" size="sm">Sign in</sl-ui-button>
+    <sl-status-pill tone="success">Beograd pilot</sl-status-pill>
+    <sl-ui-button variant="secondary" size="sm" [disabled]="true">Operator</sl-ui-button>
   </div>
 </header>
 

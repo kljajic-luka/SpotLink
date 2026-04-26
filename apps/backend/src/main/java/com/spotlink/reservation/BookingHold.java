@@ -46,7 +46,7 @@ public class BookingHold extends AuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private PaymentMode paymentMode = PaymentMode.ONLINE;
+    private PaymentMode paymentMode = PaymentMode.PAY_ON_ARRIVAL;
 
     public UUID getReservationId() {
         return reservationId;
