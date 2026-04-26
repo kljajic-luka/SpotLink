@@ -5,17 +5,17 @@
   "description": "Parking reservation marketplace foundation built with Angular and strict TypeScript.",
   "scripts": {
     "start": "npm --prefix apps/frontend run start",
-    "start:backend": "mvn -f apps/backend/pom.xml spring-boot:run",
-    "build": "npm --prefix apps/frontend run build",
+    "start:backend": "mvn -f apps/backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=dev",
+    "build": "npm --prefix apps/frontend run build:ci",
     "build:backend": "mvn -f apps/backend/pom.xml package",
     "build:ios": "swift build --package-path apps/ios/SpotLink",
     "build:dev": "npm --prefix apps/frontend run build:dev",
-    "test": "npm --prefix apps/frontend run test",
+    "test": "npm --prefix apps/frontend run test:ci",
     "test:backend": "mvn -f apps/backend/pom.xml test",
     "test:ios": "swift test --package-path apps/ios/SpotLink"
   },
   "engines": {
-    "node": "^20.19.0 || ^22.12.0 || >=24.0.0 <25",
+    "node": "^20.19.0 || ^22.12.0 || ^24.0.0",
     "npm": ">=10"
   }
 }

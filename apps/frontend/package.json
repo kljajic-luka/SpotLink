@@ -7,7 +7,9 @@
     "start": "ng serve --host 0.0.0.0 --configuration development",
     "build": "ng build --configuration production",
     "build:dev": "ng build --configuration development",
-    "test": "ng test"
+    "build:ci": "CI=1 ng build --configuration production",
+    "test": "ng test",
+    "test:ci": "CI=1 ng test --watch=false --browsers=ChromeHeadless"
   },
   "dependencies": {
     "@angular/common": "^20.3.16",
