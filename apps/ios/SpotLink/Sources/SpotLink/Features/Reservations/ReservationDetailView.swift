@@ -19,6 +19,7 @@ public struct ReservationResolvedContext: Sendable {
 @MainActor
 public final class ReservationDetailViewModel: ObservableObject {
     @Published public private(set) var reservation: Reservation?
+    @Published public private(set) var bookingDetail: BookingDetail?
     @Published public private(set) var resolvedContext: ReservationResolvedContext?
     @Published public private(set) var isLoading = false
     @Published public private(set) var isCancelling = false
@@ -57,7 +58,9 @@ public final class ReservationDetailViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let loadedReservation = try await reservationService.getReservation(reservationId)
+            let detail = try await reservationService.getReservationDetail(reservationId)
+            bookingDetail = detail
+            let loadedReservation = detail.reservation
             reservation = loadedReservation
 
             if resolvedContext == nil {
@@ -82,10 +85,15 @@ public final class ReservationDetailViewModel: ObservableObject {
         defer { isCancelling = false }
 
         do {
-            self.reservation = try await reservationService.cancel(
+            let cancelledReservation = try await reservationService.cancel(
                 reservation.id,
                 reason: "Korisnik otkazao rezervaciju iz iOS aplikacije."
             )
+            self.reservation = cancelledReservation
+            if let refreshedDetail = try? await reservationService.getReservationDetail(reservation.id) {
+                self.bookingDetail = refreshedDetail
+                self.reservation = refreshedDetail.reservation
+            }
             successMessage = "Rezervacija je otkazana."
         } catch let error as APIError {
             setAPIError(error, operation: "reservation_cancel")
@@ -153,6 +161,17 @@ public struct ReservationDetailView: View {
                             paymentResult: nil,
                             paymentMethod: nil
                         )
+
+                        if let detail = viewModel.bookingDetail {
+                            ReservationCustomerTimelineCard(
+                                events: detail.customerVisibleTimeline,
+                                timezone: reservation.timezone
+                            )
+
+                            ReservationPaymentAttemptsCard(
+                                attempts: detail.paymentAttempts
+                            )
+                        }
 
                         ReservationTimelineCard(
                             reservation: reservation,
@@ -370,6 +389,83 @@ struct ReservationPaymentStateCard: View {
     }
 }
 
+struct ReservationCustomerTimelineCard: View {
+    let events: [BookingEvent]
+    let timezone: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+            Text("Tok rezervacije")
+                .font(SpotLinkDesign.Typography.headline)
+
+            if events.isEmpty {
+                Text("Nema dodatnih dogadjaja vidljivih korisniku.")
+                    .font(SpotLinkDesign.Typography.callout)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            } else {
+                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+                    ForEach(events) { event in
+                        HStack(alignment: .top, spacing: SpotLinkDesign.Spacing.sm) {
+                            Image(systemName: event.eventType.customerIcon)
+                                .foregroundStyle(SpotLinkDesign.Colors.tint)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                                Text(event.eventType.customerTitle)
+                                    .font(SpotLinkDesign.Typography.callout.weight(.semibold))
+                                Text(formatReservationDateTime(event.occurredAt, timezone: timezone))
+                                    .font(SpotLinkDesign.Typography.caption)
+                                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                                if let notes = event.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(SpotLinkDesign.Typography.footnote)
+                                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .spotlinkCard()
+    }
+}
+
+struct ReservationPaymentAttemptsCard: View {
+    let attempts: [ReservationPaymentAttempt]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+            Text("Pokusaji placanja")
+                .font(SpotLinkDesign.Typography.headline)
+
+            if attempts.isEmpty {
+                Text("Nema evidentiranih pokusaja placanja.")
+                    .font(SpotLinkDesign.Typography.callout)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            } else {
+                ForEach(attempts) { attempt in
+                    ReservationFactGrid(items: [
+                        ReservationFact(title: "Provajder", value: attempt.provider, icon: "creditcard"),
+                        ReservationFact(title: "Status", value: attempt.status.displayName, icon: attempt.status.icon),
+                        ReservationFact(title: "Iznos", value: formatCents(attempt.amountCents, currency: attempt.currency), icon: "banknote"),
+                        ReservationFact(title: "Rezim", value: attempt.paymentMode.displayName, icon: "wallet.pass")
+                    ])
+
+                    if let failureMessage = attempt.failureMessage, !failureMessage.isEmpty {
+                        ReservationInstructionBlock(
+                            title: "Razlog neuspeha",
+                            message: failureMessage
+                        )
+                    }
+                }
+            }
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .spotlinkCard()
+    }
+}
+
 struct ReservationTimelineCard: View {
     let reservation: Reservation
     let resource: ParkingResource?
@@ -399,6 +495,84 @@ struct ReservationTimelineCard: View {
         }
         .padding(SpotLinkDesign.Spacing.md)
         .spotlinkCard()
+    }
+}
+
+private extension BookingEventType {
+    var customerTitle: String {
+        switch self {
+        case .created:
+            return "Rezervacija kreirana"
+        case .holdCreated:
+            return "Mesto je privremeno zadrzano"
+        case .holdExpired:
+            return "Hold je istekao"
+        case .paymentAuthorized:
+            return "Placanje je autorizovano"
+        case .paymentFailed:
+            return "Placanje nije uspelo"
+        case .confirmed:
+            return "Rezervacija je potvrdjena"
+        case .cancelled:
+            return "Rezervacija je otkazana"
+        case .operatorCancelled:
+            return "Operator je otkazao rezervaciju"
+        case .checkedIn:
+            return "Dolazak je evidentiran"
+        case .noShow:
+            return "Dolazak nije evidentiran"
+        case .refundMarked:
+            return "Refundacija je oznacena"
+        case .legacyImported, .statusChanged, .adminOverride:
+            return "Sistemska izmena"
+        }
+    }
+
+    var customerIcon: String {
+        switch self {
+        case .paymentAuthorized, .confirmed:
+            return "checkmark.circle.fill"
+        case .paymentFailed, .holdExpired, .cancelled, .operatorCancelled, .noShow:
+            return "exclamationmark.triangle.fill"
+        case .holdCreated:
+            return "timer"
+        case .refundMarked:
+            return "arrow.uturn.left.circle.fill"
+        default:
+            return "circle.fill"
+        }
+    }
+}
+
+private extension ReservationPaymentAttemptStatus {
+    var displayName: String {
+        switch self {
+        case .pending:
+            return "U toku"
+        case .requiresAction:
+            return "Ceka potvrdu"
+        case .authorized:
+            return "Autorizovano"
+        case .failed:
+            return "Neuspesno"
+        case .cancelled:
+            return "Otkazano"
+        case .refundMarked:
+            return "Refundacija oznacena"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .authorized:
+            return "checkmark.seal"
+        case .failed, .cancelled:
+            return "xmark.octagon"
+        case .refundMarked:
+            return "arrow.uturn.left.circle"
+        case .pending, .requiresAction:
+            return "clock"
+        }
     }
 }
 

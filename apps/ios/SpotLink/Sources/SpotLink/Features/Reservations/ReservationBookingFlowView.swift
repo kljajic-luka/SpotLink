@@ -41,6 +41,7 @@ public final class ReservationBookingViewModel: ObservableObject {
         self.selectedResourceId = result.resources.first?.id ?? ""
         self.startsAt = initialStartsAt
         self.endsAt = initialEndsAt
+        self.selectedPaymentMode = Self.preferredPaymentMode(for: result.resources.first)
     }
 
     public var selectedResource: ParkingResource? {
@@ -60,6 +61,17 @@ public final class ReservationBookingViewModel: ObservableObject {
         return resource.fitRule != nil
     }
 
+    public var availablePaymentModes: [PaymentMode] {
+        selectedResource?.availablePaymentModes ?? [.online]
+    }
+
+    public var paymentCapabilityText: String {
+        if availablePaymentModes.count == 1, let mode = availablePaymentModes.first {
+            return "Ovaj resurs podrzava samo: \(mode.displayName)."
+        }
+        return "Ovaj resurs podrzava: \(availablePaymentModes.map(\.displayName).joined(separator: ", "))."
+    }
+
     public func loadIfNeeded(
         reservationService: ReservationService,
         locationService: LocationService,
@@ -77,6 +89,7 @@ public final class ReservationBookingViewModel: ObservableObject {
             if resources.isEmpty {
                 resources = try await locationService.listResources(locationId: result.location.id)
                 selectedResourceId = resources.first?.id ?? ""
+                reconcileSelectedPaymentMode()
             }
 
             vehicles = try await vehicleService.listMyVehicles()
@@ -103,9 +116,15 @@ public final class ReservationBookingViewModel: ObservableObject {
     public func paymentModeChanged() {
         errorMessage = nil
         pendingOnlineReservation = nil
+        reconcileSelectedPaymentMode()
         if selectedPaymentMode.requiresOnlinePayment && selectedPaymentMethodId == nil {
             selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
         }
+    }
+
+    public func resourceSelectionChanged() {
+        reconcileSelectedPaymentMode()
+        invalidateQuote()
     }
 
     public func clearConfirmation() {
@@ -167,6 +186,11 @@ public final class ReservationBookingViewModel: ObservableObject {
                 errorMessage = "Izaberite nacin placanja."
                 return
             }
+        }
+
+        guard availablePaymentModes.contains(selectedPaymentMode) else {
+            errorMessage = "Izabrani nacin placanja nije dostupan za ovo mesto."
+            return
         }
 
         if quote == nil {
@@ -324,6 +348,21 @@ public final class ReservationBookingViewModel: ObservableObject {
         errorMessage = error.userFacingMessageWithReference
     }
 
+    private func reconcileSelectedPaymentMode() {
+        guard !availablePaymentModes.contains(selectedPaymentMode) else {
+            return
+        }
+        selectedPaymentMode = Self.preferredPaymentMode(for: selectedResource)
+    }
+
+    private static func preferredPaymentMode(for resource: ParkingResource?) -> PaymentMode {
+        let modes = resource?.availablePaymentModes ?? [.online]
+        if modes.contains(.payOnArrival) {
+            return .payOnArrival
+        }
+        return modes.first ?? .online
+    }
+
     private func paymentOperationId(reservationId: String, paymentMethodId: String) -> String {
         [reservationId, paymentMethodId].joined(separator: "|")
     }
@@ -442,7 +481,7 @@ public struct ReservationBookingFlowView: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: viewModel.selectedResourceId) { _, _ in
-                    viewModel.invalidateQuote()
+                    viewModel.resourceSelectionChanged()
                 }
 
                 if let resource = viewModel.selectedResource {
@@ -450,7 +489,8 @@ public struct ReservationBookingFlowView: View {
                         ReservationFact(title: "Tip", value: resource.type.displayName, icon: resource.type.systemIcon),
                         ReservationFact(title: "Potvrda", value: resource.confirmationMode.displayName, icon: "checkmark.seal"),
                         ReservationFact(title: "Kapacitet", value: resource.capacitySummary, icon: "car.2"),
-                        ReservationFact(title: "Pristup", value: viewModel.result.location.accessType.displayName, icon: viewModel.result.location.accessType.systemIcon)
+                        ReservationFact(title: "Pristup", value: viewModel.result.location.accessType.displayName, icon: viewModel.result.location.accessType.systemIcon),
+                        ReservationFact(title: "Placanje", value: resource.availablePaymentModes.map(\.displayName).joined(separator: ", "), icon: "wallet.pass")
                     ])
                 }
             }
@@ -503,7 +543,7 @@ public struct ReservationBookingFlowView: View {
                 .font(SpotLinkDesign.Typography.headline)
 
             Picker("Rezim placanja", selection: $viewModel.selectedPaymentMode) {
-                ForEach(PaymentMode.allCases, id: \.self) { mode in
+                ForEach(viewModel.availablePaymentModes, id: \.self) { mode in
                     Text(mode.displayName)
                         .tag(mode)
                 }
@@ -517,6 +557,11 @@ public struct ReservationBookingFlowView: View {
             ReservationInstructionBlock(
                 title: viewModel.selectedPaymentMode.displayName,
                 message: viewModel.selectedPaymentMode.detailText
+            )
+
+            ReservationInstructionBlock(
+                title: "Dostupnost placanja",
+                message: viewModel.paymentCapabilityText
             )
 
             if viewModel.selectedPaymentMode.requiresOnlinePayment {

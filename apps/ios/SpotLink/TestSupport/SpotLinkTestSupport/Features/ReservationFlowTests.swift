@@ -35,7 +35,9 @@ private final class BookingMockAPIClient: APIClientProtocol, @unchecked Sendable
     }
 }
 
-private func makeBookingLocationResult() -> LocationSearchResult {
+private func makeBookingLocationResult(
+    supportedPaymentModes: [PaymentMode] = [.online, .payOnArrival]
+) -> LocationSearchResult {
     LocationSearchResult(
         location: ParkingLocation(
             id: "loc-001",
@@ -71,7 +73,9 @@ private func makeBookingLocationResult() -> LocationSearchResult {
                 instantReserve: true,
                 active: true,
                 capacity: 3,
-                confirmationMode: .manual
+                confirmationMode: .manual,
+                payOnArrivalEnabled: supportedPaymentModes.contains(.payOnArrival),
+                supportedPaymentModes: supportedPaymentModes
             )
         ],
         distanceKm: 0.9,
@@ -332,6 +336,26 @@ struct ReservationFlowTests {
         #expect(viewModel.confirmationContext?.reservation.status == .confirmed)
         #expect(viewModel.confirmationContext?.paymentIntent == nil)
         #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test("booking flow ogranicava placanje na mode koji resurs podrzava")
+    @MainActor
+    func bookingFlowRestrictsPaymentModesToSelectedResourceCapabilities() {
+        let result = makeBookingLocationResult(supportedPaymentModes: [.online])
+        let reservation = makeReservation(status: .pendingPayment, paymentMode: .online)
+        let viewModel = ReservationBookingViewModel(
+            result: result,
+            initialStartsAt: reservation.startsAt,
+            initialEndsAt: reservation.endsAt
+        )
+
+        #expect(viewModel.availablePaymentModes == [.online])
+        #expect(viewModel.selectedPaymentMode == .online)
+
+        viewModel.selectedPaymentMode = .payOnArrival
+        viewModel.paymentModeChanged()
+
+        #expect(viewModel.selectedPaymentMode == .online)
     }
 
     @Test("booking flow zadrzava isti reservation idempotency key kroz retry")

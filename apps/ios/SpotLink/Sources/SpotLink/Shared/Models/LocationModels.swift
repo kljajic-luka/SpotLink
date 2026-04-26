@@ -96,6 +96,44 @@ public struct ParkingResource: Decodable, Identifiable, Sendable {
     public let active: Bool
     public let capacity: Int
     public let confirmationMode: ConfirmationMode
+    public let payOnArrivalEnabled: Bool?
+    public let supportedPaymentModes: [PaymentMode]?
+
+    public init(
+        id: String,
+        locationId: String,
+        type: ParkingResourceType,
+        label: String,
+        floor: String?,
+        bayNumber: String?,
+        fitRule: VehicleFitRule?,
+        hourlyRateCents: Int,
+        dailyRateCents: Int?,
+        currency: String,
+        instantReserve: Bool,
+        active: Bool,
+        capacity: Int,
+        confirmationMode: ConfirmationMode,
+        payOnArrivalEnabled: Bool? = nil,
+        supportedPaymentModes: [PaymentMode]? = nil
+    ) {
+        self.id = id
+        self.locationId = locationId
+        self.type = type
+        self.label = label
+        self.floor = floor
+        self.bayNumber = bayNumber
+        self.fitRule = fitRule
+        self.hourlyRateCents = hourlyRateCents
+        self.dailyRateCents = dailyRateCents
+        self.currency = currency
+        self.instantReserve = instantReserve
+        self.active = active
+        self.capacity = capacity
+        self.confirmationMode = confirmationMode
+        self.payOnArrivalEnabled = payOnArrivalEnabled
+        self.supportedPaymentModes = supportedPaymentModes
+    }
 
     public var hourlyRateFormatted: String {
         formatCents(hourlyRateCents, currency: currency) + "/h"
@@ -111,6 +149,18 @@ public struct ParkingResource: Decodable, Identifiable, Sendable {
             return "1 garantovano mesto"
         }
         return "\(capacity) mesta na raspolaganju"
+    }
+
+    public var availablePaymentModes: [PaymentMode] {
+        if let supportedPaymentModes, !supportedPaymentModes.isEmpty {
+            return PaymentMode.allCases.filter { supportedPaymentModes.contains($0) }
+        }
+
+        if let payOnArrivalEnabled {
+            return payOnArrivalEnabled ? [.online, .payOnArrival] : [.online]
+        }
+
+        return [.online]
     }
 }
 
