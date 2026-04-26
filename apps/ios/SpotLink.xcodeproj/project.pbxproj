@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB0000000000000000000003 /* SpotLink in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000001 /* SpotLink */; };
+		AB0000000000000000000004 /* SpotLink in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000002 /* SpotLink */; };
 		FF0000000000000000000001 /* SpotLinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000001 /* SpotLinkApp.swift */; };
 		FF0000000000000000000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000003 /* Assets.xcassets */; };
 		FF0000000000000000000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000004 /* PrivacyInfo.xcprivacy */; };
 		FF0000000000000000000004 /* LaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000000000000000000009 /* LaunchTests.swift */; };
 		FF0000000000000000000005 /* SpotLinkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE000000000000000000000A /* SpotLinkUITests.swift */; };
-		AB0000000000000000000003 /* SpotLink in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000001 /* SpotLink */; };
-		AB0000000000000000000004 /* SpotLink in Frameworks */ = {isa = PBXBuildFile; productRef = AB0000000000000000000002 /* SpotLink */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,7 +31,7 @@
 		EE0000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = Resources/Info.plist; sourceTree = SOURCE_ROOT; };
 		EE0000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		EE0000000000000000000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Resources/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
-		EE0000000000000000000005 /* SpotLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = SpotLink.entitlements; path = SpotLink.entitlements; sourceTree = SOURCE_ROOT; };
+		EE0000000000000000000005 /* SpotLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SpotLink.entitlements; sourceTree = SOURCE_ROOT; };
 		EE0000000000000000000006 /* SpotLink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpotLink.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE0000000000000000000007 /* SpotLinkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpotLinkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE0000000000000000000008 /* SpotLinkUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpotLinkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -66,7 +66,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AA0000000000000000000002 /* = */ = {
+		AA0000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
 				AC0000000000000000000001 /* SpotLink */,
@@ -418,7 +418,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpotLink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = T6C984AD64;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -444,7 +444,7 @@
 				CODE_SIGN_ENTITLEMENTS = SpotLink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = T6C984AD64;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -588,7 +588,6 @@
 			productName = SpotLink;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = AA0000000000000000000001 /* Project object */;
 }
