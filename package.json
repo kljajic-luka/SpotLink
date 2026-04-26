@@ -12,7 +12,7 @@
     "build:dev": "npm --prefix apps/frontend run build:dev",
     "test": "npm --prefix apps/frontend run test",
     "test:backend": "mvn -f apps/backend/pom.xml test",
-    "test:ios": "swift run --package-path apps/ios/SpotLink SpotLinkTestRunner"
+    "test:ios": "swift test --package-path apps/ios/SpotLink"
   },
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || >=24.0.0 <25",
