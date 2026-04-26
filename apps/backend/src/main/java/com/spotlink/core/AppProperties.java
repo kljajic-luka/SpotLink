@@ -13,6 +13,7 @@ public class AppProperties {
     private String defaultCurrency = "USD";
     private int quoteTtlMinutes = 15;
     private boolean mockPaymentEnabled = true;
+    private long holdExpiryScanMs = 60000;
 
     public Cors getCors() {
         return cors;
@@ -48,6 +49,14 @@ public class AppProperties {
 
     public void setMockPaymentEnabled(boolean mockPaymentEnabled) {
         this.mockPaymentEnabled = mockPaymentEnabled;
+    }
+
+    public long getHoldExpiryScanMs() {
+        return holdExpiryScanMs;
+    }
+
+    public void setHoldExpiryScanMs(long holdExpiryScanMs) {
+        this.holdExpiryScanMs = holdExpiryScanMs;
     }
 
     public static class Cors {
