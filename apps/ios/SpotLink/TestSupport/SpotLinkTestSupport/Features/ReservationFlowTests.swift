@@ -125,22 +125,28 @@ private func makeQuote(start: Date, end: Date) -> ReservationQuote {
     )
 }
 
-private func makeReservation(status: ReservationStatus) -> Reservation {
+private func makeReservation(
+    status: ReservationStatus,
+    paymentMode: PaymentMode = .online
+) -> Reservation {
     Reservation(
         id: "resv-001",
         customerId: "user-001",
         operatorId: "op-001",
         locationId: "loc-001",
         resourceId: "res-001",
+        inventoryPoolId: "pool-001",
+        holdId: "hold-001",
         vehicleId: "veh-001",
         startsAt: Date(timeIntervalSince1970: 1_713_868_800),
         endsAt: Date(timeIntervalSince1970: 1_713_876_000),
         timezone: "Europe/Belgrade",
         status: status,
+        paymentMode: paymentMode,
         totalAmountCents: 530,
         currency: "RSD",
         accessInstructionsVisible: status == .confirmed,
-        paymentExpiresAt: Date(timeIntervalSince1970: 1_713_869_700),
+        paymentExpiresAt: paymentMode == .online ? Date(timeIntervalSince1970: 1_713_869_700) : nil,
         createdAt: Date(timeIntervalSince1970: 1_713_868_000),
         updatedAt: Date(timeIntervalSince1970: 1_713_868_100)
     )
@@ -177,6 +183,44 @@ struct ReservationFlowTests {
         #expect(quote.totalAmountCents == 530)
     }
 
+    @Test("reservation dekodira hardened booking i payment polja")
+    func reservationDecodesHardenedBackendShape() throws {
+        let json = """
+        {
+          "id": "resv-001",
+          "customerId": "user-001",
+          "operatorId": "op-001",
+          "locationId": "loc-001",
+          "resourceId": "res-001",
+          "inventoryPoolId": "pool-001",
+          "holdId": "hold-001",
+          "vehicleId": "veh-001",
+          "startsAt": "2026-04-23T12:00:00Z",
+          "endsAt": "2026-04-23T14:00:00Z",
+          "timezone": "Europe/Belgrade",
+          "status": "NO_SHOW",
+          "paymentMode": "PAY_ON_ARRIVAL",
+          "totalAmountCents": 530,
+          "currency": "RSD",
+          "accessInstructionsVisible": false,
+          "paymentExpiresAt": null,
+          "createdAt": "2026-04-23T10:00:00Z",
+          "updatedAt": "2026-04-23T10:05:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
+
+        #expect(reservation.status == .noShow)
+        #expect(reservation.paymentMode == .payOnArrival)
+        #expect(reservation.inventoryPoolId == "pool-001")
+        #expect(reservation.holdId == "hold-001")
+        #expect(reservation.holdExpiresAt == nil)
+        #expect(reservation.currency == "RSD")
+    }
+
     @Test("create reservation request cuva eksplicitni idempotency key")
     func createReservationRequestUsesProvidedIdempotencyKey() throws {
         let start = Date(timeIntervalSince1970: 1_713_868_800)
@@ -189,6 +233,7 @@ struct ReservationFlowTests {
             promoCode: nil,
             quoteId: nil,
             paymentMethodId: "pm_card_visa",
+            paymentMode: .online,
             idempotencyKey: "res:test-key"
         )
 
@@ -198,6 +243,7 @@ struct ReservationFlowTests {
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
         #expect(object?["idempotencyKey"] as? String == "res:test-key")
+        #expect(object?["paymentMode"] as? String == "ONLINE")
         #expect(object?["startsAt"] as? String == start.iso8601String)
         #expect(object?["endsAt"] as? String == end.iso8601String)
     }
@@ -215,6 +261,77 @@ struct ReservationFlowTests {
         store.reset(operation: "reservation|res-001|slot-a")
         let regenerated = store.key(for: "reservation|res-001|slot-a", prefix: "res")
         #expect(regenerated != first)
+    }
+
+    @Test("pay on arrival flow salje eksplicitni mode i ne poziva online payment")
+    func payOnArrivalFlowSkipsOnlinePayment() async {
+        let client = BookingMockAPIClient()
+        let result = makeBookingLocationResult()
+        let vehicle = makeVehicle()
+        let reservation = makeReservation(status: .confirmed, paymentMode: .payOnArrival)
+
+        let reservationService = ReservationService(apiClient: client)
+        let locationService = LocationService(apiClient: client)
+        let vehicleService = VehicleService(apiClient: client)
+        let paymentService = PaymentService(apiClient: client)
+
+        var paymentCalls = 0
+        var capturedPaymentMode: PaymentMode?
+        var capturedPaymentMethodId: String?
+
+        client.getHandler = { path, _ in
+            switch path {
+            case "/vehicles/me":
+                return [vehicle]
+            case "/payments/methods":
+                return [PaymentMethod]()
+            case "/reservations/\(reservation.id)":
+                return reservation
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat GET put: \(path)"))
+            }
+        }
+
+        client.postHandler = { path, body in
+            switch path {
+            case "/reservations/quote":
+                return makeQuote(start: reservation.startsAt, end: reservation.endsAt)
+            case "/reservations":
+                guard let request = body as? CreateReservationRequest else {
+                    throw APIError.decodingFailed("Ocekivan CreateReservationRequest")
+                }
+                capturedPaymentMode = request.paymentMode
+                capturedPaymentMethodId = request.paymentMethodId
+                return reservation
+            case "/payments/intents", "/payments/intents/pi-001/confirm":
+                paymentCalls += 1
+                throw APIError.serverError(500, APIErrorContext(message: "Online payment ne sme biti pozvan"))
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat POST put: \(path)"))
+            }
+        }
+
+        let viewModel = ReservationBookingViewModel(
+            result: result,
+            initialStartsAt: reservation.startsAt,
+            initialEndsAt: reservation.endsAt
+        )
+
+        await viewModel.loadIfNeeded(
+            reservationService: reservationService,
+            locationService: locationService,
+            vehicleService: vehicleService,
+            paymentService: paymentService
+        )
+        await viewModel.submitBooking(reservationService: reservationService, paymentService: paymentService)
+
+        #expect(capturedPaymentMode == .payOnArrival)
+        #expect(capturedPaymentMethodId == nil)
+        #expect(paymentCalls == 0)
+        #expect(viewModel.confirmationContext?.reservation.paymentMode == .payOnArrival)
+        #expect(viewModel.confirmationContext?.reservation.status == .confirmed)
+        #expect(viewModel.confirmationContext?.paymentIntent == nil)
+        #expect(viewModel.errorMessage == nil)
     }
 
     @Test("booking flow zadrzava isti reservation idempotency key kroz retry")
@@ -301,6 +418,8 @@ struct ReservationFlowTests {
             vehicleService: vehicleService,
             paymentService: paymentService
         )
+        viewModel.selectedPaymentMode = .online
+        viewModel.paymentModeChanged()
 
         #expect(viewModel.quote?.totalAmountCents == 530)
         #expect(viewModel.selectedPaymentMethodId == paymentMethod.id)
@@ -315,7 +434,7 @@ struct ReservationFlowTests {
         #expect(reservationKeys.count == 2)
         #expect(reservationKeys[0] == reservationKeys[1])
         #expect(viewModel.confirmationContext?.reservation.status == .confirmed)
-        #expect(viewModel.confirmationContext?.paymentIntent.id == paymentIntent.id)
+        #expect(viewModel.confirmationContext?.paymentIntent?.id == paymentIntent.id)
     }
 
     @Test("booking flow ne potvrdi rezervaciju kada intent zahteva dodatnu akciju")
@@ -390,10 +509,13 @@ struct ReservationFlowTests {
             vehicleService: vehicleService,
             paymentService: paymentService
         )
+        viewModel.selectedPaymentMode = .online
+        viewModel.paymentModeChanged()
         await viewModel.submitBooking(reservationService: reservationService, paymentService: paymentService)
 
         #expect(confirmCalls == 0)
         #expect(viewModel.confirmationContext == nil)
+        #expect(viewModel.pendingOnlineReservation?.holdExpiresAt == reservation.holdExpiresAt)
         #expect(viewModel.errorMessage == "Placanje zahteva dodatnu potvrdu kod provajdera pre zavrsetka rezervacije.")
     }
 
@@ -469,10 +591,13 @@ struct ReservationFlowTests {
             vehicleService: vehicleService,
             paymentService: paymentService
         )
+        viewModel.selectedPaymentMode = .online
+        viewModel.paymentModeChanged()
         await viewModel.submitBooking(reservationService: reservationService, paymentService: paymentService)
 
         #expect(confirmCalls == 1)
         #expect(viewModel.confirmationContext == nil)
+        #expect(viewModel.pendingOnlineReservation?.holdId == reservation.holdId)
         #expect(viewModel.errorMessage == "Placanje zahteva dodatnu potvrdu kod provajdera pre zavrsetka rezervacije.")
     }
 }

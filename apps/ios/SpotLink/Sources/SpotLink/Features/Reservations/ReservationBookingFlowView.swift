@@ -3,8 +3,8 @@ import SwiftUI
 public struct ReservationConfirmationContext {
     public let reservation: Reservation
     public let quote: ReservationQuote
-    public let paymentIntent: PaymentIntent
-    public let paymentResult: PaymentProviderResult
+    public let paymentIntent: PaymentIntent?
+    public let paymentResult: PaymentProviderResult?
     public let paymentMethod: PaymentMethod?
     public let resolvedContext: ReservationResolvedContext
 }
@@ -17,12 +17,14 @@ public final class ReservationBookingViewModel: ObservableObject {
     @Published public var endsAt: Date
     @Published public var selectedVehicleId: String?
     @Published public var selectedPaymentMethodId: String?
+    @Published public var selectedPaymentMode: PaymentMode = .payOnArrival
     @Published public var promoCode: String = ""
 
     @Published public private(set) var vehicles: [VehicleProfile] = []
     @Published public private(set) var paymentMethods: [PaymentMethod] = []
     @Published public private(set) var quote: ReservationQuote?
     @Published public private(set) var confirmationContext: ReservationConfirmationContext?
+    @Published public private(set) var pendingOnlineReservation: Reservation?
     @Published public private(set) var isLoading = false
     @Published public private(set) var isQuoting = false
     @Published public private(set) var isSubmitting = false
@@ -78,8 +80,7 @@ public final class ReservationBookingViewModel: ObservableObject {
             }
 
             vehicles = try await vehicleService.listMyVehicles()
-            paymentMethods = try await paymentService.listPaymentMethods()
-            selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
+            await loadPaymentMethods(paymentService: paymentService)
 
             if requiresVehicleSelection && selectedVehicleId == nil {
                 selectedVehicleId = vehicles.first?.id
@@ -87,7 +88,7 @@ public final class ReservationBookingViewModel: ObservableObject {
 
             await refreshQuote(service: reservationService)
         } catch let error as APIError {
-            errorMessage = error.userFacingMessage
+            setAPIError(error, operation: "reservation_booking_load")
         } catch {
             errorMessage = "Priprema rezervacije trenutno nije uspela."
         }
@@ -96,6 +97,15 @@ public final class ReservationBookingViewModel: ObservableObject {
     public func invalidateQuote() {
         quote = nil
         errorMessage = nil
+        pendingOnlineReservation = nil
+    }
+
+    public func paymentModeChanged() {
+        errorMessage = nil
+        pendingOnlineReservation = nil
+        if selectedPaymentMode.requiresOnlinePayment && selectedPaymentMethodId == nil {
+            selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
+        }
     }
 
     public func clearConfirmation() {
@@ -129,7 +139,7 @@ public final class ReservationBookingViewModel: ObservableObject {
             )
         } catch let error as APIError {
             quote = nil
-            errorMessage = error.userFacingMessage
+            setAPIError(error, operation: "reservation_quote")
         } catch {
             quote = nil
             errorMessage = "Ponuda trenutno nije dostupna."
@@ -152,9 +162,11 @@ public final class ReservationBookingViewModel: ObservableObject {
             return
         }
 
-        guard let paymentMethodId = selectedPaymentMethodId else {
-            errorMessage = "Izaberite nacin placanja."
-            return
+        if selectedPaymentMode.requiresOnlinePayment {
+            guard selectedPaymentMethodId != nil else {
+                errorMessage = "Izaberite nacin placanja."
+                return
+            }
         }
 
         if quote == nil {
@@ -165,9 +177,11 @@ public final class ReservationBookingViewModel: ObservableObject {
 
         isSubmitting = true
         errorMessage = nil
+        pendingOnlineReservation = nil
         defer { isSubmitting = false }
 
         do {
+            let paymentMethodId = selectedPaymentMode.requiresOnlinePayment ? selectedPaymentMethodId : nil
             let reservationKey = pendingOperations.key(for: reservationOperationId, prefix: "res")
             let reservation = try await reservationService.create(
                 CreateReservationRequest(
@@ -178,9 +192,30 @@ public final class ReservationBookingViewModel: ObservableObject {
                     promoCode: promoCode.nilIfBlank,
                     quoteId: nil,
                     paymentMethodId: paymentMethodId,
+                    paymentMode: selectedPaymentMode,
                     idempotencyKey: reservationKey
                 )
             )
+
+            if selectedPaymentMode == .payOnArrival {
+                let latestReservation = (try? await reservationService.getReservation(reservation.id)) ?? reservation
+                completeReservation(
+                    latestReservation,
+                    quote: quote,
+                    paymentIntent: nil,
+                    paymentResult: nil,
+                    paymentMethod: nil,
+                    selectedResource: selectedResource
+                )
+                return
+            }
+
+            guard let paymentMethodId else {
+                errorMessage = "Izaberite nacin placanja."
+                return
+            }
+
+            pendingOnlineReservation = reservation
 
             let paymentKey = pendingOperations.key(
                 for: paymentOperationId(reservationId: reservation.id, paymentMethodId: paymentMethodId),
@@ -206,23 +241,16 @@ public final class ReservationBookingViewModel: ObservableObject {
             }
 
             let confirmedReservation = (try? await reservationService.getReservation(reservation.id)) ?? reservation
-            let resolvedContext = ReservationResolvedContext(
-                location: result.location,
-                resource: selectedResource,
-                vehicle: selectedVehicle
-            )
-
-            confirmationContext = ReservationConfirmationContext(
-                reservation: confirmedReservation,
+            completeReservation(
+                confirmedReservation,
                 quote: quote,
                 paymentIntent: intent,
                 paymentResult: paymentResult,
                 paymentMethod: selectedPaymentMethod,
-                resolvedContext: resolvedContext
+                selectedResource: selectedResource
             )
-            pendingOperations.resetAll()
         } catch let error as APIError {
-            errorMessage = error.userFacingMessage
+            setAPIError(error, operation: "reservation_submit")
         } catch {
             errorMessage = "Rezervacija nije dovrsena. Pokusajte ponovo sa istom ponudom."
         }
@@ -234,8 +262,66 @@ public final class ReservationBookingViewModel: ObservableObject {
             startsAt.iso8601String,
             endsAt.iso8601String,
             selectedVehicleId ?? "bez-vozila",
+            selectedPaymentMode.rawValue,
             promoCode.nilIfBlank ?? "bez-promo"
         ].joined(separator: "|")
+    }
+
+    public var primaryActionTitle: String {
+        selectedPaymentMode == .payOnArrival
+            ? "Rezervisi uz placanje na dolasku"
+            : "Rezervisi i potvrdi online placanje"
+    }
+
+    private func loadPaymentMethods(paymentService: PaymentService) async {
+        do {
+            paymentMethods = try await paymentService.listPaymentMethods()
+            selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
+        } catch let error as APIError {
+            paymentMethods = []
+            selectedPaymentMethodId = nil
+            SpotLinkLogger.warn("reservation_payment_methods_load_failed code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+            if selectedPaymentMode.requiresOnlinePayment {
+                errorMessage = error.userFacingMessageWithReference
+            }
+        } catch {
+            paymentMethods = []
+            selectedPaymentMethodId = nil
+            if selectedPaymentMode.requiresOnlinePayment {
+                errorMessage = "Nacini placanja trenutno nisu dostupni."
+            }
+        }
+    }
+
+    private func completeReservation(
+        _ reservation: Reservation,
+        quote: ReservationQuote,
+        paymentIntent: PaymentIntent?,
+        paymentResult: PaymentProviderResult?,
+        paymentMethod: PaymentMethod?,
+        selectedResource: ParkingResource
+    ) {
+        let resolvedContext = ReservationResolvedContext(
+            location: result.location,
+            resource: selectedResource,
+            vehicle: selectedVehicle
+        )
+
+        confirmationContext = ReservationConfirmationContext(
+            reservation: reservation,
+            quote: quote,
+            paymentIntent: paymentIntent,
+            paymentResult: paymentResult,
+            paymentMethod: paymentMethod,
+            resolvedContext: resolvedContext
+        )
+        pendingOnlineReservation = nil
+        pendingOperations.resetAll()
+    }
+
+    private func setAPIError(_ error: APIError, operation: String) {
+        SpotLinkLogger.warn("reservation_operation_failed operation=\(operation) code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+        errorMessage = error.userFacingMessageWithReference
     }
 
     private func paymentOperationId(reservationId: String, paymentMethodId: String) -> String {
@@ -278,6 +364,10 @@ public struct ReservationBookingFlowView: View {
             VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.lg) {
                 if let error = viewModel.errorMessage {
                     ErrorBanner(error)
+                }
+
+                if let reservation = viewModel.pendingOnlineReservation {
+                    OnlinePaymentHoldNotice(reservation: reservation)
                 }
 
                 ReservationPreviewHero(result: viewModel.result, resource: viewModel.selectedResource)
@@ -412,24 +502,48 @@ public struct ReservationBookingFlowView: View {
             Text("Placanje")
                 .font(SpotLinkDesign.Typography.headline)
 
-            if viewModel.paymentMethods.isEmpty {
-                Text("Nema dostupnih nacina placanja.")
-                    .font(SpotLinkDesign.Typography.callout)
-                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-            } else {
-                Picker("Kartica", selection: $viewModel.selectedPaymentMethodId) {
-                    ForEach(viewModel.paymentMethods) { method in
-                        Text(method.formattedDescription)
-                            .tag(Optional(method.id))
+            Picker("Rezim placanja", selection: $viewModel.selectedPaymentMode) {
+                ForEach(PaymentMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Rezim placanja")
+            .onChange(of: viewModel.selectedPaymentMode) { _, _ in
+                viewModel.paymentModeChanged()
+            }
+
+            ReservationInstructionBlock(
+                title: viewModel.selectedPaymentMode.displayName,
+                message: viewModel.selectedPaymentMode.detailText
+            )
+
+            if viewModel.selectedPaymentMode.requiresOnlinePayment {
+                if viewModel.paymentMethods.isEmpty {
+                    Text("Nema dostupnih nacina placanja.")
+                        .font(SpotLinkDesign.Typography.callout)
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                } else {
+                    Picker("Kartica", selection: $viewModel.selectedPaymentMethodId) {
+                        ForEach(viewModel.paymentMethods) { method in
+                            Text(method.formattedDescription)
+                                .tag(Optional(method.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if let method = viewModel.selectedPaymentMethod {
+                        Text("Izabrana metoda: \(method.formattedDescription).")
+                            .font(SpotLinkDesign.Typography.footnote)
+                            .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                     }
                 }
-                .pickerStyle(.menu)
-
-                if let method = viewModel.selectedPaymentMethod {
-                    Text("Placanje ide kroz interni mock payment flow. Izabrana metoda: \(method.formattedDescription).")
-                        .font(SpotLinkDesign.Typography.footnote)
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                }
+            } else {
+                ReservationFactGrid(items: [
+                    ReservationFact(title: "Valuta", value: viewModel.quote?.currency ?? "RSD", icon: "banknote"),
+                    ReservationFact(title: "Potvrda", value: "Sistemska potvrda", icon: "checkmark.seal")
+                ])
             }
         }
         .padding(SpotLinkDesign.Spacing.md)
@@ -450,7 +564,7 @@ public struct ReservationBookingFlowView: View {
                 ])
 
                 if let expiresAt = quote.expiresAt {
-                    Text("Ponuda vazi do \(expiresAt.formatted(style: .short)).")
+                    Text("Ponuda vazi do \(formatReservationDateTime(expiresAt, timezone: viewModel.result.location.timezone)).")
                         .font(SpotLinkDesign.Typography.footnote)
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 }
@@ -490,13 +604,45 @@ public struct ReservationBookingFlowView: View {
                 await viewModel.refreshQuote(service: appContainer.reservationService)
             }
 
-            LoadingButton("Rezervisi i potvrdi placanje", isLoading: viewModel.isSubmitting) {
+            LoadingButton(viewModel.primaryActionTitle, isLoading: viewModel.isSubmitting) {
                 await viewModel.submitBooking(
                     reservationService: appContainer.reservationService,
                     paymentService: appContainer.paymentService
                 )
             }
         }
+    }
+}
+
+struct OnlinePaymentHoldNotice: View {
+    let reservation: Reservation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+            Label("Online placanje je zapoceto", systemImage: "timer")
+                .font(SpotLinkDesign.Typography.headline)
+            Text(holdText)
+                .font(SpotLinkDesign.Typography.callout)
+                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+            if let holdId = reservation.holdId {
+                Text("Hold: \(holdId)")
+                    .font(SpotLinkDesign.Typography.caption)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .background(SpotLinkDesign.Colors.warning.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var holdText: String {
+        if let expiresAt = reservation.holdExpiresAt {
+            return "Mesto je zadrzano do \(formatReservationDateTime(expiresAt, timezone: reservation.timezone)). Dovrsite online placanje pre isteka ili napravite novu rezervaciju."
+        }
+        return "Mesto je zadrzano dok se ne zavrsi provera placanja."
     }
 }
 
@@ -553,18 +699,13 @@ struct ReservationConfirmationView: View {
                     location: context.resolvedContext.location
                 )
 
-                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
-                    Text("Placanje")
-                        .font(SpotLinkDesign.Typography.headline)
-                    ReservationFactGrid(items: [
-                        ReservationFact(title: "Intent", value: context.paymentIntent.id, icon: "number"),
-                        ReservationFact(title: "Status", value: context.paymentResult.status.displayName, icon: "creditcard"),
-                        ReservationFact(title: "Metoda", value: context.paymentMethod?.formattedDescription ?? "Partner default", icon: "wallet.pass"),
-                        ReservationFact(title: "Ukupno", value: context.quote.totalAmountFormatted, icon: "banknote")
-                    ])
-                }
-                .padding(SpotLinkDesign.Spacing.md)
-                .spotlinkCard()
+                ReservationPaymentStateCard(
+                    reservation: context.reservation,
+                    quoteTotal: context.quote.totalAmountFormatted,
+                    paymentIntent: context.paymentIntent,
+                    paymentResult: context.paymentResult,
+                    paymentMethod: context.paymentMethod
+                )
 
                 ReservationTrustCard(
                     reservation: context.reservation,

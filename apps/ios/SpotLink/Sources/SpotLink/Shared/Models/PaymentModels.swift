@@ -47,11 +47,7 @@ public struct PaymentIntent: Decodable, Identifiable, Sendable {
     public let updatedAt: Date?
 
     public var amountFormatted: String {
-        let amount = Double(amountCents) / 100.0
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currency
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
+        formatCents(amountCents, currency: currency)
     }
 }
 
