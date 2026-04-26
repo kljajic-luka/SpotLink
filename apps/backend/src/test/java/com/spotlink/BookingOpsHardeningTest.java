@@ -1,0 +1,535 @@
+package com.spotlink;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spotlink.admin.AuditLogRepository;
+import com.spotlink.auth.AuthDtos;
+import com.spotlink.payment.PaymentAttemptRepository;
+import com.spotlink.reservation.BookingEventRepository;
+import com.spotlink.reservation.BookingHold;
+import com.spotlink.reservation.BookingHoldRepository;
+import com.spotlink.reservation.BookingHoldStatus;
+import com.spotlink.reservation.ReservationRepository;
+import com.spotlink.reservation.ReservationService;
+import com.spotlink.reservation.ReservationStatus;
+import com.spotlink.support.SupportTicketRepository;
+import com.spotlink.user.RegistrationStatus;
+import com.spotlink.user.User;
+import com.spotlink.user.UserRepository;
+import com.spotlink.user.UserRole;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class BookingOpsHardeningTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private ReservationRepository reservationRepository;
+
+    @Autowired
+    private BookingHoldRepository bookingHoldRepository;
+
+    @Autowired
+    private BookingEventRepository bookingEventRepository;
+
+    @Autowired
+    private PaymentAttemptRepository paymentAttemptRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private SupportTicketRepository supportTicketRepository;
+
+    @Autowired
+    private ReservationService reservationService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Test
+    void holdCreationBlocksOverlapUntilExpirySweepReleasesCapacity() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1);
+        MockHttpSession customerOne = registerCustomer("Casey");
+        MockHttpSession customerTwo = registerCustomer("Jordan");
+
+        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, "ONLINE", "sl_hold_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andReturn();
+
+        UUID reservationId = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText());
+        BookingHold hold = bookingHoldRepository.findByReservationId(reservationId).orElseThrow();
+        assertThat(hold.getStatus()).isEqualTo(BookingHoldStatus.ACTIVE);
+        assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(reservationId))
+                .extracting(event -> event.getEventType().name())
+                .contains("CREATED", "HOLD_CREATED");
+
+        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "ONLINE", "sl_overlap_" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_UNAVAILABLE"));
+
+        hold.setExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
+        bookingHoldRepository.saveAndFlush(hold);
+        reservationService.expireOverdueHolds();
+
+        assertThat(bookingHoldRepository.findById(hold.getId()).orElseThrow().getStatus()).isEqualTo(BookingHoldStatus.EXPIRED);
+        assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+
+        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "ONLINE", "sl_after_expiry_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
+    }
+
+    @Test
+    void operatorPauseAndLifecycleActionsUseCentralStateTransitions() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1);
+        MockHttpSession customerSession = registerCustomer("Avery");
+
+        Instant startsAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        mockMvc.perform(post("/operator/resources/%s/pause".formatted(resourceId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "manualna pauza"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paused").value(true));
+
+        mockMvc.perform(post("/reservations/quote")
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": "%s",
+                                  "startsAt": "%s",
+                                  "endsAt": "%s"
+                                }
+                                """.formatted(resourceId, startsAt, endsAt)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_PAUSED"));
+
+        mockMvc.perform(post("/operator/resources/%s/unpause".formatted(resourceId))
+                        .with(csrf())
+                        .session(operatorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paused").value(false));
+
+        MvcResult pendingReservation = createReservation(customerSession, resourceId, startsAt, endsAt, "ONLINE", "sl_pending_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andReturn();
+        String pendingReservationId = objectMapper.readTree(pendingReservation.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/check-in".formatted(pendingReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        MvcResult confirmedReservation = createReservation(
+                customerSession,
+                resourceId,
+                startsAt.plus(3, ChronoUnit.HOURS),
+                endsAt.plus(3, ChronoUnit.HOURS),
+                "PAY_ON_ARRIVAL",
+                "sl_poa_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andReturn();
+        String confirmedReservationId = objectMapper.readTree(confirmedReservation.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/check-in".formatted(confirmedReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "vozac stigao"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        MvcResult noShowReservation = createReservation(
+                customerSession,
+                resourceId,
+                startsAt.plus(6, ChronoUnit.HOURS),
+                endsAt.plus(6, ChronoUnit.HOURS),
+                "PAY_ON_ARRIVAL",
+                "sl_noshow_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String noShowReservationId = objectMapper.readTree(noShowReservation.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/no-show".formatted(noShowReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "vozac se nije pojavio"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NO_SHOW"));
+
+        MvcResult cancellableReservation = createReservation(
+                customerSession,
+                resourceId,
+                startsAt.plus(9, ChronoUnit.HOURS),
+                endsAt.plus(9, ChronoUnit.HOURS),
+                "PAY_ON_ARRIVAL",
+                "sl_cancel_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String cancellableReservationId = objectMapper.readTree(cancellableReservation.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/cancel".formatted(cancellableReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "operativna intervencija"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        mockMvc.perform(get("/operator/bookings/upcoming")
+                        .session(operatorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
+    void adminOverrideAndRefundMarkerArePersistedAndAudited() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1);
+        MockHttpSession customerSession = registerCustomer("Morgan");
+        MockHttpSession adminSession = createAdminSession();
+
+        Instant startsAt = Instant.now().plus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_admin_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String reservationId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/admin/bookings/%s/cancel".formatted(reservationId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "manualni override"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        mockMvc.perform(post("/admin/bookings/%s/refund-marker".formatted(reservationId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "rucni povracaj",
+                                  "amountCents": 450
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reason").value("rucni povracaj"));
+
+        JsonNode detail = objectMapper.readTree(mockMvc.perform(get("/admin/bookings/%s".formatted(reservationId))
+                        .session(adminSession))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertThat(detail.path("timeline")).extracting(JsonNode::size).isNotNull();
+        assertThat(detail.path("timeline").toString()).contains("ADMIN_OVERRIDE", "REFUND_MARKED");
+
+        assertThat(auditLogRepository.findAll())
+                .extracting(log -> log.getAction())
+                .contains("ADMIN_CANCELLED_BOOKING", "ADMIN_MARKED_REFUND");
+    }
+
+    @Test
+    void paymentSuccessFailureSupportInspectionAndIdempotencyAreTracked() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1);
+        MockHttpSession customerSession = registerCustomer("Taylor");
+        MockHttpSession adminSession = createAdminSession();
+
+        Instant startsAt = Instant.now().plus(5, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult paidReservation = createReservation(customerSession, resourceId, startsAt, endsAt, "ONLINE", "sl_pay_ok_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String paidReservationId = objectMapper.readTree(paidReservation.getResponse().getContentAsString()).get("id").asText();
+
+        String paymentIdempotencyKey = "sl_pi_" + UUID.randomUUID();
+        MvcResult firstIntent = createPaymentIntent(customerSession, paidReservationId, "pm_card_visa", paymentIdempotencyKey)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("AUTHORIZED"))
+                .andReturn();
+
+        createPaymentIntent(customerSession, paidReservationId, "pm_card_visa", paymentIdempotencyKey)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(objectMapper.readTree(firstIntent.getResponse().getContentAsString()).get("id").asText()));
+
+        assertThat(paymentAttemptRepository.findByReservationIdOrderByCreatedAtDesc(UUID.fromString(paidReservationId)))
+                .hasSize(1)
+                .extracting(attempt -> attempt.getStatus().name())
+                .containsExactly("AUTHORIZED");
+
+        MvcResult failedReservation = createReservation(
+                customerSession,
+                resourceId,
+                startsAt.plus(3, ChronoUnit.HOURS),
+                endsAt.plus(3, ChronoUnit.HOURS),
+                "ONLINE",
+                "sl_pay_fail_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String failedReservationId = objectMapper.readTree(failedReservation.getResponse().getContentAsString()).get("id").asText();
+
+        createPaymentIntent(customerSession, failedReservationId, "pm_card_declined", "sl_decline_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("FAILED"));
+
+        mockMvc.perform(get("/reservations/%s".formatted(failedReservationId)).session(customerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
+
+        mockMvc.perform(get("/reservations/%s/detail".formatted(failedReservationId)).session(customerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservation.id").value(failedReservationId))
+                .andExpect(jsonPath("$.timeline").isArray())
+                .andExpect(jsonPath("$.paymentAttempts[0].status").value("FAILED"));
+
+        mockMvc.perform(post("/support/tickets")
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "PAYMENT",
+                                  "subject": "Problem sa naplatom",
+                                  "body": "Kartica je odbijena tokom testa.",
+                                  "reservationId": "%s"
+                                }
+                                """.formatted(failedReservationId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subject").value("Problem sa naplatom"));
+
+        JsonNode paymentAttempts = objectMapper.readTree(mockMvc.perform(get("/admin/payment-attempts")
+                        .session(adminSession)
+                        .param("reservationId", failedReservationId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertThat(paymentAttempts.toString()).contains("FAILED", "AUTHORIZE_FAILED");
+
+        JsonNode supportCases = objectMapper.readTree(mockMvc.perform(get("/admin/support-cases")
+                        .session(adminSession))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+        assertThat(supportCases.toString()).contains("Problem sa naplatom");
+        assertThat(supportTicketRepository.count()).isPositive();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createReservation(
+            MockHttpSession session,
+            UUID resourceId,
+            Instant startsAt,
+            Instant endsAt,
+            String paymentMode,
+            String idempotencyKey) throws Exception {
+        String paymentModeField = paymentMode == null ? "" : "\n  \"paymentMode\": \"%s\",".formatted(paymentMode);
+        return mockMvc.perform(post("/reservations")
+                .with(csrf())
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "resourceId": "%s",%s
+                          "startsAt": "%s",
+                          "endsAt": "%s",
+                          "idempotencyKey": "%s"
+                        }
+                        """.formatted(resourceId, paymentModeField, startsAt, endsAt, idempotencyKey)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createPaymentIntent(
+            MockHttpSession session,
+            String reservationId,
+            String paymentMethodId,
+            String idempotencyKey) throws Exception {
+        return mockMvc.perform(post("/payments/intents")
+                .with(csrf())
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "reservationId": "%s",
+                          "paymentMethodId": "%s",
+                          "idempotencyKey": "%s"
+                        }
+                        """.formatted(reservationId, paymentMethodId, idempotencyKey)));
+    }
+
+    private MockHttpSession registerOperator() throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/register/operator")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Olivia",
+                                  "lastName": "Operator",
+                                  "email": "operator-%s@spotlink.test",
+                                  "password": "CorrectHorse123",
+                                  "acceptsTerms": true,
+                                  "companyName": "SpotLink Test Parking",
+                                  "operatorType": "BUSINESS",
+                                  "acceptsOperatorAgreement": true
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private MockHttpSession registerCustomer(String firstName) throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/register/customer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "%s",
+                                  "lastName": "Customer",
+                                  "email": "customer-%s@spotlink.test",
+                                  "password": "CorrectHorse123",
+                                  "acceptsTerms": true
+                                }
+                                """.formatted(firstName, UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private MockHttpSession createAdminSession() throws Exception {
+        String email = "admin-%s@spotlink.test".formatted(UUID.randomUUID());
+        User admin = new User();
+        admin.setEmail(email);
+        admin.setPasswordHash(passwordEncoder.encode("CorrectHorse123"));
+        admin.setFirstName("Admin");
+        admin.setLastName("User");
+        admin.setRegistrationStatus(RegistrationStatus.ACTIVE);
+        admin.setRoles(Set.of(UserRole.ADMIN));
+        userRepository.saveAndFlush(admin);
+
+        MvcResult result = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new AuthDtos.LoginRequest(email, "CorrectHorse123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private UUID createParkingResource(MockHttpSession operatorSession, int capacity) throws Exception {
+        MvcResult locationResult = mockMvc.perform(post("/locations")
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Central Garage",
+                                  "address": {
+                                    "line1": "Main Street 1",
+                                    "city": "Belgrade",
+                                    "country": "RS",
+                                    "formattedAddress": "Main Street 1, Belgrade"
+                                  },
+                                  "coordinates": {
+                                    "latitude": 44.812500,
+                                    "longitude": 20.461200
+                                  },
+                                  "timezone": "Europe/Belgrade",
+                                  "accessType": "SELF_PARK",
+                                  "active": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String locationId = objectMapper.readTree(locationResult.getResponse().getContentAsString()).get("id").asText();
+
+        MvcResult resourceResult = mockMvc.perform(post("/locations/%s/resources".formatted(locationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "type": "PARKING_SPOT",
+                                  "label": "A-01",
+                                  "hourlyRateCents": 200,
+                                  "currency": "RSD",
+                                  "instantReserve": true,
+                                  "active": true,
+                                  "capacity": %s
+                                }
+                                """.formatted(capacity)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(objectMapper.readTree(resourceResult.getResponse().getContentAsString()).get("id").asText());
+    }
+}

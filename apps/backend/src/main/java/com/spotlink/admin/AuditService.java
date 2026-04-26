@@ -1,5 +1,7 @@
 package com.spotlink.admin;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -7,20 +9,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuditService {
 
-    private final AuditEventRepository auditEvents;
+    private final AuditLogRepository auditLogs;
+    private final Clock clock;
 
-    public AuditService(AuditEventRepository auditEvents) {
-        this.auditEvents = auditEvents;
+    public AuditService(AuditLogRepository auditLogs, Clock clock) {
+        this.auditLogs = auditLogs;
+        this.clock = clock;
     }
 
     @Transactional
     public void record(UUID actorUserId, String action, String resourceType, String resourceId, String metadata) {
-        AuditEvent event = new AuditEvent();
-        event.setActorUserId(actorUserId);
-        event.setAction(action);
-        event.setResourceType(resourceType);
-        event.setResourceId(resourceId);
-        event.setMetadata(metadata);
-        auditEvents.save(event);
+        record(actorUserId, action, resourceType, resourceId, metadata, Instant.now(clock));
+    }
+
+    @Transactional
+    public void record(UUID actorUserId, String action, String resourceType, String resourceId, String metadata, Instant occurredAt) {
+        AuditLog log = new AuditLog();
+        log.setActorUserId(actorUserId);
+        log.setAction(action);
+        log.setResourceType(resourceType);
+        log.setResourceId(resourceId);
+        log.setMetadata(metadata);
+        log.setOccurredAt(occurredAt);
+        auditLogs.save(log);
     }
 }

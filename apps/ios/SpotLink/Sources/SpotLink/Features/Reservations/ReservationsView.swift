@@ -140,16 +140,16 @@ struct ReservationRow: View {
             Text("Booking code: \(reservation.bookingCodePlaceholder)")
                 .font(SpotLinkDesign.Typography.caption)
                 .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            Text(reservation.paymentMode.displayName)
+                .font(SpotLinkDesign.Typography.caption)
+                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
         }
         .padding(.vertical, SpotLinkDesign.Spacing.sm)
         .accessibilityElement(children: .combine)
     }
 
     private var dateRange: String {
-        let fmt = DateFormatter()
-        fmt.dateStyle = .short
-        fmt.timeStyle = .short
-        return "\(fmt.string(from: reservation.startsAt)) – \(fmt.string(from: reservation.endsAt))"
+        "\(formatReservationDateTime(reservation.startsAt, timezone: reservation.timezone)) - \(formatReservationDateTime(reservation.endsAt, timezone: reservation.timezone))"
     }
 }
 
@@ -177,6 +177,7 @@ struct StatusBadge: View {
         case .cancelled:      return .red
         case .expired:        return .gray
         case .disputed:       return .red
+        case .noShow:         return .orange
         }
     }
 }

@@ -55,9 +55,17 @@ final class LaunchTests: XCTestCase {
                       "Local okruzenje treba koristiti localhost")
     }
 
+    func testLocalDeviceEnvironmentUsesMacBackendAddress() {
+        let url = AppEnvironment.localDevice.apiBaseURL
+        XCTAssertEqual(url.scheme, "http")
+        XCTAssertEqual(url.host, "192.168.1.151")
+        XCTAssertEqual(url.port, 8080)
+    }
+
     func testProductionEnvironmentIsMarkedAsProduction() {
         XCTAssertTrue(AppEnvironment.production.isProduction)
         XCTAssertFalse(AppEnvironment.local.isProduction)
+        XCTAssertFalse(AppEnvironment.localDevice.isProduction)
         XCTAssertFalse(AppEnvironment.development.isProduction)
         XCTAssertFalse(AppEnvironment.staging.isProduction)
     }

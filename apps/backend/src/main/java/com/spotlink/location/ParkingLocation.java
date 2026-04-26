@@ -26,7 +26,7 @@ public class ParkingLocation extends AuditableEntity {
     private GeoCoordinates coordinates = new GeoCoordinates();
 
     @Column(nullable = false, length = 80)
-    private String timezone = "UTC";
+    private String timezone = "Europe/Belgrade";
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

@@ -36,6 +36,7 @@ function statusTone(status: ReservationStatus): ReservationCardViewModel['status
       return 'success';
     case 'PENDING_PAYMENT':
       return 'warning';
+    case 'NO_SHOW':
     case 'CANCELLED':
     case 'EXPIRED':
     case 'DISPUTED':

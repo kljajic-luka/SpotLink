@@ -1,4 +1,5 @@
 import { VehicleFitRule } from '@foundation/vehicles';
+import { PaymentMode } from '@foundation/reservations';
 
 export interface GeoCoordinates {
   latitude: number;
@@ -44,6 +45,10 @@ export interface ParkingResource {
   currency: string;
   instantReserve: boolean;
   active: boolean;
+  capacity?: number;
+  confirmationMode?: 'INSTANT' | 'MANUAL';
+  payOnArrivalEnabled?: boolean;
+  supportedPaymentModes?: PaymentMode[];
 }
 
 export interface LocationSearchFilters {

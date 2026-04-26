@@ -74,9 +74,23 @@ xcodebuild test \
 | Konfiguracija | SPOTLINK_ENV | API URL |
 |--------------|--------------|---------|
 | Debug        | local        | http://localhost:8080/api |
+| Debug device | localDevice  | http://192.168.1.151:8080/api |
 | Release      | production   | https://api.spotlink.app/api |
 
 Za override u Debug build-u: postaviti `SPOTLINK_ENV` env varijablu u Xcode scheme argumentima.
+Za testiranje na fizickom iPhone-u preko backend-a na Mac-u, koristiti:
+
+```text
+SPOTLINK_ENV=localDevice
+```
+
+Ako se Mac IP promeni, dodati i:
+
+```text
+SPOTLINK_LOCAL_DEVICE_API_BASE_URL=http://<MAC_IP>:8080/api
+```
+
+i proveriti sa iPhone Safari-jem da `http://<MAC_IP>:8080/api/health` vraca `UP`.
 
 ### Mapa i token
 

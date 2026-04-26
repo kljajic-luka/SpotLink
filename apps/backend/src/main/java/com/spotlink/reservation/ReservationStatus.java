@@ -8,5 +8,6 @@ public enum ReservationStatus {
     COMPLETED,
     CANCELLED,
     EXPIRED,
-    DISPUTED
+    DISPUTED,
+    NO_SHOW
 }

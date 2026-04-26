@@ -1,5 +1,6 @@
 package com.spotlink.admin;
 
+import jakarta.validation.constraints.Size;
 import com.spotlink.user.RegistrationStatus;
 import com.spotlink.user.UserRole;
 import java.time.Instant;
@@ -40,6 +41,19 @@ public final class AdminDtos {
             List<UserRole> roles,
             RegistrationStatus status,
             Instant createdAt
+    ) {
+    }
+
+    public record AdminActionRequest(@Size(max = 240) String reason) {
+    }
+
+    public record RefundMarkerRequest(Long amountCents, @Size(max = 240) String reason) {
+    }
+
+    public record PauseOperationResult(
+            UUID targetId,
+            int affectedPools,
+            String reason
     ) {
     }
 }

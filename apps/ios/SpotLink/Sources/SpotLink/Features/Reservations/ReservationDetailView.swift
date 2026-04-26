@@ -19,10 +19,12 @@ public struct ReservationResolvedContext: Sendable {
 @MainActor
 public final class ReservationDetailViewModel: ObservableObject {
     @Published public private(set) var reservation: Reservation?
+    @Published public private(set) var bookingDetail: BookingDetail?
     @Published public private(set) var resolvedContext: ReservationResolvedContext?
     @Published public private(set) var isLoading = false
     @Published public private(set) var isCancelling = false
     @Published public private(set) var errorMessage: String?
+    @Published public private(set) var successMessage: String?
 
     private let reservationId: String
     private let reservationService: ReservationService
@@ -52,10 +54,13 @@ public final class ReservationDetailViewModel: ObservableObject {
     public func load() async {
         isLoading = true
         errorMessage = nil
+        successMessage = nil
         defer { isLoading = false }
 
         do {
-            let loadedReservation = try await reservationService.getReservation(reservationId)
+            let detail = try await reservationService.getReservationDetail(reservationId)
+            bookingDetail = detail
+            let loadedReservation = detail.reservation
             reservation = loadedReservation
 
             if resolvedContext == nil {
@@ -65,7 +70,7 @@ public final class ReservationDetailViewModel: ObservableObject {
                 resolvedContext = ReservationResolvedContext(location: location, resource: resource, vehicle: nil)
             }
         } catch let error as APIError {
-            errorMessage = error.userFacingMessage
+            setAPIError(error, operation: "reservation_detail_load")
         } catch {
             errorMessage = "Detalji rezervacije trenutno nisu dostupni."
         }
@@ -76,18 +81,30 @@ public final class ReservationDetailViewModel: ObservableObject {
 
         isCancelling = true
         errorMessage = nil
+        successMessage = nil
         defer { isCancelling = false }
 
         do {
-            self.reservation = try await reservationService.cancel(
+            let cancelledReservation = try await reservationService.cancel(
                 reservation.id,
                 reason: "Korisnik otkazao rezervaciju iz iOS aplikacije."
             )
+            self.reservation = cancelledReservation
+            if let refreshedDetail = try? await reservationService.getReservationDetail(reservation.id) {
+                self.bookingDetail = refreshedDetail
+                self.reservation = refreshedDetail.reservation
+            }
+            successMessage = "Rezervacija je otkazana."
         } catch let error as APIError {
-            errorMessage = error.userFacingMessage
+            setAPIError(error, operation: "reservation_cancel")
         } catch {
             errorMessage = "Rezervaciju trenutno nije moguce otkazati."
         }
+    }
+
+    private func setAPIError(_ error: APIError, operation: String) {
+        SpotLinkLogger.warn("reservation_detail_operation_failed operation=\(operation) code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+        errorMessage = error.userFacingMessageWithReference
     }
 }
 
@@ -96,6 +113,7 @@ public struct ReservationDetailView: View {
 
     private let supportService: SupportService
     @State private var showSupportComposer = false
+    @State private var showCancelConfirmation = false
 
     public init(
         reservationId: String,
@@ -125,12 +143,35 @@ public struct ReservationDetailView: View {
                             ErrorBanner(error)
                         }
 
+                        if let success = viewModel.successMessage {
+                            SuccessBanner(success)
+                        }
+
                         ReservationHeaderCard(
                             title: context.location.name,
                             subtitle: context.location.address.displayAddress,
                             reservation: reservation,
                             resource: context.resource
                         )
+
+                        ReservationPaymentStateCard(
+                            reservation: reservation,
+                            quoteTotal: reservation.totalAmountFormatted,
+                            paymentIntent: nil,
+                            paymentResult: nil,
+                            paymentMethod: nil
+                        )
+
+                        if let detail = viewModel.bookingDetail {
+                            ReservationCustomerTimelineCard(
+                                events: detail.customerVisibleTimeline,
+                                timezone: reservation.timezone
+                            )
+
+                            ReservationPaymentAttemptsCard(
+                                attempts: detail.paymentAttempts
+                            )
+                        }
 
                         ReservationTimelineCard(
                             reservation: reservation,
@@ -156,7 +197,7 @@ public struct ReservationDetailView: View {
                                 isLoading: viewModel.isCancelling,
                                 variant: .destructive
                             ) {
-                                await viewModel.cancelReservation()
+                                showCancelConfirmation = true
                             }
                         }
                     }
@@ -180,6 +221,18 @@ public struct ReservationDetailView: View {
         .navigationTitle("Detalji rezervacije")
         .spotlinkInlineNavigationTitle()
         .task { await viewModel.loadIfNeeded() }
+        .confirmationDialog(
+            "Otkazati rezervaciju?",
+            isPresented: $showCancelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Otkazi rezervaciju", role: .destructive) {
+                Task { await viewModel.cancelReservation() }
+            }
+            Button("Zadrzi rezervaciju", role: .cancel) {}
+        } message: {
+            Text("Sistem ce proveriti da li je otkazivanje i dalje dozvoljeno za trenutno stanje rezervacije.")
+        }
         .sheet(isPresented: $showSupportComposer) {
             if let reservation = viewModel.reservation,
                let context = viewModel.resolvedContext {
@@ -232,6 +285,187 @@ struct ReservationHeaderCard: View {
     }
 }
 
+struct SuccessBanner: View {
+    let message: String
+
+    init(_ message: String) {
+        self.message = message
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: SpotLinkDesign.Spacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(SpotLinkDesign.Colors.success)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(SpotLinkDesign.Typography.footnote)
+                .foregroundStyle(SpotLinkDesign.Colors.label)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .background(SpotLinkDesign.Colors.success.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct ReservationPaymentStateCard: View {
+    let reservation: Reservation
+    let quoteTotal: String
+    let paymentIntent: PaymentIntent?
+    let paymentResult: PaymentProviderResult?
+    let paymentMethod: PaymentMethod?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+            Text("Placanje i stanje")
+                .font(SpotLinkDesign.Typography.headline)
+
+            ReservationFactGrid(items: paymentFacts)
+
+            if let holdMessage {
+                ReservationInstructionBlock(
+                    title: "Hold za online placanje",
+                    message: holdMessage
+                )
+            }
+
+            ReservationInstructionBlock(
+                title: "Otkazivanje",
+                message: cancellationText
+            )
+
+            ReservationInstructionBlock(
+                title: "Podrska",
+                message: "Za problem sa pristupom ili placanjem koristite akciju 'Problem na ulazu?' kako bi podrska dobila booking code \(reservation.bookingCodePlaceholder)."
+            )
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .spotlinkCard()
+    }
+
+    private var paymentFacts: [ReservationFact] {
+        var facts = [
+            ReservationFact(title: "Rezim", value: reservation.paymentMode.displayName, icon: "wallet.pass"),
+            ReservationFact(title: "Stanje", value: reservation.status.displayName, icon: "checkmark.seal"),
+            ReservationFact(title: "Ukupno", value: quoteTotal, icon: "banknote"),
+            ReservationFact(title: "Valuta", value: reservation.currency, icon: "dollarsign.circle")
+        ]
+
+        if let paymentResult {
+            facts.append(ReservationFact(title: "Payment", value: paymentResult.status.displayName, icon: "creditcard"))
+        }
+        if let paymentIntent {
+            facts.append(ReservationFact(title: "Intent", value: paymentIntent.id, icon: "number"))
+        }
+        if let paymentMethod {
+            facts.append(ReservationFact(title: "Metoda", value: paymentMethod.formattedDescription, icon: "creditcard"))
+        }
+        if let holdId = reservation.holdId {
+            facts.append(ReservationFact(title: "Hold", value: holdId, icon: "timer"))
+        }
+        if let inventoryPoolId = reservation.inventoryPoolId {
+            facts.append(ReservationFact(title: "Pool", value: inventoryPoolId, icon: "square.stack.3d.up"))
+        }
+        return facts
+    }
+
+    private var holdMessage: String? {
+        guard reservation.paymentMode == .online,
+              reservation.status == .pendingPayment else {
+            return nil
+        }
+        if let expiresAt = reservation.holdExpiresAt {
+            return "Mesto je zadrzano do \(formatReservationDateTime(expiresAt, timezone: reservation.timezone)). Ako placanje ne bude potvrdjeno do tada, rezervacija moze isteci."
+        }
+        return "Online rezervacija nema prikazan istek holda. Kontaktirajte podrsku ako placanje ne prodje."
+    }
+
+    private var cancellationText: String {
+        reservation.status.canCancel
+            ? "Otkazivanje je dostupno za trenutno stanje. Sistem ce ponovo proveriti stanje pre promene."
+            : "Otkazivanje nije dostupno za trenutno stanje rezervacije."
+    }
+}
+
+struct ReservationCustomerTimelineCard: View {
+    let events: [BookingEvent]
+    let timezone: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+            Text("Tok rezervacije")
+                .font(SpotLinkDesign.Typography.headline)
+
+            if events.isEmpty {
+                Text("Nema dodatnih dogadjaja vidljivih korisniku.")
+                    .font(SpotLinkDesign.Typography.callout)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            } else {
+                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+                    ForEach(events) { event in
+                        HStack(alignment: .top, spacing: SpotLinkDesign.Spacing.sm) {
+                            Image(systemName: event.eventType.customerIcon)
+                                .foregroundStyle(SpotLinkDesign.Colors.tint)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                                Text(event.eventType.customerTitle)
+                                    .font(SpotLinkDesign.Typography.callout.weight(.semibold))
+                                Text(formatReservationDateTime(event.occurredAt, timezone: timezone))
+                                    .font(SpotLinkDesign.Typography.caption)
+                                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                                if let notes = event.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(SpotLinkDesign.Typography.footnote)
+                                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .spotlinkCard()
+    }
+}
+
+struct ReservationPaymentAttemptsCard: View {
+    let attempts: [ReservationPaymentAttempt]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
+            Text("Pokusaji placanja")
+                .font(SpotLinkDesign.Typography.headline)
+
+            if attempts.isEmpty {
+                Text("Nema evidentiranih pokusaja placanja.")
+                    .font(SpotLinkDesign.Typography.callout)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            } else {
+                ForEach(attempts) { attempt in
+                    ReservationFactGrid(items: [
+                        ReservationFact(title: "Provajder", value: attempt.provider, icon: "creditcard"),
+                        ReservationFact(title: "Status", value: attempt.status.displayName, icon: attempt.status.icon),
+                        ReservationFact(title: "Iznos", value: formatCents(attempt.amountCents, currency: attempt.currency), icon: "banknote"),
+                        ReservationFact(title: "Rezim", value: attempt.paymentMode.displayName, icon: "wallet.pass")
+                    ])
+
+                    if let failureMessage = attempt.failureMessage, !failureMessage.isEmpty {
+                        ReservationInstructionBlock(
+                            title: "Razlog neuspeha",
+                            message: failureMessage
+                        )
+                    }
+                }
+            }
+        }
+        .padding(SpotLinkDesign.Spacing.md)
+        .spotlinkCard()
+    }
+}
+
 struct ReservationTimelineCard: View {
     let reservation: Reservation
     let resource: ParkingResource?
@@ -261,6 +495,84 @@ struct ReservationTimelineCard: View {
         }
         .padding(SpotLinkDesign.Spacing.md)
         .spotlinkCard()
+    }
+}
+
+private extension BookingEventType {
+    var customerTitle: String {
+        switch self {
+        case .created:
+            return "Rezervacija kreirana"
+        case .holdCreated:
+            return "Mesto je privremeno zadrzano"
+        case .holdExpired:
+            return "Hold je istekao"
+        case .paymentAuthorized:
+            return "Placanje je autorizovano"
+        case .paymentFailed:
+            return "Placanje nije uspelo"
+        case .confirmed:
+            return "Rezervacija je potvrdjena"
+        case .cancelled:
+            return "Rezervacija je otkazana"
+        case .operatorCancelled:
+            return "Operator je otkazao rezervaciju"
+        case .checkedIn:
+            return "Dolazak je evidentiran"
+        case .noShow:
+            return "Dolazak nije evidentiran"
+        case .refundMarked:
+            return "Refundacija je oznacena"
+        case .legacyImported, .statusChanged, .adminOverride:
+            return "Sistemska izmena"
+        }
+    }
+
+    var customerIcon: String {
+        switch self {
+        case .paymentAuthorized, .confirmed:
+            return "checkmark.circle.fill"
+        case .paymentFailed, .holdExpired, .cancelled, .operatorCancelled, .noShow:
+            return "exclamationmark.triangle.fill"
+        case .holdCreated:
+            return "timer"
+        case .refundMarked:
+            return "arrow.uturn.left.circle.fill"
+        default:
+            return "circle.fill"
+        }
+    }
+}
+
+private extension ReservationPaymentAttemptStatus {
+    var displayName: String {
+        switch self {
+        case .pending:
+            return "U toku"
+        case .requiresAction:
+            return "Ceka potvrdu"
+        case .authorized:
+            return "Autorizovano"
+        case .failed:
+            return "Neuspesno"
+        case .cancelled:
+            return "Otkazano"
+        case .refundMarked:
+            return "Refundacija oznacena"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .authorized:
+            return "checkmark.seal"
+        case .failed, .cancelled:
+            return "xmark.octagon"
+        case .refundMarked:
+            return "arrow.uturn.left.circle"
+        case .pending, .requiresAction:
+            return "clock"
+        }
     }
 }
 
@@ -371,13 +683,18 @@ struct ReservationInstructionBlock: View {
 }
 
 func reservationWindowText(_ reservation: Reservation) -> (entry: String, exit: String) {
-    let formatter = DateFormatter()
-    formatter.timeZone = TimeZone(identifier: reservation.timezone) ?? .current
-    formatter.dateFormat = "d. MMM HH:mm"
-    return (
-        formatter.string(from: reservation.startsAt),
-        formatter.string(from: reservation.endsAt)
+    (
+        formatReservationDateTime(reservation.startsAt, timezone: reservation.timezone),
+        formatReservationDateTime(reservation.endsAt, timezone: reservation.timezone)
     )
+}
+
+func formatReservationDateTime(_ date: Date, timezone: String) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "sr_RS")
+    formatter.timeZone = TimeZone(identifier: timezone) ?? TimeZone(identifier: "Europe/Belgrade") ?? .current
+    formatter.dateFormat = "d. MMM HH:mm"
+    return formatter.string(from: date)
 }
 
 func accessInstructionsText(
@@ -386,7 +703,10 @@ func accessInstructionsText(
     resource: ParkingResource?
 ) -> String {
     guard reservation.accessInstructionsVisible else {
-        return "Instrukcije za ulaz ce biti vidljive odmah nakon potvrde placanja i partner provere pristupa."
+        if reservation.paymentMode == .online && reservation.status == .pendingPayment {
+            return "Instrukcije za ulaz ce biti vidljive kada placanje bude potvrdjeno pre isteka holda."
+        }
+        return "Instrukcije za ulaz trenutno nisu dostupne za stanje \(reservation.status.displayName.lowercased())."
     }
 
     switch location.accessType {

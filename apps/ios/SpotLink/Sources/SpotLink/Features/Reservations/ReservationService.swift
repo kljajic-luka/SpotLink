@@ -17,6 +17,10 @@ public final class ReservationService: Sendable {
         try await apiClient.get("/reservations/\(id)", query: nil)
     }
 
+    public func getReservationDetail(_ id: String) async throws -> BookingDetail {
+        try await apiClient.get("/reservations/\(id)/detail", query: nil)
+    }
+
     public func quote(_ request: ReservationQuoteRequest) async throws -> ReservationQuote {
         try await apiClient.post("/reservations/quote", body: request)
     }

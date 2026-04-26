@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spotlink.reservation.BookingHoldRepository;
 import com.spotlink.reservation.Reservation;
 import com.spotlink.reservation.ReservationRepository;
 import java.time.Instant;
@@ -35,6 +36,9 @@ class ReservationFoundationTest {
 
     @Autowired
     private ReservationRepository reservationRepository;
+
+        @Autowired
+        private BookingHoldRepository bookingHoldRepository;
 
     @Test
     void reservationCreationIsIdempotentAndBlocksOverlaps() throws Exception {
@@ -81,6 +85,10 @@ class ReservationFoundationTest {
         Reservation staleHold = reservationRepository.findById(UUID.fromString(first.get("id").asText())).orElseThrow();
         staleHold.setPaymentExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
         reservationRepository.saveAndFlush(staleHold);
+        bookingHoldRepository.findByReservationId(staleHold.getId()).ifPresent(hold -> {
+            hold.setExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
+            bookingHoldRepository.saveAndFlush(hold);
+        });
 
         createReservation(customerSession, resourceId, startsAt.plus(30, ChronoUnit.MINUTES), endsAt.plus(30, ChronoUnit.MINUTES), "sl_test_" + UUID.randomUUID())
                 .andExpect(status().isCreated())
@@ -100,6 +108,7 @@ class ReservationFoundationTest {
                 .content("""
                         {
                           "resourceId": "%s",
+                          "paymentMode": "ONLINE",
                           "startsAt": "%s",
                           "endsAt": "%s",
                           "idempotencyKey": "%s"
@@ -180,7 +189,7 @@ class ReservationFoundationTest {
                                   "type": "PARKING_SPOT",
                                   "label": "A-01",
                                   "hourlyRateCents": 200,
-                                  "currency": "USD",
+                                  "currency": "RSD",
                                   "instantReserve": true,
                                   "active": true
                                 }

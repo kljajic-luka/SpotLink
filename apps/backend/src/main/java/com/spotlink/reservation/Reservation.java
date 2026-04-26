@@ -26,6 +26,12 @@ public class Reservation extends AuditableEntity {
     private UUID resourceId;
 
     @Column
+    private UUID inventoryPoolId;
+
+    @Column
+    private UUID holdId;
+
+    @Column
     private UUID vehicleId;
 
     @Column(nullable = false)
@@ -55,6 +61,10 @@ public class Reservation extends AuditableEntity {
 
     @Column(length = 160)
     private String idempotencyKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private PaymentMode paymentMode = PaymentMode.PAY_ON_ARRIVAL;
 
     public UUID getCustomerId() {
         return customerId;
@@ -86,6 +96,22 @@ public class Reservation extends AuditableEntity {
 
     public void setResourceId(UUID resourceId) {
         this.resourceId = resourceId;
+    }
+
+    public UUID getInventoryPoolId() {
+        return inventoryPoolId;
+    }
+
+    public void setInventoryPoolId(UUID inventoryPoolId) {
+        this.inventoryPoolId = inventoryPoolId;
+    }
+
+    public UUID getHoldId() {
+        return holdId;
+    }
+
+    public void setHoldId(UUID holdId) {
+        this.holdId = holdId;
     }
 
     public UUID getVehicleId() {
@@ -166,5 +192,13 @@ public class Reservation extends AuditableEntity {
 
     public void setIdempotencyKey(String idempotencyKey) {
         this.idempotencyKey = idempotencyKey;
+    }
+
+    public PaymentMode getPaymentMode() {
+        return paymentMode;
+    }
+
+    public void setPaymentMode(PaymentMode paymentMode) {
+        this.paymentMode = paymentMode;
     }
 }

@@ -1,22 +1,42 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
+import { Observable, catchError, map, of } from 'rxjs';
 
 import { AuthService } from './auth.service';
 import { UserRole } from './auth.models';
 
 export const requireRole = (roles: readonly UserRole[]): CanActivateFn => {
-  return () => {
+  return (_route, state): boolean | UrlTree | Observable<boolean | UrlTree> => {
     const auth = inject(AuthService);
     const router = inject(Router);
 
-    if (auth.hasAnyRole(roles)) {
-      return true;
+    const decide = () => {
+      if (auth.hasAnyRole(roles)) {
+        return true;
+      }
+
+      return router.createUrlTree([auth.isAuthenticated() ? '/forbidden' : '/unauthorized'], {
+        queryParams: {
+          returnUrl: state.url,
+        },
+      });
+    };
+
+    if (auth.isAuthenticated()) {
+      return decide();
     }
 
-    return router.createUrlTree(['/'], {
-      queryParams: {
-        auth: auth.isAuthenticated() ? 'forbidden' : 'required',
-      },
-    });
+    return auth.initializeSession().pipe(
+      map(() => decide()),
+      catchError(() =>
+        of(
+          router.createUrlTree(['/unauthorized'], {
+            queryParams: {
+              returnUrl: state.url,
+            },
+          }),
+        ),
+      ),
+    );
   };
 };

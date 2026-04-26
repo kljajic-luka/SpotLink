@@ -98,6 +98,17 @@ public enum APIError: Error, Sendable {
             return nil
         }
     }
+
+    public var supportReference: String? {
+        requestId ?? code
+    }
+
+    public var userFacingMessageWithReference: String {
+        guard let supportReference, !supportReference.isEmpty else {
+            return userFacingMessage
+        }
+        return "\(userFacingMessage)\nRef: \(supportReference)"
+    }
 }
 
 // MARK: - API Error Envelope

@@ -2,6 +2,7 @@ package com.spotlink.location;
 
 import com.spotlink.vehicle.VehicleDtos;
 import com.spotlink.partner.ConfirmationMode;
+import com.spotlink.reservation.PaymentMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -64,7 +65,9 @@ public final class LocationDtos {
             boolean instantReserve,
             boolean active,
             int capacity,
-            ConfirmationMode confirmationMode
+            ConfirmationMode confirmationMode,
+            boolean payOnArrivalEnabled,
+            List<PaymentMode> supportedPaymentModes
     ) {
     }
 

@@ -3,8 +3,11 @@ package com.spotlink.location;
 import com.spotlink.core.ApiPage;
 import com.spotlink.core.NotFoundException;
 import com.spotlink.core.ValidationException;
+import com.spotlink.inventory.InventoryPool;
+import com.spotlink.inventory.InventoryPoolService;
 import com.spotlink.operator.OperatorAccount;
 import com.spotlink.operator.OperatorAccountRepository;
+import com.spotlink.reservation.BookingHoldRepository;
 import com.spotlink.reservation.ReservationRepository;
 import com.spotlink.reservation.ReservationStatus;
 import com.spotlink.security.CurrentUserService;
@@ -36,7 +39,8 @@ public class LocationService {
     private static final Collection<ReservationStatus> CONFIRMED_BLOCKING_STATUSES = List.of(
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
-            ReservationStatus.DISPUTED);
+            ReservationStatus.DISPUTED,
+            ReservationStatus.NO_SHOW);
 
     private final ParkingLocationRepository locations;
     private final ParkingResourceRepository resources;
@@ -44,8 +48,10 @@ public class LocationService {
     private final LocationHoursRepository locationHours;
     private final AvailabilityExceptionRepository availabilityExceptions;
     private final ReservationRepository reservations;
+    private final BookingHoldRepository bookingHolds;
     private final CurrentUserService currentUser;
     private final LocationMapper mapper;
+    private final InventoryPoolService inventoryPools;
     private final Clock clock;
 
     public LocationService(
@@ -55,8 +61,10 @@ public class LocationService {
             LocationHoursRepository locationHours,
             AvailabilityExceptionRepository availabilityExceptions,
             ReservationRepository reservations,
+            BookingHoldRepository bookingHolds,
             CurrentUserService currentUser,
             LocationMapper mapper,
+            InventoryPoolService inventoryPools,
             Clock clock) {
         this.locations = locations;
         this.resources = resources;
@@ -64,8 +72,10 @@ public class LocationService {
         this.locationHours = locationHours;
         this.availabilityExceptions = availabilityExceptions;
         this.reservations = reservations;
+        this.bookingHolds = bookingHolds;
         this.currentUser = currentUser;
         this.mapper = mapper;
+        this.inventoryPools = inventoryPools;
         this.clock = clock;
     }
 
@@ -125,6 +135,9 @@ public class LocationService {
                         .stream()
                         .filter(resource -> matchesResourceFilters(resource, filters))
                         .collect(Collectors.groupingBy(ParkingResource::getLocationId));
+                Map<UUID, InventoryPool> poolsByResourceId = inventoryPools.findByLocationIds(locationIds).stream()
+                    .filter(pool -> pool.getSourceResourceId() != null)
+                    .collect(Collectors.toMap(InventoryPool::getSourceResourceId, pool -> pool, (left, right) -> left));
 
         // Gradimo rezultate sa dostupnoscu
         List<LocationDtos.LocationSearchResult> results = new ArrayList<>();
@@ -145,14 +158,18 @@ public class LocationService {
                     continue;
                 }
                 availableResources = activeResources.stream()
-                        .filter(r -> availableCapacity(r, filters) > 0)
+                    .filter(r -> availableCapacity(poolsByResourceId.get(r.getId()), filters) > 0)
                         .toList();
                 availableCount = availableResources.stream()
-                        .mapToLong(r -> availableCapacity(r, filters))
+                    .mapToLong(r -> availableCapacity(poolsByResourceId.get(r.getId()), filters))
                         .sum();
             } else {
                 availableResources = activeResources;
-                availableCount = activeResources.stream().mapToLong(ParkingResource::getCapacity).sum();
+                availableCount = activeResources.stream()
+                    .map(r -> poolsByResourceId.getOrDefault(r.getId(), null))
+                    .filter(java.util.Objects::nonNull)
+                    .mapToLong(InventoryPool::getBaseCapacity)
+                    .sum();
             }
 
             if (hasStartsAt && availableResources.isEmpty()) {
@@ -166,7 +183,9 @@ public class LocationService {
 
             results.add(new LocationDtos.LocationSearchResult(
                     mapper.toDto(sl.location()),
-                    availableResources.stream().map(mapper::toDto).toList(),
+                    availableResources.stream()
+                            .map(resource -> mapper.toDto(resource, poolsByResourceId.get(resource.getId())))
+                            .toList(),
                     sl.distanceKm(),
                     startingPrice,
                     availableCount));
@@ -183,15 +202,21 @@ public class LocationService {
 
     private record ScoredLocation(ParkingLocation location, Double distanceKm) {}
 
-    private long availableCapacity(ParkingResource resource, LocationDtos.SearchFilters filters) {
-        long overlappingReservations = reservations.countOverlaps(
-                resource.getId(),
+    private long availableCapacity(InventoryPool pool, LocationDtos.SearchFilters filters) {
+        if (pool == null) {
+            return 0;
+        }
+        InventoryPoolService.AvailabilityDecision decision = inventoryPools.availabilityForWindow(pool, filters.startsAt(), filters.endsAt());
+        if (decision.sellableCapacity() <= 0) {
+            return 0;
+        }
+        long overlappingReservations = reservations.countPoolOverlaps(
+                pool.getId(),
                 filters.startsAt(),
                 filters.endsAt(),
-                CONFIRMED_BLOCKING_STATUSES,
-                ReservationStatus.PENDING_PAYMENT,
-                Instant.now(clock));
-        return Math.max(0, resource.getCapacity() - overlappingReservations);
+                CONFIRMED_BLOCKING_STATUSES);
+        long overlappingHolds = bookingHolds.countActiveOverlaps(pool.getId(), filters.startsAt(), filters.endsAt(), Instant.now(clock));
+        return Math.max(0, decision.sellableCapacity() - overlappingReservations - overlappingHolds);
     }
 
     private boolean isWithinHours(ParkingLocation location, java.time.Instant startsAt, java.time.Instant endsAt) {
@@ -231,8 +256,11 @@ public class LocationService {
         if (!locations.existsById(locationId)) {
             throw new NotFoundException("Parking location was not found.");
         }
+        Map<UUID, InventoryPool> poolsByResourceId = inventoryPools.findByLocationIds(List.of(locationId)).stream()
+                .filter(pool -> pool.getSourceResourceId() != null)
+                .collect(Collectors.toMap(InventoryPool::getSourceResourceId, pool -> pool, (left, right) -> left));
         return resources.findByLocationIdAndActiveTrueOrderByLabel(locationId).stream()
-                .map(mapper::toDto)
+                .map(resource -> mapper.toDto(resource, poolsByResourceId.get(resource.getId())))
                 .toList();
     }
 
@@ -262,7 +290,9 @@ public class LocationService {
         ParkingResource resource = new ParkingResource();
         resource.setLocationId(locationId);
         apply(resource, request);
-        return mapper.toDto(resources.save(resource));
+        ParkingResource saved = resources.save(resource);
+        InventoryPool pool = inventoryPools.syncFromResource(saved);
+        return mapper.toDto(saved, pool);
     }
 
     @Transactional
@@ -276,7 +306,8 @@ public class LocationService {
             throw new NotFoundException("Parking resource was not found.");
         }
         apply(resource, request);
-        return mapper.toDto(resource);
+        InventoryPool pool = inventoryPools.syncFromResource(resource);
+        return mapper.toDto(resource, pool);
     }
 
     public ParkingResource requireResource(UUID resourceId) {

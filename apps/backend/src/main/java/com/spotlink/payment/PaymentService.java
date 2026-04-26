@@ -5,6 +5,8 @@ import com.spotlink.core.NotFoundException;
 import com.spotlink.reservation.Reservation;
 import com.spotlink.reservation.ReservationRepository;
 import com.spotlink.reservation.ReservationStatus;
+import com.spotlink.reservation.PaymentMode;
+import com.spotlink.reservation.ReservationService;
 import com.spotlink.security.CurrentUserService;
 import java.time.Clock;
 import java.time.Instant;
@@ -18,19 +20,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentService {
 
     private final PaymentIntentRepository intents;
+    private final PaymentAttemptRepository paymentAttempts;
+    private final PaymentProviderEventRepository paymentProviderEvents;
     private final ReservationRepository reservations;
+    private final ReservationService reservationService;
     private final PaymentProvider paymentProvider;
     private final CurrentUserService currentUser;
     private final Clock clock;
 
     public PaymentService(
             PaymentIntentRepository intents,
+            PaymentAttemptRepository paymentAttempts,
+            PaymentProviderEventRepository paymentProviderEvents,
             ReservationRepository reservations,
+            ReservationService reservationService,
             PaymentProvider paymentProvider,
             CurrentUserService currentUser,
             Clock clock) {
         this.intents = intents;
+        this.paymentAttempts = paymentAttempts;
+        this.paymentProviderEvents = paymentProviderEvents;
         this.reservations = reservations;
+        this.reservationService = reservationService;
         this.paymentProvider = paymentProvider;
         this.currentUser = currentUser;
         this.clock = clock;
@@ -45,6 +56,7 @@ public class PaymentService {
     @Transactional
     public PaymentDtos.PaymentIntentDto createIntent(PaymentDtos.CreatePaymentIntentRequest request) {
         UUID userId = currentUser.userId();
+        reservationService.expireOverdueHolds();
         return intents.findByCustomerIdAndIdempotencyKey(userId, request.idempotencyKey())
                 .map(this::toDto)
                 .orElseGet(() -> createNewIntent(request, userId));
@@ -59,7 +71,7 @@ public class PaymentService {
             throw new AccessDeniedException("Payment intent does not belong to the current user.");
         }
         if (intent.getStatus() == PaymentStatus.AUTHORIZED || intent.getStatus() == PaymentStatus.CAPTURED) {
-            confirmReservation(intent.getReservationId(), Instant.now(clock));
+            reservationService.confirmAfterPayment(intent.getReservationId(), userId, paymentProvider.name(), intent.getProviderReference());
             return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), "Already confirmed");
         }
         PaymentProvider.ProviderResult result = paymentProvider.authorize(new PaymentProvider.ProviderRequest(
@@ -69,8 +81,13 @@ public class PaymentService {
                 null,
                 intent.getIdempotencyKey()));
         applyProviderResult(intent, result);
+        PaymentAttempt attempt = syncPaymentAttempt(intent, userId, result);
+        recordProviderEvent(attempt, result, Instant.now(clock));
         if (intent.getStatus() == PaymentStatus.AUTHORIZED) {
-            confirmReservation(intent.getReservationId(), Instant.now(clock));
+            reservationService.confirmAfterPayment(intent.getReservationId(), userId, paymentProvider.name(), result.providerReference());
+        }
+        if (intent.getStatus() == PaymentStatus.FAILED) {
+            reservationService.recordPaymentFailure(intent.getReservationId(), userId, paymentProvider.name(), result.message());
         }
         return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), result.message());
     }
@@ -88,11 +105,13 @@ public class PaymentService {
 
     private PaymentDtos.PaymentIntentDto createNewIntent(PaymentDtos.CreatePaymentIntentRequest request, UUID userId) {
         Instant now = Instant.now(clock);
-        reservations.expirePaymentHolds(now);
         Reservation reservation = reservations.findById(request.reservationId())
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
         if (!reservation.getCustomerId().equals(userId)) {
             throw new AccessDeniedException("Reservation does not belong to the current user.");
+        }
+        if (reservation.getPaymentMode() == PaymentMode.PAY_ON_ARRIVAL) {
+            throw new ConflictException("PAYMENT_NOT_ALLOWED", "This reservation uses pay on arrival.");
         }
         if (reservation.getStatus() == ReservationStatus.PENDING_PAYMENT
                 && reservation.getPaymentExpiresAt() != null
@@ -122,37 +141,62 @@ public class PaymentService {
                 request.paymentMethodId(),
                 request.idempotencyKey()));
         applyProviderResult(saved, result);
+        PaymentAttempt attempt = syncPaymentAttempt(saved, userId, result);
+        recordProviderEvent(attempt, result, now);
         if (saved.getStatus() == PaymentStatus.AUTHORIZED) {
-            confirmReservation(reservation, now);
+            reservationService.confirmAfterPayment(reservation.getId(), userId, paymentProvider.name(), result.providerReference());
+        }
+        if (saved.getStatus() == PaymentStatus.FAILED) {
+            reservationService.recordPaymentFailure(reservation.getId(), userId, paymentProvider.name(), result.message());
         }
         return toDto(saved);
-    }
-
-    private void confirmReservation(UUID reservationId, Instant now) {
-        Reservation reservation = reservations.findById(reservationId)
-                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
-        confirmReservation(reservation, now);
-    }
-
-    private void confirmReservation(Reservation reservation, Instant now) {
-        if (reservation.getStatus() == ReservationStatus.CONFIRMED) {
-            return;
-        }
-        if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
-            throw new ConflictException("PAYMENT_NOT_ALLOWED", "Payment is not allowed for this reservation.");
-        }
-        if (reservation.getPaymentExpiresAt() != null && !reservation.getPaymentExpiresAt().isAfter(now)) {
-            reservation.setStatus(ReservationStatus.EXPIRED);
-            reservation.setAccessInstructionsVisible(false);
-            throw new ConflictException("PAYMENT_HOLD_EXPIRED", "Reservation payment hold has expired.");
-        }
-        reservation.setStatus(ReservationStatus.CONFIRMED);
-        reservation.setAccessInstructionsVisible(true);
     }
 
     private void applyProviderResult(PaymentIntent intent, PaymentProvider.ProviderResult result) {
         intent.setStatus(result.status());
         intent.setProviderReference(result.providerReference());
         intent.setRedirectUrl(result.redirectUrl());
+    }
+
+    private PaymentAttempt syncPaymentAttempt(PaymentIntent intent, UUID userId, PaymentProvider.ProviderResult result) {
+        PaymentAttempt attempt = paymentAttempts.findByCustomerIdAndIdempotencyKey(userId, intent.getIdempotencyKey())
+                .orElseGet(PaymentAttempt::new);
+        attempt.setReservationId(intent.getReservationId());
+        attempt.setCustomerId(userId);
+        attempt.setProvider(paymentProvider.name());
+        attempt.setPaymentMode(PaymentMode.ONLINE);
+        attempt.setAmountCents(intent.getAmountCents());
+        attempt.setCurrency(intent.getCurrency());
+        attempt.setProviderReference(result.providerReference());
+        attempt.setIdempotencyKey(intent.getIdempotencyKey());
+        attempt.setStatus(mapStatus(result.status()));
+        attempt.setFailureCode(result.status() == PaymentStatus.FAILED ? "PAYMENT_FAILED" : null);
+        attempt.setFailureMessage(result.status() == PaymentStatus.FAILED ? result.message() : null);
+        attempt.setLastTransitionAt(Instant.now(clock));
+        return paymentAttempts.save(attempt);
+    }
+
+    private void recordProviderEvent(PaymentAttempt attempt, PaymentProvider.ProviderResult result, Instant now) {
+        PaymentProviderEvent event = new PaymentProviderEvent();
+        event.setPaymentAttemptId(attempt.getId());
+        event.setProvider(paymentProvider.name());
+        event.setExternalEventId(result.providerReference() == null
+                ? attempt.getId() + ":" + result.status().name()
+                : result.providerReference());
+        event.setEventType("AUTHORIZE_" + result.status().name());
+        event.setStatus(PaymentProviderEventStatus.PROCESSED);
+        event.setProcessedAt(now);
+        paymentProviderEvents.save(event);
+    }
+
+    private PaymentAttemptStatus mapStatus(PaymentStatus status) {
+        return switch (status) {
+            case AUTHORIZED, CAPTURED -> PaymentAttemptStatus.AUTHORIZED;
+            case REQUIRES_ACTION -> PaymentAttemptStatus.REQUIRES_ACTION;
+            case FAILED -> PaymentAttemptStatus.FAILED;
+            case CANCELLED -> PaymentAttemptStatus.CANCELLED;
+            case REFUNDED -> PaymentAttemptStatus.REFUND_MARKED;
+            case REQUIRES_METHOD -> PaymentAttemptStatus.PENDING;
+        };
     }
 }

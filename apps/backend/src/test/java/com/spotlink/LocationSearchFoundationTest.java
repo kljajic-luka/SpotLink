@@ -125,6 +125,8 @@ class LocationSearchFoundationTest {
                         .param("query", "Cena Test Parking"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].startingPriceCents").value(300))
+                .andExpect(jsonPath("$.content[0].resources[0].payOnArrivalEnabled").value(true))
+                .andExpect(jsonPath("$.content[0].resources[0].supportedPaymentModes").isArray())
                 .andReturn();
     }
 

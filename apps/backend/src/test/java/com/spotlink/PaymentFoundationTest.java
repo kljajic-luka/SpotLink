@@ -50,6 +50,7 @@ class PaymentFoundationTest {
                         .content("""
                                 {
                                   "resourceId": "%s",
+                                  "paymentMode": "ONLINE",
                                   "startsAt": "%s",
                                   "endsAt": "%s",
                                   "idempotencyKey": "%s"
@@ -195,7 +196,7 @@ class PaymentFoundationTest {
                                   "type": "PARKING_SPOT",
                                   "label": "B-02",
                                   "hourlyRateCents": 200,
-                                  "currency": "USD",
+                                  "currency": "RSD",
                                   "instantReserve": true,
                                   "active": true
                                 }

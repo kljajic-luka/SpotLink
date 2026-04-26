@@ -1,0 +1,18 @@
+package com.spotlink.reservation;
+
+public enum BookingEventType {
+    LEGACY_IMPORTED,
+    CREATED,
+    HOLD_CREATED,
+    HOLD_EXPIRED,
+    STATUS_CHANGED,
+    PAYMENT_AUTHORIZED,
+    PAYMENT_FAILED,
+    CONFIRMED,
+    CANCELLED,
+    OPERATOR_CANCELLED,
+    CHECKED_IN,
+    NO_SHOW,
+    ADMIN_OVERRIDE,
+    REFUND_MARKED
+}

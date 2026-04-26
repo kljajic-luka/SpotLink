@@ -9,45 +9,90 @@ import SwiftUI
 // MARK: - Search Map View
 
 /// Glavni ekran za pretragu parkinga.
-/// Prikazuje MapKit kartu sa pinovima i listom rezultata ispod.
-/// Podrazumevani centar – Beograd (44.8125, 20.4612) kada lokacija nije dostupna.
+/// Mapa ostaje primarni sloj, dok se komande i rezultati adaptiraju na telefon i siri ekran.
 public struct SearchMapView: View {
 
     @ObservedObject private var viewModel: SearchMapViewModel
     @EnvironmentObject private var appContainer: SpotLinkAppContainer
-
-    @State private var showResultsList = false
+    @State private var hasStartedInitialSearch = false
 
     public init(viewModel: SearchMapViewModel) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     public var body: some View {
-        ZStack(alignment: .top) {
-            // Karta (pozadina)
-            mapLayer
+        GeometryReader { geometry in
+            let layout = SearchMapLayoutContext(
+                size: geometry.size,
+                safeAreaInsets: geometry.safeAreaInsets,
+                state: viewModel.state
+            )
 
-            // Gornja traka sa pretragom
-            VStack(spacing: 0) {
-                searchBarOverlay
+            ZStack {
+                mapLayer
+                    .ignoresSafeArea()
 
-                Spacer()
+                SearchMapViewportScrim()
 
-                // Panel sa rezultatima na dnu
-                resultsPanel
+                if layout.usesSidebar {
+                    SearchMapSidebar(
+                        query: $viewModel.query,
+                        searchStartsAt: $viewModel.searchStartsAt,
+                        searchEndsAt: $viewModel.searchEndsAt,
+                        state: viewModel.state,
+                        selectedResultID: viewModel.selectedResult?.id,
+                        onSubmitQuery: submitQuery,
+                        onSearchArea: searchCurrentArea,
+                        onNearMe: searchNearMe,
+                        onSelectResult: selectResult
+                    )
+                    .frame(width: layout.sidebarWidth)
+                    .padding(.leading, layout.outerPadding)
+                    .padding(.top, layout.topPadding)
+                    .padding(.bottom, layout.bottomPadding)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    VStack(spacing: layout.compactStackSpacing) {
+                        SearchMapCommandPanel(
+                            mode: .compact,
+                            query: $viewModel.query,
+                            searchStartsAt: $viewModel.searchStartsAt,
+                            searchEndsAt: $viewModel.searchEndsAt,
+                            state: viewModel.state,
+                            density: layout.panelDensity,
+                            onSubmitQuery: submitQuery,
+                            onSearchArea: searchCurrentArea,
+                            onNearMe: searchNearMe
+                        )
+                        .padding(.top, layout.topPadding)
+                        .padding(.horizontal, layout.outerPadding)
+
+                        Spacer(minLength: 0)
+
+                        SearchMapResultsPanel(
+                            mode: .compact,
+                            state: viewModel.state,
+                            selectedResultID: viewModel.selectedResult?.id,
+                            density: layout.panelDensity,
+                            onRetry: searchCurrentArea,
+                            onSelectResult: selectResult
+                        )
+                        .frame(maxHeight: layout.compactPanelHeight)
+                        .padding(.horizontal, layout.outerPadding)
+                        .padding(.bottom, layout.bottomPadding)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
             }
-
-            // Dugme Blizu mene – desno gore
-            nearMeButton
+            .background(SpotLinkDesign.Colors.secondaryBG)
+            .ignoresSafeArea(edges: .bottom)
         }
-        .ignoresSafeArea(edges: .bottom)
+        .hideNavigationBar()
         .alert(
             "Lokacija je onemogucena",
             isPresented: $viewModel.locationPermissionDenied
         ) {
-            Button("Podesavanja") {
-                openAppSettings()
-            }
+            Button("Podesavanja", action: openAppSettings)
             Button("Otkazati", role: .cancel) {}
         } message: {
             Text("Omogucite pristup lokaciji u Podesavanjima da biste koristili pretragu u blizini.")
@@ -63,11 +108,11 @@ public struct SearchMapView: View {
             .presentationDetents([.medium, .large])
         }
         .onAppear {
+            guard !hasStartedInitialSearch else { return }
+            hasStartedInitialSearch = true
             viewModel.searchWithCurrentCenter()
         }
     }
-
-    // MARK: - Mapa
 
     private var mapLayer: some View {
         Group {
@@ -84,196 +129,25 @@ public struct SearchMapView: View {
         }
     }
 
-    // MARK: - Pretraga
-
-    private var searchBarOverlay: some View {
-        VStack(spacing: SpotLinkDesign.Spacing.sm) {
-            HStack(spacing: SpotLinkDesign.Spacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                TextField("Pretrazi parking...", text: $viewModel.query)
-                    .submitLabel(.search)
-                    .onSubmit { viewModel.searchManual() }
-                if !viewModel.query.isEmpty {
-                    Button {
-                        viewModel.query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                    }
-                }
-            }
-            .padding(.horizontal, SpotLinkDesign.Spacing.md)
-            .padding(.vertical, SpotLinkDesign.Spacing.sm + 2)
-            .background(SpotLinkDesign.Colors.background)
-            .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.lg))
-            .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 2)
-
-            // Kompaktna kontrola vremenskog okna
-            TimeWindowControl(
-                startsAt: $viewModel.searchStartsAt,
-                endsAt: $viewModel.searchEndsAt,
-                onChanged: { viewModel.searchWithCurrentCenter() }
-            )
-        }
-        .padding(.horizontal, SpotLinkDesign.Spacing.md)
-        .padding(.top, SpotLinkDesign.Spacing.sm)
-    }
-
-    // MARK: - Dugme blizu mene
-
-    private var nearMeButton: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                Button {
-                    viewModel.searchNearMe()
-                } label: {
-                    Label("Blizu mene", systemImage: "location.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, SpotLinkDesign.Spacing.md)
-                        .padding(.vertical, SpotLinkDesign.Spacing.sm + 2)
-                        .background(SpotLinkDesign.Colors.background)
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 2)
-                }
-                .padding(.trailing, SpotLinkDesign.Spacing.md)
-                .padding(.bottom, 310) // iznad panela sa rezultatima
-            }
+    private func submitQuery() {
+        if viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            viewModel.searchWithCurrentCenter()
+        } else {
+            viewModel.searchManual()
         }
     }
 
-    // MARK: - Panel sa rezultatima
-
-    private var resultsPanel: some View {
-        VStack(spacing: 0) {
-            // Indikator za povlacenje
-            Capsule()
-                .fill(Color.secondary.opacity(0.4))
-                .frame(width: 36, height: 4)
-                .padding(.top, SpotLinkDesign.Spacing.sm)
-
-            // Zaglavlje panela
-            HStack {
-                resultsPanelTitle
-                Spacer()
-                if case .loading = viewModel.state {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-            }
-            .padding(.horizontal, SpotLinkDesign.Spacing.md)
-            .padding(.vertical, SpotLinkDesign.Spacing.sm)
-
-            // Sadrzaj
-            Group {
-                switch viewModel.state {
-                case .idle:
-                    EmptyView()
-                case .loading:
-                    Color.clear.frame(height: 80)
-                case .results(let items):
-                    resultsList(items)
-                case .empty:
-                    emptyState
-                case .error(let msg):
-                    errorState(message: msg)
-                case .offline:
-                    offlineState
-                }
-            }
-        }
-        .background(SpotLinkDesign.Colors.background)
-        .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.xl, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: -4)
-        .frame(maxHeight: 300)
+    private func searchCurrentArea() {
+        viewModel.searchWithCurrentCenter()
     }
 
-    private var resultsPanelTitle: some View {
-        Group {
-            switch viewModel.state {
-            case .results(let items):
-                Text("\(items.count) mesta u blizini")
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-            case .empty:
-                Text("Nema rezultata")
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-            case .error:
-                Text("Greska pri ucitavanju")
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-            case .offline:
-                Text("Nema internet veze")
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-            default:
-                Text("Pretraga parkinga")
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-            }
-        }
+    private func searchNearMe() {
+        viewModel.searchNearMe()
     }
 
-    private func resultsList(_ items: [LocationSearchResult]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(items) { result in
-                    SearchResultRow(result: result)
-                        .onTapGesture {
-                            viewModel.selectedResult = result
-                        }
-                    Divider().padding(.leading, SpotLinkDesign.Spacing.md)
-                }
-            }
-        }
+    private func selectResult(_ result: LocationSearchResult) {
+        viewModel.selectedResult = result
     }
-
-    private var emptyState: some View {
-        VStack(spacing: SpotLinkDesign.Spacing.sm) {
-            Image(systemName: "magnifyingglass.circle")
-                .font(.system(size: 40))
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-            Text("Nema parking mesta u ovoj oblasti.")
-                .font(SpotLinkDesign.Typography.body)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                .multilineTextAlignment(.center)
-        }
-        .padding(SpotLinkDesign.Spacing.lg)
-    }
-
-    private func errorState(message: String) -> some View {
-        VStack(spacing: SpotLinkDesign.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(SpotLinkDesign.Colors.warning)
-            Text(message)
-                .font(SpotLinkDesign.Typography.callout)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                .multilineTextAlignment(.center)
-            Button("Pokusaj ponovo") {
-                viewModel.searchWithCurrentCenter()
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(SpotLinkDesign.Spacing.lg)
-    }
-
-    private var offlineState: some View {
-        VStack(spacing: SpotLinkDesign.Spacing.sm) {
-            Image(systemName: "wifi.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(SpotLinkDesign.Colors.error)
-            Text("Proverite internet vezu i pokusajte ponovo.")
-                .font(SpotLinkDesign.Typography.callout)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                .multilineTextAlignment(.center)
-            Button("Pokusaj ponovo") {
-                viewModel.searchWithCurrentCenter()
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(SpotLinkDesign.Spacing.lg)
-    }
-
-    // MARK: - Pomocne funkcije
 
     private func openAppSettings() {
         #if os(iOS)
@@ -281,6 +155,106 @@ public struct SearchMapView: View {
             UIApplication.shared.open(url)
         }
         #endif
+    }
+}
+
+// MARK: - Layout Context
+
+struct SearchMapLayoutContext {
+    let size: CGSize
+    let safeAreaInsets: SwiftUI.EdgeInsets
+    let state: SearchMapViewModel.State
+
+    var usesSidebar: Bool {
+        size.width >= 820 && size.height >= 480
+    }
+
+    var outerPadding: CGFloat {
+        usesSidebar ? SpotLinkDesign.Spacing.lg : compactOuterPadding
+    }
+
+    var compactOuterPadding: CGFloat {
+        size.width < 390 ? SpotLinkDesign.Spacing.sm + 2 : SpotLinkDesign.Spacing.md
+    }
+
+    var topPadding: CGFloat {
+        safeAreaInsets.top + (usesSidebar ? SpotLinkDesign.Spacing.lg : SpotLinkDesign.Spacing.sm)
+    }
+
+    var bottomPadding: CGFloat {
+        safeAreaInsets.bottom + SpotLinkDesign.Spacing.sm
+    }
+
+    var panelDensity: SearchMapPanelDensity {
+        isCondensedCompact ? .condensed : .regular
+    }
+
+    var compactStackSpacing: CGFloat {
+        isCondensedCompact ? SpotLinkDesign.Spacing.sm : SpotLinkDesign.Spacing.md
+    }
+
+    var sidebarWidth: CGFloat {
+        min(max(size.width * 0.34, 368), 448)
+    }
+
+    var compactPanelHeight: CGFloat {
+        let heightCap = min(size.height * (isCondensedCompact ? 0.34 : 0.48), isCondensedCompact ? 312 : 468)
+        let minimum: CGFloat = isCondensedCompact ? 148 : 192
+
+        func clamped(_ value: CGFloat) -> CGFloat {
+            min(max(value, minimum), heightCap)
+        }
+
+        switch state {
+        case .idle:
+            return clamped(isCondensedCompact ? 148 : 184)
+        case .loading:
+            return clamped(isCondensedCompact ? 214 : 260)
+        case .results(let items):
+            let rowLimit = isCondensedCompact ? 2 : 4
+            let estimatedRows = CGFloat(min(max(items.count, 2), rowLimit))
+            let rowHeight: CGFloat = isCondensedCompact ? 110 : 128
+            let chromeHeight: CGFloat = isCondensedCompact ? 68 : 92
+            return clamped(estimatedRows * rowHeight + chromeHeight)
+        case .empty, .error, .offline:
+            return clamped(isCondensedCompact ? 206 : 240)
+        }
+    }
+
+    private var isCondensedCompact: Bool {
+        !usesSidebar && (size.height < 720 || size.width < 390)
+    }
+}
+
+private struct SearchMapViewportScrim: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.20),
+                    Color.black.opacity(0.08),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 170)
+
+            Spacer(minLength: 0)
+
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(0.06),
+                    Color.black.opacity(0.12)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 220)
+        }
+        .allowsHitTesting(false)
+        .ignoresSafeArea()
     }
 }
 
@@ -296,6 +270,7 @@ private struct MapboxMapLayer: View {
         ),
         zoom: 12
     )
+    @State private var lastCameraCenter = SearchMapViewModel.defaultCenter
 
     var body: some View {
         MapboxMaps.Map(viewport: $viewport) {
@@ -321,10 +296,16 @@ private struct MapboxMapLayer: View {
         .mapStyle(.standard)
         .onCameraChanged { camera in
             let center = camera.cameraState.center
-            viewModel.mapCenter = GeoCoordinates(latitude: center.latitude, longitude: center.longitude)
+            let newCenter = GeoCoordinates(latitude: center.latitude, longitude: center.longitude)
+            lastCameraCenter = newCenter
+            if !viewModel.mapCenter.isApproximatelyEqual(to: newCenter) {
+                viewModel.mapCenter = newCenter
+            }
         }
         .onChange(of: viewModel.mapCenter) { _, newCenter in
-            withAnimation {
+            guard !newCenter.isApproximatelyEqual(to: lastCameraCenter) else { return }
+            lastCameraCenter = newCenter
+            withAnimation(.easeInOut(duration: 0.2)) {
                 viewport = .camera(
                     center: .init(latitude: newCenter.latitude, longitude: newCenter.longitude),
                     zoom: 12
@@ -345,16 +326,18 @@ private struct MapKitMapLayer: View {
         ),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
     ))
+    @State private var lastCameraCenter = SearchMapViewModel.defaultCenter
 
     var body: some View {
         Map(position: $mapPosition) {
             if case .results(let items) = viewModel.state {
                 ForEach(items) { result in
-                    let coord = CLLocationCoordinate2D(
+                    let coordinate = CLLocationCoordinate2D(
                         latitude: result.location.coordinates.latitude,
                         longitude: result.location.coordinates.longitude
                     )
-                    Annotation(result.location.name, coordinate: coord) {
+
+                    Annotation(result.location.name, coordinate: coordinate) {
                         MapPinView(
                             result: result,
                             isSelected: viewModel.selectedResult?.id == result.id
@@ -371,14 +354,23 @@ private struct MapKitMapLayer: View {
             MapCompass()
             MapScaleView()
         }
-        .onMapCameraChange { context in
+        .onMapCameraChange(frequency: .onEnd) { context in
             let center = context.region.center
-            viewModel.mapCenter = GeoCoordinates(latitude: center.latitude, longitude: center.longitude)
+            let newCenter = GeoCoordinates(latitude: center.latitude, longitude: center.longitude)
+            lastCameraCenter = newCenter
+            if !viewModel.mapCenter.isApproximatelyEqual(to: newCenter) {
+                viewModel.mapCenter = newCenter
+            }
         }
         .onChange(of: viewModel.mapCenter) { _, newCenter in
-            withAnimation {
+            guard !newCenter.isApproximatelyEqual(to: lastCameraCenter) else { return }
+            lastCameraCenter = newCenter
+            withAnimation(.easeInOut(duration: 0.2)) {
                 mapPosition = .region(MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: newCenter.latitude, longitude: newCenter.longitude),
+                    center: CLLocationCoordinate2D(
+                        latitude: newCenter.latitude,
+                        longitude: newCenter.longitude
+                    ),
                     span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
                 ))
             }
@@ -398,245 +390,41 @@ private struct MapPinView: View {
             ZStack {
                 Capsule()
                     .fill(isSelected ? SpotLinkDesign.Colors.brand : SpotLinkDesign.Colors.background)
-                    .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .overlay {
+                        Capsule()
+                            .stroke(isSelected ? Color.clear : SpotLinkDesign.Colors.separator.opacity(0.35), lineWidth: 1)
+                    }
+                    .shadow(color: .black.opacity(isSelected ? 0.18 : 0.12), radius: 6, x: 0, y: 3)
 
                 if let price = result.formattedStartingPrice {
                     Text(price)
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(isSelected ? .white : SpotLinkDesign.Colors.brand)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .foregroundStyle(isSelected ? Color.white : SpotLinkDesign.Colors.brand)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
                 } else {
                     Image(systemName: "parkingsign")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(isSelected ? .white : SpotLinkDesign.Colors.brand)
-                        .padding(6)
+                        .foregroundStyle(isSelected ? Color.white : SpotLinkDesign.Colors.brand)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
                 }
             }
-            .frame(height: 30)
+            .frame(height: 32)
+
             Image(systemName: "arrowtriangle.down.fill")
-                .font(.system(size: 6))
+                .font(.system(size: 7))
                 .foregroundStyle(isSelected ? SpotLinkDesign.Colors.brand : SpotLinkDesign.Colors.background)
+                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
         }
-        .scaleEffect(isSelected ? 1.1 : 1.0)
+        .scaleEffect(isSelected ? 1.08 : 1)
         .animation(.spring(duration: 0.2), value: isSelected)
     }
 }
 
-// MARK: - Search Result Row
-
-private struct SearchResultRow: View {
-    let result: LocationSearchResult
-
-    var body: some View {
-        HStack(spacing: SpotLinkDesign.Spacing.md) {
-            // Ikonica
-            ZStack {
-                RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm)
-                    .fill(SpotLinkDesign.Colors.brand.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: result.location.accessType.systemIcon)
-                    .foregroundStyle(SpotLinkDesign.Colors.brand)
-            }
-
-            // Tekst
-            VStack(alignment: .leading, spacing: 2) {
-                Text(result.location.name)
-                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(result.location.address.formattedAddress ?? result.location.address.line1)
-                    .font(SpotLinkDesign.Typography.caption)
-                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            // Cena i udaljenost
-            VStack(alignment: .trailing, spacing: 2) {
-                if let price = result.formattedStartingPrice {
-                    Text(price)
-                        .font(SpotLinkDesign.Typography.subheadline.weight(.bold))
-                        .foregroundStyle(SpotLinkDesign.Colors.brand)
-                }
-                if let dist = result.formattedDistance {
-                    Text(dist)
-                        .font(SpotLinkDesign.Typography.caption)
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                }
-            }
-        }
-        .padding(.horizontal, SpotLinkDesign.Spacing.md)
-        .padding(.vertical, SpotLinkDesign.Spacing.sm + 2)
-        .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Time Window Control
-
-private struct TimeWindowControl: View {
-    @Binding var startsAt: Date
-    @Binding var endsAt: Date
-    let onChanged: () -> Void
-
-    var body: some View {
-        HStack(spacing: SpotLinkDesign.Spacing.sm) {
-            Image(systemName: "clock")
-                .font(.caption)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-
-            DatePicker("Pocetak", selection: $startsAt, displayedComponents: [.date, .hourAndMinute])
-                .labelsHidden()
-                .onChange(of: startsAt) { _, _ in onChanged() }
-
-            Image(systemName: "arrow.right")
-                .font(.caption)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-
-            DatePicker("Kraj", selection: $endsAt, displayedComponents: [.date, .hourAndMinute])
-                .labelsHidden()
-                .onChange(of: endsAt) { _, _ in onChanged() }
-        }
-        .padding(.horizontal, SpotLinkDesign.Spacing.md)
-        .padding(.vertical, SpotLinkDesign.Spacing.sm)
-        .background(SpotLinkDesign.Colors.background.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.md))
-        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 1)
-    }
-}
-
-// MARK: - Location Preview Sheet
-
-private struct LocationPreviewSheet: View {
-    let result: LocationSearchResult
-    let searchStartsAt: Date
-    let searchEndsAt: Date
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.md) {
-            // Zaglavlje
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(result.location.name)
-                        .font(SpotLinkDesign.Typography.title3.weight(.bold))
-                    Text(result.location.address.formattedAddress ?? result.location.address.line1)
-                        .font(SpotLinkDesign.Typography.subheadline)
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                }
-                Spacer()
-                if let dist = result.formattedDistance {
-                    Text(dist)
-                        .font(SpotLinkDesign.Typography.callout.weight(.semibold))
-                        .foregroundStyle(SpotLinkDesign.Colors.brand)
-                }
-            }
-
-            Divider()
-
-            // Kljucne informacije
-            HStack(spacing: SpotLinkDesign.Spacing.lg) {
-                if let price = result.formattedStartingPrice {
-                    infoChip(icon: "dollarsign.circle", label: "od \(price)")
-                }
-                infoChip(
-                    icon: result.location.accessType.systemIcon,
-                    label: result.location.accessType.displayName
-                )
-                if let resource = result.resources.first {
-                    infoChip(icon: "checkmark.seal", label: resource.confirmationMode.displayName)
-                }
-                infoChip(
-                    icon: "car.2",
-                    label: "\(result.availableResourceCount) dostupno"
-                )
-            }
-
-            if let resource = result.resources.first {
-                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
-                    Text("Poverenje i pristup")
-                        .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                        .textCase(.uppercase)
-                    Text("Garantovana rezervacija kroz partner inventar. \(resource.capacitySummary).")
-                        .font(SpotLinkDesign.Typography.callout)
-                    Text("Kasnjenje do 15 minuta je tolerisano kao privremeni placeholder dok partner pravila ne budu finalizovana.")
-                        .font(SpotLinkDesign.Typography.footnote)
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                }
-            }
-
-            if let notes = result.location.publicNotes, !notes.isBlank {
-                VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
-                    Text("Napomena lokacije")
-                        .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                        .textCase(.uppercase)
-                    Text(notes)
-                        .font(SpotLinkDesign.Typography.callout)
-                }
-            }
-
-            // Lista resursa
-            if !result.resources.isEmpty {
-                Text("Dostupna mesta")
-                    .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                    .textCase(.uppercase)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: SpotLinkDesign.Spacing.sm) {
-                        ForEach(result.resources) { resource in
-                            ResourceChip(resource: resource)
-                        }
-                    }
-                }
-            }
-
-            // Dugme za rezervaciju
-            NavigationLink {
-                ReservationBookingFlowView(
-                    result: result,
-                    initialStartsAt: searchStartsAt,
-                    initialEndsAt: searchEndsAt
-                )
-            } label: {
-                Text("Rezervisi")
-                    .font(SpotLinkDesign.Typography.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(SpotLinkDesign.Colors.brand)
-        }
-        .padding(SpotLinkDesign.Spacing.lg)
-        .navigationTitle("Detalji lokacije")
-        .spotlinkInlineNavigationTitle()
-    }
-
-    private func infoChip(icon: String, label: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .foregroundStyle(SpotLinkDesign.Colors.brand)
-            Text(label)
-                .font(SpotLinkDesign.Typography.caption.weight(.medium))
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-                .multilineTextAlignment(.center)
-        }
-    }
-}
-
-private struct ResourceChip: View {
-    let resource: ParkingResource
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(resource.type.displayName)
-                .font(SpotLinkDesign.Typography.caption.weight(.semibold))
-            Text(resource.hourlyRateFormatted)
-                .font(SpotLinkDesign.Typography.footnote)
-                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
-        }
-        .padding(.horizontal, SpotLinkDesign.Spacing.sm + 2)
-        .padding(.vertical, SpotLinkDesign.Spacing.sm)
-        .background(SpotLinkDesign.Colors.secondaryBG)
-        .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
+private extension GeoCoordinates {
+    func isApproximatelyEqual(to other: GeoCoordinates, tolerance: Double = 0.00001) -> Bool {
+        abs(latitude - other.latitude) < tolerance &&
+            abs(longitude - other.longitude) < tolerance
     }
 }
