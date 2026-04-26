@@ -350,6 +350,12 @@ class BookingOpsHardeningTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
 
+        mockMvc.perform(get("/reservations/%s/detail".formatted(failedReservationId)).session(customerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservation.id").value(failedReservationId))
+                .andExpect(jsonPath("$.timeline").isArray())
+                .andExpect(jsonPath("$.paymentAttempts[0].status").value("FAILED"));
+
         mockMvc.perform(post("/support/tickets")
                         .with(csrf())
                         .session(customerSession)

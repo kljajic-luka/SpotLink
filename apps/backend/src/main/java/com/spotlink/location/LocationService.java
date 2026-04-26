@@ -183,7 +183,9 @@ public class LocationService {
 
             results.add(new LocationDtos.LocationSearchResult(
                     mapper.toDto(sl.location()),
-                    availableResources.stream().map(mapper::toDto).toList(),
+                    availableResources.stream()
+                            .map(resource -> mapper.toDto(resource, poolsByResourceId.get(resource.getId())))
+                            .toList(),
                     sl.distanceKm(),
                     startingPrice,
                     availableCount));
@@ -254,8 +256,11 @@ public class LocationService {
         if (!locations.existsById(locationId)) {
             throw new NotFoundException("Parking location was not found.");
         }
+        Map<UUID, InventoryPool> poolsByResourceId = inventoryPools.findByLocationIds(List.of(locationId)).stream()
+                .filter(pool -> pool.getSourceResourceId() != null)
+                .collect(Collectors.toMap(InventoryPool::getSourceResourceId, pool -> pool, (left, right) -> left));
         return resources.findByLocationIdAndActiveTrueOrderByLabel(locationId).stream()
-                .map(mapper::toDto)
+                .map(resource -> mapper.toDto(resource, poolsByResourceId.get(resource.getId())))
                 .toList();
     }
 
@@ -286,8 +291,8 @@ public class LocationService {
         resource.setLocationId(locationId);
         apply(resource, request);
         ParkingResource saved = resources.save(resource);
-        inventoryPools.syncFromResource(saved);
-        return mapper.toDto(saved);
+        InventoryPool pool = inventoryPools.syncFromResource(saved);
+        return mapper.toDto(saved, pool);
     }
 
     @Transactional
@@ -301,8 +306,8 @@ public class LocationService {
             throw new NotFoundException("Parking resource was not found.");
         }
         apply(resource, request);
-        inventoryPools.syncFromResource(resource);
-        return mapper.toDto(resource);
+        InventoryPool pool = inventoryPools.syncFromResource(resource);
+        return mapper.toDto(resource, pool);
     }
 
     public ParkingResource requireResource(UUID resourceId) {

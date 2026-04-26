@@ -33,6 +33,11 @@ public class ReservationController {
         return reservationService.get(reservationId);
     }
 
+    @GetMapping({"/reservations/{reservationId}/detail", "/v1/reservations/{reservationId}/detail"})
+    ReservationDtos.BookingDetailDto getDetail(@PathVariable UUID reservationId) {
+        return reservationService.getDetail(reservationId);
+    }
+
     @PostMapping({"/reservations/quote", "/v1/reservations/quote"})
     ReservationDtos.ReservationQuote quote(@Valid @RequestBody ReservationDtos.ReservationQuoteRequest request) {
         return reservationService.quote(request);

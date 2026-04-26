@@ -1,6 +1,8 @@
 package com.spotlink.location;
 
 import com.spotlink.partner.ConfirmationMode;
+import com.spotlink.inventory.InventoryPool;
+import com.spotlink.reservation.PaymentMode;
 import com.spotlink.vehicle.VehicleDtos;
 import com.spotlink.vehicle.VehicleType;
 import java.util.Arrays;
@@ -24,6 +26,10 @@ public class LocationMapper {
     }
 
     public LocationDtos.ParkingResourceDto toDto(ParkingResource resource) {
+        return toDto(resource, null);
+    }
+
+    public LocationDtos.ParkingResourceDto toDto(ParkingResource resource, InventoryPool pool) {
         return new LocationDtos.ParkingResourceDto(
                 resource.getId(),
                 resource.getLocationId(),
@@ -42,7 +48,9 @@ public class LocationMapper {
                 resource.isInstantReserve(),
                 resource.isActive(),
                 resource.getCapacity(),
-                resource.getConfirmationMode());
+                resource.getConfirmationMode(),
+                pool != null && pool.isPayOnArrivalEnabled(),
+                supportedPaymentModes(pool));
     }
 
     public LocationDtos.AddressDto toDto(Address address) {
@@ -95,5 +103,14 @@ public class LocationMapper {
                 .filter(value -> !value.isBlank())
                 .map(VehicleType::valueOf)
                 .toList();
+    }
+
+    private List<PaymentMode> supportedPaymentModes(InventoryPool pool) {
+        if (pool == null) {
+            return List.of(PaymentMode.ONLINE);
+        }
+        return pool.isPayOnArrivalEnabled()
+                ? List.of(PaymentMode.ONLINE, PaymentMode.PAY_ON_ARRIVAL)
+                : List.of(PaymentMode.ONLINE);
     }
 }
