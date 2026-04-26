@@ -112,13 +112,19 @@ Full simulator build/test requires Xcode.app and accepted Apple SDK licenses.
 
 | Tool | Version / Requirement |
 | --- | --- |
-| Node.js | `^20.19.0`, `^22.12.0`, or `>=24 <25` |
+| Node.js | `^20.19.0`, `^22.12.0`, or `^24.0.0` (LTS only; v25+ not supported) |
 | npm | `>=10` |
 | Java | 21 |
-| Maven | 3.9+ recommended |
+| Maven | 3.9+ preporuceno |
 | Swift | Swift 6 toolchain |
-| Xcode | Required for iOS simulator builds and TestFlight preparation |
-| PostgreSQL | Optional for local development; H2 is the default fallback |
+| Xcode | Potrebno za iOS simulator buildove i TestFlight pripremu |
+| PostgreSQL | Opciono za lokalni razvoj; H2 je podrazumevani fallback |
+
+Pinned Node verzija je u `.nvmrc` (`22`). Ako koristis nvm:
+
+```bash
+nvm install && nvm use
+```
 
 If Apple tooling reports a license error, accept the local license before running iOS commands:
 
@@ -162,29 +168,85 @@ Vazno za iOS mapu:
 - Ako token nije dostupan, aplikacija automatski pada nazad na `MapKit` fallback prikaz.
 - Produkcioni token treba uneti kroz build settings, xcconfig ili CI secret, ne direktno u repozitorijum.
 
+## Local Development
+
+### Quickstart (H2 in-memory, no Postgres required)
+
+```bash
+# 1. Podesavanje (jednom)
+make env          # kreiranje .env iz .env.example
+make install      # npm install za frontend
+
+# 2. Pokretanje
+make dev          # backend (port 8080) + frontend (port 4200) paralelno
+# ili pojedinacno:
+make backend
+make frontend
+```
+
+Backend automatski primenjuje Flyway migracije i (`dev` profil) sidi demo naloge:
+
+| Nalog | Email | Lozinka | Uloge |
+| --- | --- | --- | --- |
+| Admin | `admin@spotlink.rs` | `Demo1234!` | ADMIN, CUSTOMER |
+| Operater | `operator@spotlink.rs` | `Demo1234!` | OPERATOR, CUSTOMER |
+| Korisnik | `korisnik@spotlink.rs` | `Demo1234!` | CUSTOMER |
+
+Demo lokacija: `Parking Trg Republike – Demo`, Beograd (44.8175, 20.4562)
+- Mesto A-01 – samo online placanje
+- Mesto B-01 – placanje po dolasku (pay-on-arrival)
+
+### Health check
+
+```bash
+curl http://localhost:8080/api/health
+# {"status":"UP"}
+
+curl http://localhost:8080/api/actuator/health
+```
+
+### OpenAPI (Swagger UI)
+
+```
+http://localhost:8080/api/swagger-ui
+```
+
 ## Installation
 
 Install frontend dependencies:
 
 ```bash
 npm install --prefix apps/frontend
+# or
+make install
 ```
 
 Maven and SwiftPM resolve backend/iOS dependencies through their own toolchains.
 
 ## Common Commands
 
-| Command | Purpose |
+`make help` prikazuje sve dostupne Makefile naredbe.
+
+| npm/make naredba | Svrha |
 | --- | --- |
-| `npm run start` | Start Angular dev server |
-| `npm run start:backend` | Start Spring Boot backend |
+| `make dev` | Backend + frontend paralelno |
+| `make backend` | Spring Boot backend (dev profil, H2) |
+| `make frontend` | Angular dev server |
+| `make test` | Backend + frontend testovi |
+| `make test-backend` | Maven testovi |
+| `make test-frontend` | Angular ChromeHeadless testovi (CI=1) |
+| `make test-ios` | iOS Swift testovi |
+| `make build` | CI Angular produkcioni build |
+| `make build-backend` | Maven package (preskoci testove) |
+| `npm run start` | Angular dev server |
+| `npm run start:backend` | Spring Boot (dev profil) |
 | `npm run build` | Build Angular frontend |
 | `npm run build:backend` | Package backend jar |
 | `npm run build:ios` | Build iOS Swift package |
 | `npm run build:dev` | Build Angular development bundle |
-| `npm run test` | Run Angular test target |
-| `npm run test:backend` | Run backend Maven tests |
-| `npm run test:ios` | Pokrece iOS Swift test suite preko `swift test --package-path apps/ios/SpotLink` |
+| `npm run test` | Frontend testovi (CI=1) |
+| `npm run test:backend` | Backend Maven testovi |
+| `npm run test:ios` | iOS Swift testovi |
 
 Backend verify:
 
@@ -250,11 +312,12 @@ The foundation has been verified with:
 Recommended pre-push check:
 
 ```bash
-npm --prefix apps/frontend run test -- --watch=false --browsers=ChromeHeadless
-npm --prefix apps/frontend run build
+make test-backend
+make test-frontend
+make build
 mvn -f apps/backend/pom.xml verify
-npm run build:ios
-npm run test:ios
+swift build --package-path apps/ios/SpotLink
+swift test --package-path apps/ios/SpotLink
 ```
 
 ## Documentation Index
