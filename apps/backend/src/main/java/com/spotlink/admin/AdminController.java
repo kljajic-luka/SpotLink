@@ -65,6 +65,20 @@ public class AdminController {
         return adminService.cancelBooking(reservationId, request == null ? null : request.reason());
     }
 
+    @PostMapping({"/admin/bookings/{reservationId}/confirm", "/v1/admin/bookings/{reservationId}/confirm"})
+    ReservationDtos.ReservationDto confirmManualBooking(
+            @PathVariable UUID reservationId,
+            @RequestBody(required = false) AdminDtos.AdminActionRequest request) {
+        return adminService.confirmManualBooking(reservationId, request == null ? null : request.reason());
+    }
+
+    @PostMapping({"/admin/bookings/{reservationId}/reject", "/v1/admin/bookings/{reservationId}/reject"})
+    ReservationDtos.ReservationDto rejectManualBooking(
+            @PathVariable UUID reservationId,
+            @RequestBody(required = false) AdminDtos.AdminActionRequest request) {
+        return adminService.rejectManualBooking(reservationId, request == null ? null : request.reason());
+    }
+
     @PostMapping({"/admin/bookings/{reservationId}/refund-marker", "/v1/admin/bookings/{reservationId}/refund-marker"})
     PaymentDtos.RefundDto markRefund(
             @PathVariable UUID reservationId,

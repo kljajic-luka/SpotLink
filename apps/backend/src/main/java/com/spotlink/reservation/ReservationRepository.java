@@ -37,6 +37,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     Optional<Reservation> findByCustomerIdAndIdempotencyKey(UUID customerId, String idempotencyKey);
 
+    Optional<Reservation> findByBookingCodeIgnoreCase(String bookingCode);
+
+    boolean existsByBookingCode(String bookingCode);
+
     List<Reservation> findByHoldIdIn(Collection<UUID> holdIds);
 
     long countByCustomerIdAndStatus(UUID customerId, ReservationStatus status);

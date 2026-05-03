@@ -43,6 +43,9 @@ public class Reservation extends AuditableEntity {
     @Column(nullable = false, length = 80)
     private String timezone;
 
+    @Column(length = 16, unique = true)
+    private String bookingCode;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ReservationStatus status = ReservationStatus.PENDING_PAYMENT;
@@ -144,6 +147,14 @@ public class Reservation extends AuditableEntity {
 
     public void setTimezone(String timezone) {
         this.timezone = timezone;
+    }
+
+    public String getBookingCode() {
+        return bookingCode;
+    }
+
+    public void setBookingCode(String bookingCode) {
+        this.bookingCode = bookingCode;
     }
 
     public ReservationStatus getStatus() {

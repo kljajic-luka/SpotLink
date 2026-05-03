@@ -41,6 +41,7 @@ public class AdminService {
 
     private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES = List.of(
             ReservationStatus.PENDING_PAYMENT,
+            ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED);
@@ -128,6 +129,16 @@ public class AdminService {
     @Transactional
     public ReservationDtos.ReservationDto cancelBooking(UUID reservationId, String reason) {
         return reservationService.cancelAsAdmin(reservationId, reason);
+    }
+
+    @Transactional
+    public ReservationDtos.ReservationDto confirmManualBooking(UUID reservationId, String notes) {
+        return reservationService.confirmManualAsAdmin(reservationId, notes);
+    }
+
+    @Transactional
+    public ReservationDtos.ReservationDto rejectManualBooking(UUID reservationId, String reason) {
+        return reservationService.rejectManualAsAdmin(reservationId, reason);
     }
 
     @Transactional

@@ -5,10 +5,12 @@ import Foundation
 public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
     case draft          = "DRAFT"
     case pendingPayment = "PENDING_PAYMENT"
+    case pendingOperatorConfirmation = "PENDING_OPERATOR_CONFIRMATION"
     case confirmed      = "CONFIRMED"
     case active         = "ACTIVE"
     case completed      = "COMPLETED"
     case cancelled      = "CANCELLED"
+    case rejected       = "REJECTED"
     case expired        = "EXPIRED"
     case disputed       = "DISPUTED"
     case noShow         = "NO_SHOW"
@@ -17,10 +19,12 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
         switch self {
         case .draft:          return "Nacrt"
         case .pendingPayment: return "Ceka placanje"
+        case .pendingOperatorConfirmation: return "Ceka potvrdu operatora"
         case .confirmed:      return "Potvrdjeno"
         case .active:         return "Aktivno"
         case .completed:      return "Zavrseno"
         case .cancelled:      return "Otkazano"
+        case .rejected:       return "Odbijeno"
         case .expired:        return "Isteklo"
         case .disputed:       return "Sporno"
         case .noShow:         return "Nedolazak"
@@ -31,10 +35,12 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
         switch self {
         case .draft:          return "gray"
         case .pendingPayment: return "orange"
+        case .pendingOperatorConfirmation: return "orange"
         case .confirmed:      return "blue"
         case .active:         return "green"
         case .completed:      return "gray"
         case .cancelled:      return "red"
+        case .rejected:       return "red"
         case .expired:        return "gray"
         case .disputed:       return "red"
         case .noShow:         return "orange"
@@ -43,14 +49,14 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
 
     public var isTerminal: Bool {
         switch self {
-        case .completed, .cancelled, .expired: return true
+        case .completed, .cancelled, .rejected, .expired: return true
         default: return false
         }
     }
 
     public var canCancel: Bool {
         switch self {
-        case .draft, .pendingPayment, .confirmed, .active, .disputed: return true
+        case .draft, .pendingPayment, .pendingOperatorConfirmation, .confirmed, .active, .disputed: return true
         default: return false
         }
     }
@@ -245,6 +251,9 @@ public enum BookingEventType: String, Decodable, CaseIterable, Sendable {
     case holdCreated       = "HOLD_CREATED"
     case holdExpired       = "HOLD_EXPIRED"
     case statusChanged     = "STATUS_CHANGED"
+    case manualConfirmationRequested = "MANUAL_CONFIRMATION_REQUESTED"
+    case manualConfirmed   = "MANUAL_CONFIRMED"
+    case manualRejected    = "MANUAL_REJECTED"
     case paymentAuthorized = "PAYMENT_AUTHORIZED"
     case paymentFailed     = "PAYMENT_FAILED"
     case confirmed         = "CONFIRMED"
@@ -258,6 +267,7 @@ public enum BookingEventType: String, Decodable, CaseIterable, Sendable {
     public var isCustomerVisible: Bool {
         switch self {
         case .created, .holdCreated, .holdExpired, .paymentAuthorized, .paymentFailed,
+             .manualConfirmationRequested, .manualConfirmed, .manualRejected,
              .confirmed, .cancelled, .operatorCancelled, .checkedIn, .noShow, .refundMarked:
             return true
         case .legacyImported, .statusChanged, .adminOverride:

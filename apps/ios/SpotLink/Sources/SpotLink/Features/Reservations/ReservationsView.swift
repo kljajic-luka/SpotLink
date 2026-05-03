@@ -171,10 +171,12 @@ struct StatusBadge: View {
         switch status {
         case .draft:          return .gray
         case .pendingPayment: return .orange
+        case .pendingOperatorConfirmation: return .orange
         case .confirmed:      return .blue
         case .active:         return .green
         case .completed:      return .gray
         case .cancelled:      return .red
+        case .rejected:       return .red
         case .expired:        return .gray
         case .disputed:       return .red
         case .noShow:         return .orange

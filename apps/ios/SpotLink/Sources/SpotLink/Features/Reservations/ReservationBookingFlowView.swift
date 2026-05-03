@@ -228,7 +228,7 @@ public final class ReservationBookingViewModel: ObservableObject {
                 )
             )
 
-            if selectedPaymentMode == .payOnArrival {
+            if selectedPaymentMode == .payOnArrival || reservation.status == .pendingOperatorConfirmation {
                 let latestReservation = (try? await reservationService.getReservation(reservation.id)) ?? reservation
                 completeReservation(
                     latestReservation,
@@ -299,7 +299,10 @@ public final class ReservationBookingViewModel: ObservableObject {
     }
 
     public var primaryActionTitle: String {
-        selectedPaymentMode == .payOnArrival
+        if selectedResource?.confirmationMode == .manual {
+            return "Posalji zahtev za potvrdu"
+        }
+        return selectedPaymentMode == .payOnArrival
             ? "Rezervisi uz placanje na dolasku"
             : "Rezervisi i potvrdi online placanje"
     }
@@ -638,8 +641,10 @@ public struct ReservationBookingFlowView: View {
                 .font(SpotLinkDesign.Typography.headline)
 
             ReservationInstructionBlock(
-                title: "Garantovana rezervacija",
-                message: "SpotLink prikazuje samo partnerski, off-street inventar. Rezervacija dobija booking code i podrsku za oporavak ako dodje do problema na ulazu."
+                title: viewModel.selectedResource?.confirmationMode == .manual ? "Zahtev za rezervaciju" : "Garantovana rezervacija",
+                message: viewModel.selectedResource?.confirmationMode == .manual
+                    ? "SpotLink cuva kapacitet i izdaje booking code, ali pristup nije garantovan dok operator ne potvrdi zahtev."
+                    : "SpotLink prikazuje samo partnerski, off-street inventar. Rezervacija dobija booking code i podrsku za oporavak ako dodje do problema na ulazu."
             )
             ReservationInstructionBlock(
                 title: "Pristup i potvrda",
@@ -730,10 +735,10 @@ struct ReservationConfirmationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.lg) {
                 VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
-                    Label("Rezervacija je spremna", systemImage: "checkmark.circle.fill")
+                    Label(headerTitle, systemImage: headerIcon)
                         .font(SpotLinkDesign.Typography.title2.weight(.bold))
-                        .foregroundStyle(SpotLinkDesign.Colors.success)
-                    Text("Partner lokacija i booking code su sacuvani za dolazak. Ako na ulazu nesto krene po zlu, podrska vidi isti booking code i rezervaciju.")
+                        .foregroundStyle(headerColor)
+                    Text(headerMessage)
                         .font(SpotLinkDesign.Typography.callout)
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 }
@@ -802,5 +807,30 @@ struct ReservationConfirmationView: View {
                 )
             }
         }
+    }
+
+    private var headerTitle: String {
+        context.reservation.status == .pendingOperatorConfirmation
+            ? "Zahtev ceka operatora"
+            : "Rezervacija je spremna"
+    }
+
+    private var headerIcon: String {
+        context.reservation.status == .pendingOperatorConfirmation
+            ? "clock.badge.checkmark"
+            : "checkmark.circle.fill"
+    }
+
+    private var headerColor: Color {
+        context.reservation.status == .pendingOperatorConfirmation
+            ? SpotLinkDesign.Colors.warning
+            : SpotLinkDesign.Colors.success
+    }
+
+    private var headerMessage: String {
+        if context.reservation.status == .pendingOperatorConfirmation {
+            return "Booking code je sacuvan i kapacitet je zadrzan, ali pristup nije garantovan dok operator ne potvrdi rezervaciju."
+        }
+        return "Partner lokacija i booking code su sacuvani za dolazak. Ako na ulazu nesto krene po zlu, podrska vidi isti booking code i rezervaciju."
     }
 }

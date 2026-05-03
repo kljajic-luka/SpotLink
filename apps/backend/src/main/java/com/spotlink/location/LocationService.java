@@ -37,6 +37,7 @@ public class LocationService {
     private static final double DEFAULT_RADIUS_KM = 10.0;
 
     private static final Collection<ReservationStatus> CONFIRMED_BLOCKING_STATUSES = List.of(
+            ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED,

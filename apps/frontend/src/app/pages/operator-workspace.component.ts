@@ -183,6 +183,7 @@ import {
                     </div>
                     <span>{{ bookingCard(booking).schedule }}</span>
                     <span>{{ bookingCard(booking).amount }}</span>
+                    <small>Booking code: {{ booking.bookingCode || 'N/A' }}</small>
                     <small>
                       {{ paymentModeLabel(booking.paymentMode) }}
                       @if (booking.paymentExpiresAt) {
@@ -241,6 +242,11 @@ import {
 
                 <div class="detail-grid">
                   <article class="metric-card">
+                    <span>Booking code</span>
+                    <strong>{{ detail()!.reservation.bookingCode || 'N/A' }}</strong>
+                    <small>Kod koji backend izdaje za partner proveru.</small>
+                  </article>
+                  <article class="metric-card">
                     <span>Hold</span>
                     <strong>
                       @if (detail()!.hold) {
@@ -292,6 +298,22 @@ import {
                   ></textarea>
 
                   <div class="action-row">
+                    <sl-ui-button
+                      variant="secondary"
+                      [loading]="bookingActionBusy() === 'confirm'"
+                      [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                      (clicked)="runBookingAction('confirm')"
+                    >
+                      Potvrdi zahtev
+                    </sl-ui-button>
+                    <sl-ui-button
+                      variant="danger"
+                      [loading]="bookingActionBusy() === 'reject'"
+                      [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                      (clicked)="runBookingAction('reject')"
+                    >
+                      Odbij zahtev
+                    </sl-ui-button>
                     <sl-ui-button
                       [loading]="bookingActionBusy() === 'check-in'"
                       [disabled]="!canCheckIn(detail()!.reservation.status)"
@@ -920,7 +942,7 @@ export class OperatorWorkspaceComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly workspaceError = signal<string | null>(null);
   readonly detailError = signal<string | null>(null);
-  readonly bookingActionBusy = signal<'check-in' | 'no-show' | 'cancel' | null>(null);
+  readonly bookingActionBusy = signal<'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel' | null>(null);
   readonly inventoryActionKey = signal<string | null>(null);
   readonly flashMessage = signal<string | null>(null);
   readonly inventoryState = signal<Record<string, InventoryControl>>({});
@@ -977,6 +999,8 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'Nacrt';
       case 'PENDING_PAYMENT':
         return 'Ceka uplatu';
+      case 'PENDING_OPERATOR_CONFIRMATION':
+        return 'Ceka potvrdu operatora';
       case 'CONFIRMED':
         return 'Potvrdjena';
       case 'ACTIVE':
@@ -985,6 +1009,8 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'Zavrsena';
       case 'CANCELLED':
         return 'Otkazana';
+      case 'REJECTED':
+        return 'Odbijena';
       case 'EXPIRED':
         return 'Istekla';
       case 'DISPUTED':
@@ -1041,10 +1067,12 @@ export class OperatorWorkspaceComponent implements OnInit {
       case 'COMPLETED':
         return 'success';
       case 'PENDING_PAYMENT':
+      case 'PENDING_OPERATOR_CONFIRMATION':
         return 'warning';
       case 'DRAFT':
         return 'neutral';
       case 'CANCELLED':
+      case 'REJECTED':
       case 'EXPIRED':
       case 'DISPUTED':
       case 'NO_SHOW':
@@ -1064,6 +1092,12 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'Hold istekao';
       case 'STATUS_CHANGED':
         return 'Status promenjen';
+      case 'MANUAL_CONFIRMATION_REQUESTED':
+        return 'Zahtev ceka operatora';
+      case 'MANUAL_CONFIRMED':
+        return 'Operator potvrdio rezervaciju';
+      case 'MANUAL_REJECTED':
+        return 'Operator odbio rezervaciju';
       case 'PAYMENT_AUTHORIZED':
         return 'Placanje autorizovano';
       case 'PAYMENT_FAILED':
@@ -1176,32 +1210,43 @@ export class OperatorWorkspaceComponent implements OnInit {
     return status === 'CONFIRMED';
   }
 
-  canCancel(status: ReservationStatus): boolean {
-    return !['CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
+  canConfirmManual(status: ReservationStatus): boolean {
+    return status === 'PENDING_OPERATOR_CONFIRMATION';
   }
 
-  runBookingAction(action: 'check-in' | 'no-show' | 'cancel'): void {
+  canCancel(status: ReservationStatus): boolean {
+    return !['CANCELLED', 'REJECTED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
+  }
+
+  runBookingAction(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): void {
     const reservation = this.detail()?.reservation;
     if (!reservation) {
       return;
     }
-    if ((action === 'no-show' || action === 'cancel') && !this.confirmOperatorAction(this.bookingActionConfirmation(action))) {
+    if ((action === 'confirm' || action === 'reject' || action === 'no-show' || action === 'cancel')
+        && !this.confirmOperatorAction(this.bookingActionConfirmation(action))) {
       return;
     }
 
     this.detailError.set(null);
     this.bookingActionBusy.set(action);
 
-    const payload = action === 'check-in'
+    const payload = action === 'check-in' || action === 'confirm'
       ? { notes: this.optionalValue(this.bookingActionText) }
       : { reason: this.optionalValue(this.bookingActionText) };
 
-    const request =
-      action === 'check-in'
-        ? this.operatorService.checkIn(reservation.id, payload)
-        : action === 'no-show'
-          ? this.operatorService.markNoShow(reservation.id, payload)
-          : this.operatorService.cancelBooking(reservation.id, payload);
+    let request;
+    if (action === 'confirm') {
+      request = this.operatorService.confirmManualBooking(reservation.id, payload);
+    } else if (action === 'reject') {
+      request = this.operatorService.rejectManualBooking(reservation.id, payload);
+    } else if (action === 'check-in') {
+      request = this.operatorService.checkIn(reservation.id, payload);
+    } else if (action === 'no-show') {
+      request = this.operatorService.markNoShow(reservation.id, payload);
+    } else {
+      request = this.operatorService.cancelBooking(reservation.id, payload);
+    }
 
     request
       .pipe(finalize(() => this.bookingActionBusy.set(null)))
@@ -1482,8 +1527,12 @@ export class OperatorWorkspaceComponent implements OnInit {
     return trimmed ? trimmed : undefined;
   }
 
-  private bookingActionMessage(action: 'check-in' | 'no-show' | 'cancel'): string {
+  private bookingActionMessage(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): string {
     switch (action) {
+      case 'confirm':
+        return 'Rezervacija je potvrdjena.';
+      case 'reject':
+        return 'Rezervacija je odbijena.';
       case 'check-in':
         return 'Dolazak vozaca je evidentiran.';
       case 'no-show':
@@ -1493,8 +1542,12 @@ export class OperatorWorkspaceComponent implements OnInit {
     }
   }
 
-  private bookingActionConfirmation(action: 'check-in' | 'no-show' | 'cancel'): string {
+  private bookingActionConfirmation(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): string {
     switch (action) {
+      case 'confirm':
+        return 'Potvrditi manuelni zahtev za ovu rezervaciju?';
+      case 'reject':
+        return 'Odbiti manuelni zahtev za ovu rezervaciju?';
       case 'check-in':
         return 'Evidentirati dolazak vozaca?';
       case 'no-show':
