@@ -39,6 +39,12 @@ public final class VehiclesViewModel: ObservableObject {
         }
     }
 
+    public func didCreateVehicle(_ vehicle: VehicleProfile) {
+        vehicles.removeAll { $0.id == vehicle.id }
+        vehicles.insert(vehicle, at: 0)
+        errorMessage = nil
+    }
+
     public func clearError() { errorMessage = nil }
 }
 
@@ -46,9 +52,13 @@ public final class VehiclesViewModel: ObservableObject {
 
 public struct VehiclesView: View {
     @StateObject private var viewModel: VehiclesViewModel
+    @State private var showAddVehicleSheet = false
+
+    private let service: VehicleService
 
     public init(service: VehicleService) {
         _viewModel = StateObject(wrappedValue: VehiclesViewModel(service: service))
+        self.service = service
     }
 
     public var body: some View {
@@ -60,7 +70,10 @@ public struct VehiclesView: View {
                 EmptyStateView(
                     icon: "car.fill",
                     title: "Nema vozila",
-                    message: "Dodajte vozilo da biste ubrzali rezervaciju.")
+                    message: "Dodajte vozilo da biste ubrzali rezervaciju.",
+                    actionTitle: "Dodaj vozilo") {
+                        showAddVehicleSheet = true
+                    }
             } else {
                 List {
                     if let error = viewModel.errorMessage {
@@ -79,6 +92,7 @@ public struct VehiclesView: View {
                     }
                 }
                 .spotlinkListStyle()
+                .refreshable { await viewModel.loadVehicles() }
             }
         }
         .navigationTitle("Vozila")
@@ -86,12 +100,21 @@ public struct VehiclesView: View {
         .toolbar {
             ToolbarItem(placement: SpotLinkToolbarPlacement.trailing) {
                 Button {
-                    // Otvara AddVehicleView – implementovati u sledecoj fazi
+                    showAddVehicleSheet = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("Dodaj vozilo")
             }
+        }
+        .sheet(isPresented: $showAddVehicleSheet) {
+            NavigationStack {
+                AddVehicleView(service: service) { createdVehicle in
+                    viewModel.didCreateVehicle(createdVehicle)
+                    Task { await viewModel.loadVehicles() }
+                }
+            }
+            .presentationDetents([.large])
         }
     }
 }
@@ -109,10 +132,10 @@ struct VehicleRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(vehicle.displayName)
+                Text(primaryText)
                     .font(SpotLinkDesign.Typography.headline)
-                if let plate = vehicle.licensePlate {
-                    Text(plate)
+                if let secondaryText {
+                    Text(secondaryText)
                         .font(SpotLinkDesign.Typography.caption)
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 }
@@ -125,6 +148,32 @@ struct VehicleRow: View {
             Spacer()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(vehicle.displayName)\(vehicle.licensePlate.map { ", \($0)" } ?? "")")
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    private var primaryText: String {
+        if let licensePlate = vehicle.licensePlate?.trimmingCharacters(in: .whitespacesAndNewlines), !licensePlate.isEmpty {
+            return licensePlate
+        }
+        return vehicle.displayName
+    }
+
+    private var secondaryText: String? {
+        let trimmedDisplayName = vehicle.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDisplayName.isEmpty, trimmedDisplayName != primaryText else {
+            return nil
+        }
+        return trimmedDisplayName
+    }
+
+    private var accessibilitySummary: String {
+        var parts = [primaryText]
+        if let secondaryText {
+            parts.append(secondaryText)
+        }
+        if vehicle.evCapable {
+            parts.append("EV vozilo")
+        }
+        return parts.joined(separator: ", ")
     }
 }
