@@ -42,10 +42,191 @@ struct SearchMapSidebar: View {
                 state: state,
                 selectedResultID: selectedResultID,
                 density: .regular,
+                compactPresentation: nil,
                 onRetry: onSearchArea,
-                onSelectResult: onSelectResult
+                onSelectResult: onSelectResult,
+                onExpand: nil,
+                onCollapse: nil,
+                onHide: nil
             )
             .frame(maxHeight: .infinity)
+        }
+    }
+}
+
+struct SearchMapCompactCommandBar: View {
+    let query: String
+    let searchStartsAt: Date
+    let searchEndsAt: Date
+    let state: SearchMapViewModel.State
+    let onExpandSearch: () -> Void
+    let onSearchArea: () -> Void
+    let onNearMe: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: SpotLinkDesign.Spacing.sm) {
+                searchButton
+                quickActionButtons
+            }
+
+            VStack(spacing: SpotLinkDesign.Spacing.sm) {
+                searchButton
+                HStack(spacing: SpotLinkDesign.Spacing.sm) {
+                    quickActionButtons
+                }
+            }
+        }
+    }
+
+    private var searchButton: some View {
+        Button(action: onExpandSearch) {
+            HStack(spacing: SpotLinkDesign.Spacing.sm) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(SpotLinkDesign.Colors.brand)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(searchTitle)
+                        .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
+                        .foregroundStyle(SpotLinkDesign.Colors.label)
+                        .lineLimit(1)
+
+                    Text("\(timeSummary) • \(statusSummary)")
+                        .font(SpotLinkDesign.Typography.caption)
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: SpotLinkDesign.Spacing.sm)
+
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            }
+            .padding(.horizontal, SpotLinkDesign.Spacing.md)
+            .padding(.vertical, SpotLinkDesign.Spacing.sm + 2)
+            .frame(minHeight: 54)
+        }
+        .buttonStyle(.plain)
+        .searchMapSurface(cornerRadius: 20)
+        .accessibilityLabel("Otvori pretragu parkinga")
+        .accessibilityHint("Prikazuje polje za lokaciju, termin i akcije pretrage.")
+    }
+
+    private var quickActionButtons: some View {
+        Group {
+            SearchMapCompactActionButton(
+                title: "Pretrazi oblast",
+                systemImage: "scope",
+                action: onSearchArea
+            )
+
+            SearchMapCompactActionButton(
+                title: "Blizu mene",
+                systemImage: "location.fill",
+                action: onNearMe
+            )
+        }
+    }
+
+    private var searchTitle: String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Pretrazi parkinge" : trimmed
+    }
+
+    private var statusSummary: String {
+        switch state {
+        case .idle:
+            return "Mapa je spremna"
+        case .loading:
+            return "Azuriranje"
+        case .results(let items):
+            return "\(items.count) lokacija"
+        case .empty:
+            return "Bez rezultata"
+        case .error:
+            return "Servis zahteva proveru"
+        case .offline:
+            return "Bez mreze"
+        }
+    }
+
+    private var timeSummary: String {
+        Self.timeFormatter.string(from: searchStartsAt, to: searchEndsAt)
+    }
+
+    private static let timeFormatter: DateIntervalFormatter = {
+        let formatter = DateIntervalFormatter()
+        formatter.locale = Locale(identifier: "sr_RS")
+        formatter.dateTemplate = "dd MMM HH:mm"
+        return formatter
+    }()
+}
+
+struct SearchMapCompactResultsLauncher: View {
+    let state: SearchMapViewModel.State
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: SpotLinkDesign.Spacing.sm) {
+                Image(systemName: launcherIcon)
+                    .font(.system(size: 15, weight: .semibold))
+
+                Text(launcherTitle)
+                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
+                    .lineLimit(1)
+
+                if case .results(let items) = state {
+                    Text("\(items.count)")
+                        .font(SpotLinkDesign.Typography.caption.weight(.bold))
+                        .padding(.horizontal, SpotLinkDesign.Spacing.sm)
+                        .padding(.vertical, SpotLinkDesign.Spacing.xs + 2)
+                        .background(SpotLinkDesign.Colors.brand.opacity(0.12), in: Capsule())
+                }
+            }
+            .foregroundStyle(SpotLinkDesign.Colors.label)
+            .padding(.horizontal, SpotLinkDesign.Spacing.md)
+            .padding(.vertical, SpotLinkDesign.Spacing.sm + 2)
+        }
+        .buttonStyle(.plain)
+        .searchMapSurface(cornerRadius: 999)
+        .accessibilityLabel(launcherTitle)
+        .accessibilityHint("Otvori donju povrsinu sa statusom i rezultatima pretrage.")
+    }
+
+    private var launcherIcon: String {
+        switch state {
+        case .idle:
+            return "map"
+        case .loading:
+            return "arrow.triangle.2.circlepath"
+        case .results:
+            return "list.bullet.below.rectangle"
+        case .empty:
+            return "magnifyingglass"
+        case .error:
+            return "exclamationmark.triangle.fill"
+        case .offline:
+            return "wifi.slash"
+        }
+    }
+
+    private var launcherTitle: String {
+        switch state {
+        case .idle:
+            return "Mapa je spremna"
+        case .loading:
+            return "Prikazi osvezavanje pretrage"
+        case .results:
+            return "Prikazi lokacije"
+        case .empty:
+            return "Prikazi status bez rezultata"
+        case .error:
+            return "Prikazi gresku pretrage"
+        case .offline:
+            return "Prikazi status mreze"
         }
     }
 }
@@ -272,8 +453,12 @@ struct SearchMapResultsPanel: View {
     let state: SearchMapViewModel.State
     let selectedResultID: String?
     let density: SearchMapPanelDensity
+    let compactPresentation: SearchMapViewModel.CompactPanelPresentation?
     let onRetry: () -> Void
     let onSelectResult: (LocationSearchResult) -> Void
+    let onExpand: (() -> Void)?
+    let onCollapse: (() -> Void)?
+    let onHide: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -315,9 +500,13 @@ struct SearchMapResultsPanel: View {
                     ProgressView()
                         .controlSize(.small)
                 }
+
+                if mode == .compact {
+                    compactHeaderActions
+                }
             }
 
-            if density == .regular || mode == .sidebar {
+            if density == .regular || mode == .sidebar || compactPresentation == .resultsExpanded {
                 Text(subtitle)
                     .font(SpotLinkDesign.Typography.footnote)
                     .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
@@ -326,6 +515,8 @@ struct SearchMapResultsPanel: View {
         .padding(.horizontal, SpotLinkDesign.Spacing.md)
         .padding(.top, density == .condensed ? SpotLinkDesign.Spacing.sm : SpotLinkDesign.Spacing.md)
         .padding(.bottom, density == .condensed ? SpotLinkDesign.Spacing.xs + 2 : SpotLinkDesign.Spacing.sm)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggleCompactPresentation)
     }
 
     @ViewBuilder
@@ -339,18 +530,27 @@ struct SearchMapResultsPanel: View {
                 density: density
             )
         case .loading:
-            ScrollView(.vertical, showsIndicators: false) {
+            if isCompactPeek {
                 VStack(spacing: SpotLinkDesign.Spacing.sm) {
-                    ForEach(0..<placeholderCount, id: \.self) { _ in
+                    ForEach(0..<min(placeholderCount, 2), id: \.self) { _ in
                         SearchResultPlaceholderCard(density: density)
                     }
                 }
                 .padding(contentPadding)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: SpotLinkDesign.Spacing.sm) {
+                        ForEach(0..<placeholderCount, id: \.self) { _ in
+                            SearchResultPlaceholderCard(density: density)
+                        }
+                    }
+                    .padding(contentPadding)
+                }
             }
         case .results(let items):
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(spacing: SpotLinkDesign.Spacing.sm) {
-                    ForEach(items) { result in
+            if isCompactPeek {
+                VStack(spacing: SpotLinkDesign.Spacing.sm) {
+                    ForEach(Array(items.prefix(peekResultLimit))) { result in
                         SearchResultCard(
                             result: result,
                             isSelected: selectedResultID == result.id,
@@ -360,8 +560,34 @@ struct SearchMapResultsPanel: View {
                             }
                         )
                     }
+
+                    if items.count > peekResultLimit {
+                        Button(action: { onExpand?() }) {
+                            Label("Prikazi sve lokacije", systemImage: "chevron.up")
+                                .font(SpotLinkDesign.Typography.footnote.weight(.semibold))
+                                .foregroundStyle(SpotLinkDesign.Colors.brand)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 2)
+                    }
                 }
                 .padding(contentPadding)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: SpotLinkDesign.Spacing.sm) {
+                        ForEach(items) { result in
+                            SearchResultCard(
+                                result: result,
+                                isSelected: selectedResultID == result.id,
+                                density: density,
+                                onSelect: {
+                                    onSelectResult(result)
+                                }
+                            )
+                        }
+                    }
+                    .padding(contentPadding)
+                }
             }
         case .empty:
             SearchResultsMessageView(
@@ -401,6 +627,14 @@ struct SearchMapResultsPanel: View {
         density == .condensed ? 2 : 3
     }
 
+    private var peekResultLimit: Int {
+        density == .condensed ? 1 : 2
+    }
+
+    private var isCompactPeek: Bool {
+        mode == .compact && compactPresentation == .resultsPeek
+    }
+
     private var title: String {
         switch state {
         case .idle:
@@ -434,6 +668,186 @@ struct SearchMapResultsPanel: View {
             return "Rezultati se ne mogu osveziti dok uredjaj nije na mrezi."
         }
     }
+
+    @ViewBuilder
+    private var compactHeaderActions: some View {
+        if compactPresentation == .resultsPeek {
+            SearchMapInlineIconButton(
+                systemImage: "chevron.up",
+                label: "Prosiri rezultate",
+                action: { onExpand?() }
+            )
+        } else if compactPresentation == .resultsExpanded {
+            SearchMapInlineIconButton(
+                systemImage: "chevron.down",
+                label: "Vrati rezultate na pregled",
+                action: { onCollapse?() }
+            )
+        }
+
+        SearchMapInlineIconButton(
+            systemImage: "xmark",
+            label: "Sakrij rezultate",
+            action: { onHide?() }
+        )
+    }
+
+    private func toggleCompactPresentation() {
+        guard mode == .compact else { return }
+
+        switch compactPresentation {
+        case .resultsPeek:
+            onExpand?()
+        case .resultsExpanded:
+            onCollapse?()
+        case .mapOnly, .searchExpanded, .selectedResultPeek, nil:
+            break
+        }
+    }
+}
+
+struct SearchMapSelectedResultPeekCard: View {
+    let result: LocationSearchResult
+    let density: SearchMapPanelDensity
+    let showsResultsButton: Bool
+    let showsDragHandle: Bool
+    let onShowResults: () -> Void
+    let onShowDetails: () -> Void
+    let onClearSelection: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showsDragHandle {
+                Capsule()
+                    .fill(SpotLinkDesign.Colors.separator.opacity(0.4))
+                    .frame(width: 42, height: 5)
+                    .padding(.top, density == .condensed ? SpotLinkDesign.Spacing.xs + 2 : SpotLinkDesign.Spacing.sm)
+            }
+
+            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm + 2) {
+                header
+                metadata
+                actions
+            }
+            .padding(density == .condensed ? SpotLinkDesign.Spacing.md : SpotLinkDesign.Spacing.lg)
+        }
+        .searchMapSurface(cornerRadius: showsDragHandle ? 28 : 24)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: SpotLinkDesign.Spacing.sm) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Izabrana lokacija")
+                    .font(SpotLinkDesign.Typography.caption.weight(.semibold))
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    .textCase(.uppercase)
+
+                Text(result.location.name)
+                    .font(SpotLinkDesign.Typography.headline.weight(.semibold))
+                    .foregroundStyle(SpotLinkDesign.Colors.label)
+                    .lineLimit(2)
+
+                Text(result.location.address.displayAddress)
+                    .font(SpotLinkDesign.Typography.footnote)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    .lineLimit(density == .condensed ? 2 : 3)
+            }
+
+            Spacer(minLength: SpotLinkDesign.Spacing.sm)
+
+            Button(action: onClearSelection) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Zatvori pregled lokacije")
+        }
+    }
+
+    private var metadata: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: SpotLinkDesign.Spacing.xs + 2) {
+                metadataChips
+            }
+
+            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs + 2) {
+                HStack(spacing: SpotLinkDesign.Spacing.xs + 2) {
+                    primaryMetadata
+                }
+
+                HStack(spacing: SpotLinkDesign.Spacing.xs + 2) {
+                    secondaryMetadata
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var metadataChips: some View {
+        primaryMetadata
+        secondaryMetadata
+    }
+
+    @ViewBuilder
+    private var primaryMetadata: some View {
+        if let price = result.formattedStartingPrice {
+            StatusChip(icon: "dollarsign.circle.fill", label: "od \(price)", prominence: .brand)
+        }
+
+        if let distance = result.formattedDistance {
+            MetadataChip(icon: "location.fill", label: distance)
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryMetadata: some View {
+        if let resource = result.resources.first {
+            MetadataChip(icon: resource.type.systemIcon, label: resource.type.displayName)
+            MetadataChip(icon: "checkmark.seal.fill", label: resource.confirmationMode.displayName)
+        }
+
+        MetadataChip(icon: "car.2.fill", label: "\(result.availableResourceCount) dostupno")
+    }
+
+    private var actions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: SpotLinkDesign.Spacing.sm) {
+                if showsResultsButton {
+                    Button(action: onShowResults) {
+                        Label("Rezultati", systemImage: "list.bullet")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SpotLinkDesign.Colors.brand)
+                }
+
+                detailButton
+            }
+
+            VStack(spacing: SpotLinkDesign.Spacing.sm) {
+                if showsResultsButton {
+                    Button(action: onShowResults) {
+                        Label("Rezultati", systemImage: "list.bullet")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SpotLinkDesign.Colors.brand)
+                }
+
+                detailButton
+            }
+        }
+    }
+
+    private var detailButton: some View {
+        Button(action: onShowDetails) {
+            Label("Detalji", systemImage: "arrow.up.right.square")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(SpotLinkDesign.Colors.brand)
+    }
 }
 
 struct SearchResultCard: View {
@@ -463,6 +877,7 @@ struct SearchResultCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Izaberi lokaciju da otvoris pregled bez zatvaranja mape.")
     }
 
     private var iconTile: some View {
@@ -677,6 +1092,47 @@ private struct SearchResultPlaceholderCard: View {
                 .stroke(SpotLinkDesign.Colors.separator.opacity(0.12), lineWidth: 1)
         }
         .redacted(reason: .placeholder)
+    }
+}
+
+private struct SearchMapCompactActionButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(SpotLinkDesign.Colors.brand)
+                .frame(width: 48, height: 48)
+        }
+        .buttonStyle(.plain)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(SpotLinkDesign.Colors.separator.opacity(0.18), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
+        .accessibilityLabel(title)
+    }
+}
+
+private struct SearchMapInlineIconButton: View {
+    let systemImage: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .background(SpotLinkDesign.Colors.secondaryBG, in: Circle())
+        .accessibilityLabel(label)
     }
 }
 

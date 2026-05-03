@@ -21,9 +21,19 @@ public final class SearchMapViewModel: ObservableObject {
         case offline
     }
 
+    public enum CompactPanelPresentation: String, Equatable, Sendable {
+        case mapOnly
+        case searchExpanded
+        case resultsPeek
+        case resultsExpanded
+        case selectedResultPeek
+    }
+
     @Published public private(set) var state: State = .idle
+    @Published public private(set) var compactPresentation: CompactPanelPresentation = .mapOnly
     @Published public var query: String = ""
     @Published public var selectedResult: LocationSearchResult?
+    @Published public var presentedDetailResult: LocationSearchResult?
     @Published public var mapCenter: GeoCoordinates = defaultCenter
     @Published public var searchStartsAt: Date
     @Published public var searchEndsAt: Date
@@ -32,6 +42,7 @@ public final class SearchMapViewModel: ObservableObject {
     private let locationService: LocationService
     private let locationManager: SpotLinkLocationManager
     private var searchTask: Task<Void, Never>?
+    private var lastResultsPresentation: CompactPanelPresentation = .resultsPeek
 
     public init(locationService: LocationService, locationManager: SpotLinkLocationManager) {
         self.locationService = locationService
@@ -88,15 +99,71 @@ public final class SearchMapViewModel: ObservableObject {
         }
     }
 
+    public func showSearchControls() {
+        compactPresentation = .searchExpanded
+    }
+
+    public func dismissSearchControls() {
+        compactPresentation = fallbackCompactPresentation()
+    }
+
+    public func showResultsPeek() {
+        guard state.supportsCompactSurface else {
+            compactPresentation = .mapOnly
+            return
+        }
+
+        setCompactPresentation(.resultsPeek)
+    }
+
+    public func expandResults() {
+        guard state.supportsCompactSurface else { return }
+        setCompactPresentation(.resultsExpanded)
+    }
+
+    public func hideResultsSurface() {
+        compactPresentation = .mapOnly
+    }
+
+    public func showLastResultsPresentation() {
+        guard state.supportsCompactSurface else {
+            compactPresentation = .mapOnly
+            return
+        }
+
+        setCompactPresentation(lastResultsPresentation)
+    }
+
+    public func selectResult(_ result: LocationSearchResult) {
+        selectedResult = result
+        mapCenter = result.location.coordinates
+        compactPresentation = .selectedResultPeek
+    }
+
+    public func showSelectedResultDetails() {
+        guard let selectedResult else { return }
+        presentedDetailResult = selectedResult
+    }
+
+    public func dismissPresentedDetails() {
+        presentedDetailResult = nil
+    }
+
     public func clearSelection() {
         selectedResult = nil
+        presentedDetailResult = nil
+        compactPresentation = fallbackCompactPresentation()
     }
 
     // MARK: - Privatna implementacija
 
     private func performSearch(latitude: Double?, longitude: Double?, query: String?) {
         searchTask?.cancel()
+        let previousSelectedID = selectedResult?.id
+        selectedResult = nil
+        presentedDetailResult = nil
         state = .loading
+        setCompactPresentation(lastResultsPresentation)
 
         var filters = LocationSearchFilters()
         filters.query = query
@@ -113,21 +180,66 @@ public final class SearchMapViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 if page.content.isEmpty {
                     state = .empty
+                    setCompactPresentation(lastResultsPresentation)
                 } else {
                     state = .results(page.content)
+                    if let previousSelectedID,
+                       let preservedSelection = page.content.first(where: { $0.id == previousSelectedID }) {
+                        selectedResult = preservedSelection
+                        compactPresentation = .selectedResultPeek
+                    } else {
+                        setCompactPresentation(lastResultsPresentation)
+                    }
                 }
             } catch let error as APIError {
                 guard !Task.isCancelled else { return }
                 switch error {
                 case .offline:
                     state = .offline
+                    setCompactPresentation(lastResultsPresentation)
                 default:
                     state = .error(error.userFacingMessage)
+                    setCompactPresentation(lastResultsPresentation)
                 }
             } catch {
                 guard !Task.isCancelled else { return }
                 state = .error("Doslo je do neocekivane greske.")
+                setCompactPresentation(lastResultsPresentation)
             }
+        }
+    }
+
+    private func setCompactPresentation(_ presentation: CompactPanelPresentation) {
+        compactPresentation = presentation
+
+        switch presentation {
+        case .resultsPeek, .resultsExpanded:
+            lastResultsPresentation = presentation
+        case .mapOnly, .searchExpanded, .selectedResultPeek:
+            break
+        }
+    }
+
+    private func fallbackCompactPresentation() -> CompactPanelPresentation {
+        if selectedResult != nil {
+            return .selectedResultPeek
+        }
+
+        if state.supportsCompactSurface {
+            return lastResultsPresentation
+        }
+
+        return .mapOnly
+    }
+}
+
+private extension SearchMapViewModel.State {
+    var supportsCompactSurface: Bool {
+        switch self {
+        case .idle:
+            return false
+        case .loading, .results, .empty, .error, .offline:
+            return true
         }
     }
 }

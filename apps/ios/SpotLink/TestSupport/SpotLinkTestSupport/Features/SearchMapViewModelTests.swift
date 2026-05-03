@@ -112,6 +112,8 @@ struct SearchMapViewModelTests {
         } else {
             Issue.record("Ocekivano idle, dobijeno \(vm.state)")
         }
+
+        #expect(vm.compactPresentation == .mapOnly)
     }
 
     @Test("podrazumevani centar je Beograd")
@@ -147,6 +149,7 @@ struct SearchMapViewModelTests {
         if case .results(let items) = vm.state {
             #expect(items.count == 1)
             #expect(items[0].location.name == "Test Parking")
+            #expect(vm.compactPresentation == .resultsPeek)
         } else {
             Issue.record("Ocekivano results, dobijeno \(vm.state)")
         }
@@ -246,9 +249,21 @@ struct SearchMapViewModelTests {
     // MARK: - Selekcija
 
     @Test("clearSelection ponistava selectedResult")
-    func clearSelection() {
+    func clearSelection() async {
         let vm = makeViewModel(client: MockAPIClient())
-        vm.selectedResult = makeSearchResult()
+        let client = MockAPIClient()
+        client.getHandler = { _, _ in makeSingleResultPage(makeSearchResult()) }
+        let hydratedVM = makeViewModel(client: client)
+        hydratedVM.searchWithCurrentCenter()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        hydratedVM.selectResult(makeSearchResult())
+        #expect(hydratedVM.compactPresentation == .selectedResultPeek)
+
+        hydratedVM.clearSelection()
+        #expect(hydratedVM.compactPresentation == .resultsPeek)
+        #expect(hydratedVM.selectedResult == nil)
+
         vm.clearSelection()
         #expect(vm.selectedResult == nil)
     }
@@ -257,9 +272,30 @@ struct SearchMapViewModelTests {
     func selektovaniRezultat() {
         let vm = makeViewModel(client: MockAPIClient())
         let result = makeSearchResult(locationId: "loc-xyz", name: "Odabrani Parking")
-        vm.selectedResult = result
+        vm.selectResult(result)
         #expect(vm.selectedResult?.id == "loc-xyz")
         #expect(vm.selectedResult?.location.name == "Odabrani Parking")
+        #expect(vm.compactPresentation == .selectedResultPeek)
+        #expect(vm.mapCenter.latitude == result.location.coordinates.latitude)
+        #expect(vm.mapCenter.longitude == result.location.coordinates.longitude)
+    }
+
+    @Test("search panel i detalji imaju eksplicitne tranzicije")
+    func kompaktneTranzicije() {
+        let vm = makeViewModel(client: MockAPIClient())
+        let result = makeSearchResult(locationId: "loc-220")
+
+        vm.showSearchControls()
+        #expect(vm.compactPresentation == .searchExpanded)
+
+        vm.selectResult(result)
+        #expect(vm.compactPresentation == .selectedResultPeek)
+
+        vm.showSelectedResultDetails()
+        #expect(vm.presentedDetailResult?.id == result.id)
+
+        vm.dismissPresentedDetails()
+        #expect(vm.presentedDetailResult == nil)
     }
 
     // MARK: - Pretraga blizu mene
