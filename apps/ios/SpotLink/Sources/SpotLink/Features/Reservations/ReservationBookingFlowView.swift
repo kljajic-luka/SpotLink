@@ -131,6 +131,13 @@ public final class ReservationBookingViewModel: ObservableObject {
         confirmationContext = nil
     }
 
+    public func didCreateVehicle(_ vehicle: VehicleProfile) {
+        vehicles.removeAll { $0.id == vehicle.id }
+        vehicles.insert(vehicle, at: 0)
+        selectedVehicleId = vehicle.id
+        invalidateQuote()
+    }
+
     public func refreshQuote(service: ReservationService) async {
         guard let selectedResource else {
             errorMessage = "Lokacija trenutno nema aktivno mesto za rezervaciju."
@@ -389,6 +396,7 @@ public final class ReservationBookingViewModel: ObservableObject {
 public struct ReservationBookingFlowView: View {
     @EnvironmentObject private var appContainer: SpotLinkAppContainer
     @StateObject private var viewModel: ReservationBookingViewModel
+    @State private var showAddVehicleSheet = false
 
     public init(result: LocationSearchResult, initialStartsAt: Date, initialEndsAt: Date) {
         _viewModel = StateObject(wrappedValue: ReservationBookingViewModel(
@@ -430,6 +438,17 @@ public struct ReservationBookingFlowView: View {
                 vehicleService: appContainer.vehicleService,
                 paymentService: appContainer.paymentService
             )
+        }
+        .sheet(isPresented: $showAddVehicleSheet) {
+            NavigationStack {
+                AddVehicleView(service: appContainer.vehicleService) { createdVehicle in
+                    viewModel.didCreateVehicle(createdVehicle)
+                    Task {
+                        await viewModel.refreshQuote(service: appContainer.reservationService)
+                    }
+                }
+            }
+            .presentationDetents([.large])
         }
         .navigationDestination(
             isPresented: Binding(
@@ -510,6 +529,12 @@ public struct ReservationBookingFlowView: View {
                      : "Vozilo nije obavezno za ovu rezervaciju, ali pomaze partneru pri ulazu.")
                     .font(SpotLinkDesign.Typography.callout)
                     .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+
+                Button(viewModel.requiresVehicleSelection ? "Dodaj vozilo i nastavi" : "Dodaj vozilo") {
+                    showAddVehicleSheet = true
+                }
+                .buttonStyle(SpotLinkButtonStyle(.secondary))
+                .accessibilityLabel(viewModel.requiresVehicleSelection ? "Dodaj vozilo i nastavi rezervaciju" : "Dodaj vozilo")
             } else {
                 Picker("Izaberite vozilo", selection: $viewModel.selectedVehicleId) {
                     if !viewModel.requiresVehicleSelection {
@@ -517,7 +542,7 @@ public struct ReservationBookingFlowView: View {
                             .tag(Optional<String>.none)
                     }
                     ForEach(viewModel.vehicles) { vehicle in
-                        Text(vehicle.displayName)
+                        Text(vehicle.licensePlate?.isEmpty == false ? vehicle.licensePlate ?? vehicle.displayName : vehicle.displayName)
                             .tag(Optional(vehicle.id))
                     }
                 }
@@ -527,7 +552,7 @@ public struct ReservationBookingFlowView: View {
                 }
 
                 if let vehicle = viewModel.selectedVehicle {
-                    Text(vehicle.licensePlate ?? vehicle.displayName)
+                    Text(vehicle.licensePlate?.isEmpty == false ? vehicle.licensePlate ?? vehicle.displayName : vehicle.displayName)
                         .font(SpotLinkDesign.Typography.footnote)
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 }
