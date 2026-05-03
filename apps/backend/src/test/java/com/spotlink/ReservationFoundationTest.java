@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
@@ -95,6 +96,32 @@ class ReservationFoundationTest {
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
     }
 
+    @Test
+    void mobileBearerCanQuoteReservationWithoutCsrfToken() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession);
+        String customerEmail = "customer-%s@spotlink.test".formatted(UUID.randomUUID());
+        registerCustomer(customerEmail);
+        JsonNode token = token(customerEmail);
+
+        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        mockMvc.perform(post("/reservations/quote")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token.get("accessToken").asText())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": "%s",
+                                  "startsAt": "%s",
+                                  "endsAt": "%s"
+                                }
+                                """.formatted(resourceId, startsAt, endsAt)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resourceId").value(resourceId.toString()))
+                .andExpect(jsonPath("$.totalAmountCents").value(450));
+    }
+
     private org.springframework.test.web.servlet.ResultActions createReservation(
             MockHttpSession session,
             UUID resourceId,
@@ -137,20 +164,41 @@ class ReservationFoundationTest {
     }
 
     private MockHttpSession registerCustomer() throws Exception {
+        return registerCustomer("customer-%s@spotlink.test".formatted(UUID.randomUUID()));
+    }
+
+    private MockHttpSession registerCustomer(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/auth/register/customer")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "firstName": "Casey",
                                   "lastName": "Customer",
-                                  "email": "customer-%s@spotlink.test",
+                                  "email": "%s",
                                   "password": "CorrectHorse123",
                                   "acceptsTerms": true
                                 }
-                                """.formatted(UUID.randomUUID())))
+                                """.formatted(email)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private JsonNode token(String email) throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/token")
+                        .header("X-Device-Id", "ios-test-device")
+                        .header(HttpHeaders.USER_AGENT, "SpotLinkTests/1.0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "CorrectHorse123",
+                                  "deviceId": "ios-test-device"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
     private UUID createParkingResource(MockHttpSession operatorSession) throws Exception {
