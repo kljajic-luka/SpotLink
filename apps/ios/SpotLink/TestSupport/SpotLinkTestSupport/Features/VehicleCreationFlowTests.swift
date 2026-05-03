@@ -127,6 +127,7 @@ private func makePayOnArrivalReservation(vehicleId: String) -> Reservation {
         startsAt: Date(timeIntervalSince1970: 1_713_868_800),
         endsAt: Date(timeIntervalSince1970: 1_713_876_000),
         timezone: "Europe/Belgrade",
+        bookingCode: "SL-VEH001",
         status: .confirmed,
         paymentMode: .payOnArrival,
         totalAmountCents: 550,

@@ -131,6 +131,13 @@ public final class ReservationBookingViewModel: ObservableObject {
         confirmationContext = nil
     }
 
+    public func didCreateVehicle(_ vehicle: VehicleProfile) {
+        vehicles.removeAll { $0.id == vehicle.id }
+        vehicles.insert(vehicle, at: 0)
+        selectedVehicleId = vehicle.id
+        invalidateQuote()
+    }
+
     public func refreshQuote(service: ReservationService) async {
         guard let selectedResource else {
             errorMessage = "Lokacija trenutno nema aktivno mesto za rezervaciju."
