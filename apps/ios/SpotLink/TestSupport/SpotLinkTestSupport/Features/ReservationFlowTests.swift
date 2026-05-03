@@ -145,6 +145,7 @@ private func makeReservation(
         startsAt: Date(timeIntervalSince1970: 1_713_868_800),
         endsAt: Date(timeIntervalSince1970: 1_713_876_000),
         timezone: "Europe/Belgrade",
+        bookingCode: "SL-8F3K2Q9A",
         status: status,
         paymentMode: paymentMode,
         totalAmountCents: 530,
@@ -202,6 +203,7 @@ struct ReservationFlowTests {
           "startsAt": "2026-04-23T12:00:00Z",
           "endsAt": "2026-04-23T14:00:00Z",
           "timezone": "Europe/Belgrade",
+          "bookingCode": "SL-8F3K2Q9A",
           "status": "NO_SHOW",
           "paymentMode": "PAY_ON_ARRIVAL",
           "totalAmountCents": 530,
@@ -222,7 +224,45 @@ struct ReservationFlowTests {
         #expect(reservation.inventoryPoolId == "pool-001")
         #expect(reservation.holdId == "hold-001")
         #expect(reservation.holdExpiresAt == nil)
+        #expect(reservation.bookingCode == "SL-8F3K2Q9A")
+        #expect(reservation.displayBookingCode == "SL-8F3K2Q9A")
+        #expect(reservation.supportBookingCodeText == "SL-8F3K2Q9A")
         #expect(reservation.currency == "RSD")
+    }
+
+    @Test("reservation gracefully decodes legacy response without booking code")
+    func reservationDecodesMissingBookingCodeWithoutPlaceholder() throws {
+        let json = """
+        {
+          "id": "resv-001",
+          "customerId": "user-001",
+          "operatorId": "op-001",
+          "locationId": "loc-001",
+          "resourceId": "res-001",
+          "inventoryPoolId": "pool-001",
+          "holdId": "hold-001",
+          "vehicleId": "veh-001",
+          "startsAt": "2026-04-23T12:00:00Z",
+          "endsAt": "2026-04-23T14:00:00Z",
+          "timezone": "Europe/Belgrade",
+          "status": "CONFIRMED",
+          "paymentMode": "PAY_ON_ARRIVAL",
+          "totalAmountCents": 530,
+          "currency": "RSD",
+          "accessInstructionsVisible": true,
+          "paymentExpiresAt": null,
+          "createdAt": "2026-04-23T10:00:00Z",
+          "updatedAt": "2026-04-23T10:05:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
+
+        #expect(reservation.bookingCode == nil)
+        #expect(reservation.displayBookingCode == "Nije dostupno")
+        #expect(reservation.supportBookingCodeText == "nije dostupan")
     }
 
     @Test("create reservation request cuva eksplicitni idempotency key")
