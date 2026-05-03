@@ -137,7 +137,7 @@ struct ReservationRow: View {
                     .font(SpotLinkDesign.Typography.caption)
                     .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
             }
-            Text("Booking code: \(reservation.bookingCodePlaceholder)")
+            Text("Booking code: \(reservation.displayBookingCode)")
                 .font(SpotLinkDesign.Typography.caption)
                 .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
             Text(reservation.paymentMode.displayName)

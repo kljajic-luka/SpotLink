@@ -240,8 +240,8 @@ public struct ReservationDetailView: View {
                     SupportTicketComposerView(
                         service: supportService,
                         defaultCategory: .locationAccess,
-                        defaultSubject: "Problem na ulazu za rezervaciju \(reservation.bookingCodePlaceholder)",
-                        initialBody: "Problem na ulazu za lokaciju \(context.location.name). Booking code: \(reservation.bookingCodePlaceholder).",
+                        defaultSubject: "Problem na ulazu za rezervaciju \(reservation.displayBookingCode)",
+                        initialBody: "Problem na ulazu za lokaciju \(context.location.name). Booking code: \(reservation.supportBookingCodeText).",
                         reservationId: reservation.id,
                         locationId: reservation.locationId
                     )
@@ -275,7 +275,7 @@ struct ReservationHeaderCard: View {
 
             ReservationFactGrid(items: [
                 ReservationFact(title: "Rezervacija", value: reservation.id, icon: "number"),
-                ReservationFact(title: "Booking code", value: reservation.bookingCodePlaceholder, icon: "qrcode"),
+                ReservationFact(title: "Booking code", value: reservation.displayBookingCode, icon: "qrcode"),
                 ReservationFact(title: "Ukupno", value: reservation.totalAmountFormatted, icon: "creditcard"),
                 ReservationFact(title: "Potvrda", value: resource?.confirmationMode.displayName ?? "Partner potvrda", icon: "checkmark.seal")
             ])
@@ -338,7 +338,7 @@ struct ReservationPaymentStateCard: View {
 
             ReservationInstructionBlock(
                 title: "Podrska",
-                message: "Za problem sa pristupom ili placanjem koristite akciju 'Problem na ulazu?' kako bi podrska dobila booking code \(reservation.bookingCodePlaceholder)."
+                message: "Za problem sa pristupom ili placanjem koristite akciju 'Problem na ulazu?' kako bi podrska dobila booking code \(reservation.supportBookingCodeText)."
             )
         }
         .padding(SpotLinkDesign.Spacing.md)
@@ -588,7 +588,7 @@ struct ReservationTrustCard: View {
 
             ReservationInstructionBlock(
                 title: "Partner garantuje mesto",
-                message: "SpotLink prikazuje samo partnerski inventar sa garantovanom rezervacijom. Ako na ulazu postoji problem, podrska i operator dobijaju isti booking code: \(reservation.bookingCodePlaceholder)."
+                message: "SpotLink prikazuje samo partnerski inventar sa garantovanom rezervacijom. Ako na ulazu postoji problem, podrska i operator dobijaju isti booking code: \(reservation.supportBookingCodeText)."
             )
 
             ReservationInstructionBlock(
@@ -709,17 +709,21 @@ func accessInstructionsText(
         return "Instrukcije za ulaz trenutno nisu dostupne za stanje \(reservation.status.displayName.lowercased())."
     }
 
+    guard let bookingCode = reservation.bookingCode?.nilIfBlank else {
+        return "Booking code nije dostupan u ovom odgovoru. Pokazite detalje rezervacije osoblju i kontaktirajte podrsku ako ulaz nije moguc."
+    }
+
     switch location.accessType {
     case .gateCode:
-        return "Na ulazu unesite booking code \(reservation.bookingCodePlaceholder). Ako kapija ne reaguje u roku od 60 sekundi, koristite akciju 'Problem na ulazu?'."
+        return "Na ulazu unesite booking code \(bookingCode). Ako kapija ne reaguje u roku od 60 sekundi, koristite akciju 'Problem na ulazu?'."
     case .attendant:
-        return "Pokazite booking code \(reservation.bookingCodePlaceholder) dezurnom osoblju i pratite oznaku partner lokacije."
+        return "Pokazite booking code \(bookingCode) dezurnom osoblju i pratite oznaku partner lokacije."
     case .valet:
-        return "Zaustavite se na drop-off zoni, pokazite booking code i ostanite dostupni na telefonu za preuzimanje vozila."
+        return "Zaustavite se na drop-off zoni, pokazite booking code \(bookingCode) i ostanite dostupni na telefonu za preuzimanje vozila."
     case .appUnlock:
-        return "Digitalno otkljucavanje dolazi u sledecoj fazi. Za sada koristite booking code i partner instrukcije sa lokacije."
+        return "Digitalno otkljucavanje dolazi u sledecoj fazi. Za sada koristite booking code \(bookingCode) i partner instrukcije sa lokacije."
     case .selfPark:
-        return "Pratite oznake partner garaze i parkirajte na dodeljenom mestu. Booking code \(reservation.bookingCodePlaceholder) cuvajte pri izlasku."
+        return "Pratite oznake partner garaze i parkirajte na dodeljenom mestu. Booking code \(bookingCode) cuvajte pri izlasku."
     }
 }
 

@@ -97,6 +97,7 @@ public struct Reservation: Decodable, Identifiable, Sendable {
     public let startsAt: Date
     public let endsAt: Date
     public let timezone: String
+    public let bookingCode: String?
     public let status: ReservationStatus
     public let paymentMode: PaymentMode
     public let totalAmountCents: Int
@@ -110,8 +111,12 @@ public struct Reservation: Decodable, Identifiable, Sendable {
         formatCents(totalAmountCents, currency: currency)
     }
 
-    public var bookingCodePlaceholder: String {
-        "SL-\(id.prefix(8).uppercased())"
+    public var displayBookingCode: String {
+        bookingCode?.nilIfBlank ?? "Nije dostupno"
+    }
+
+    public var supportBookingCodeText: String {
+        bookingCode?.nilIfBlank ?? "nije dostupan"
     }
 
     public var holdExpiresAt: Date? {
