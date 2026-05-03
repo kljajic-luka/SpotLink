@@ -27,6 +27,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -56,6 +57,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
+                        .ignoringRequestMatchers(bearerRequestMatcher())
                         .ignoringRequestMatchers(
                                 "/auth/login",
                                 "/auth/logout",
@@ -106,6 +108,13 @@ public class SecurityConfig {
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private RequestMatcher bearerRequestMatcher() {
+        return request -> {
+            String authorization = request.getHeader("Authorization");
+            return authorization != null && authorization.startsWith("Bearer ");
+        };
     }
 
     @Bean
