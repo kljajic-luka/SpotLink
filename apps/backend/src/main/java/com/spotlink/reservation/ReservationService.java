@@ -62,6 +62,14 @@ public class ReservationService {
         return bookingOperations.cancelAsOperator(reservationId, reason);
     }
 
+    public ReservationDtos.ReservationDto confirmManualAsOperator(UUID reservationId, String notes) {
+        return bookingOperations.confirmManualAsOperator(reservationId, notes);
+    }
+
+    public ReservationDtos.ReservationDto rejectManualAsOperator(UUID reservationId, String reason) {
+        return bookingOperations.rejectManualAsOperator(reservationId, reason);
+    }
+
     public ReservationDtos.ReservationDto checkIn(UUID reservationId, String notes) {
         return bookingOperations.checkIn(reservationId, notes);
     }
@@ -80,6 +88,14 @@ public class ReservationService {
 
     public ReservationDtos.ReservationDto cancelAsAdmin(UUID reservationId, String reason) {
         return bookingOperations.cancelAsAdmin(reservationId, reason);
+    }
+
+    public ReservationDtos.ReservationDto confirmManualAsAdmin(UUID reservationId, String notes) {
+        return bookingOperations.confirmManualAsAdmin(reservationId, notes);
+    }
+
+    public ReservationDtos.ReservationDto rejectManualAsAdmin(UUID reservationId, String reason) {
+        return bookingOperations.rejectManualAsAdmin(reservationId, reason);
     }
 
     public PaymentDtos.RefundDto markRefundAsAdmin(UUID reservationId, Long amountCents, String reason) {

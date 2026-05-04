@@ -26,7 +26,7 @@ import {
   SupportCase,
 } from '@foundation/reservations';
 
-type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
+type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
 
 @Component({
   selector: 'sl-admin-portal',
@@ -114,6 +114,7 @@ type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
                   <span>{{ shortId(booking.id) }}</span>
                   <strong>{{ formatMoney(booking.totalAmountCents, booking.currency) }}</strong>
                   <small>{{ formatDateTime(booking.startsAt) }}</small>
+                  <small>{{ booking.bookingCode || 'No code' }}</small>
                   <sl-status-pill [tone]="statusTone(booking.status)">
                     {{ reservationStatusLabel(booking.status) }}
                   </sl-status-pill>
@@ -178,6 +179,10 @@ type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
                   <dd>{{ paymentModeLabel(detail()!.reservation.paymentMode) }}</dd>
                 </div>
                 <div>
+                  <dt>Booking code</dt>
+                  <dd>{{ detail()!.reservation.bookingCode || 'None' }}</dd>
+                </div>
+                <div>
                   <dt>Hold</dt>
                   <dd>{{ detail()!.hold ? detail()!.hold!.status : 'None' }}</dd>
                 </div>
@@ -205,6 +210,22 @@ type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
                 </div>
 
                 <div class="button-row">
+                  <sl-ui-button
+                    variant="secondary"
+                    [loading]="actionBusy() === 'confirm'"
+                    [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                    (clicked)="confirmManualBooking()"
+                  >
+                    Confirm manual
+                  </sl-ui-button>
+                  <sl-ui-button
+                    variant="danger"
+                    [loading]="actionBusy() === 'reject'"
+                    [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                    (clicked)="rejectManualBooking()"
+                  >
+                    Reject manual
+                  </sl-ui-button>
                   <sl-ui-button
                     variant="danger"
                     [loading]="actionBusy() === 'cancel'"
@@ -631,10 +652,12 @@ export class AdminPortalComponent implements OnInit {
   readonly reservationStatuses: ReservationStatus[] = [
     'DRAFT',
     'PENDING_PAYMENT',
+    'PENDING_OPERATOR_CONFIRMATION',
     'CONFIRMED',
     'ACTIVE',
     'COMPLETED',
     'CANCELLED',
+    'REJECTED',
     'EXPIRED',
     'DISPUTED',
     'NO_SHOW',
@@ -724,6 +747,28 @@ export class AdminPortalComponent implements OnInit {
     );
   }
 
+  confirmManualBooking(): void {
+    const reservation = this.detail()?.reservation;
+    if (!reservation || !this.confirmManualAction('Confirm this manual booking?')) {
+      return;
+    }
+
+    this.runManualAction('confirm', () =>
+      this.adminService.confirmManualBooking(reservation.id, this.optionalValue(this.actionReason)),
+    );
+  }
+
+  rejectManualBooking(): void {
+    const reservation = this.detail()?.reservation;
+    if (!reservation || !this.confirmManualAction('Reject this manual booking?')) {
+      return;
+    }
+
+    this.runManualAction('reject', () =>
+      this.adminService.rejectManualBooking(reservation.id, this.optionalValue(this.actionReason)),
+    );
+  }
+
   markRefund(): void {
     const reservation = this.detail()?.reservation;
     if (!reservation || !this.confirmManualAction('Mark this booking for refund?')) {
@@ -810,7 +855,11 @@ export class AdminPortalComponent implements OnInit {
   }
 
   canCancel(status: ReservationStatus): boolean {
-    return !['CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
+    return !['CANCELLED', 'REJECTED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
+  }
+
+  canConfirmManual(status: ReservationStatus): boolean {
+    return status === 'PENDING_OPERATOR_CONFIRMATION';
   }
 
   reservationStatusLabel(status: ReservationStatus): string {
@@ -819,6 +868,8 @@ export class AdminPortalComponent implements OnInit {
         return 'Draft';
       case 'PENDING_PAYMENT':
         return 'Pending payment';
+      case 'PENDING_OPERATOR_CONFIRMATION':
+        return 'Pending operator confirmation';
       case 'CONFIRMED':
         return 'Confirmed';
       case 'ACTIVE':
@@ -827,6 +878,8 @@ export class AdminPortalComponent implements OnInit {
         return 'Completed';
       case 'CANCELLED':
         return 'Cancelled';
+      case 'REJECTED':
+        return 'Rejected';
       case 'EXPIRED':
         return 'Expired';
       case 'DISPUTED':
@@ -843,10 +896,12 @@ export class AdminPortalComponent implements OnInit {
       case 'COMPLETED':
         return 'success';
       case 'PENDING_PAYMENT':
+      case 'PENDING_OPERATOR_CONFIRMATION':
         return 'warning';
       case 'DRAFT':
         return 'neutral';
       case 'CANCELLED':
+      case 'REJECTED':
       case 'EXPIRED':
       case 'DISPUTED':
       case 'NO_SHOW':
@@ -969,6 +1024,10 @@ export class AdminPortalComponent implements OnInit {
 
   private successMessageFor(action: AdminActionKey): string {
     switch (action) {
+      case 'confirm':
+        return 'Booking confirmed. Audit events refreshed.';
+      case 'reject':
+        return 'Booking rejected. Audit events refreshed.';
       case 'cancel':
         return 'Booking cancelled. Audit events refreshed.';
       case 'refund':

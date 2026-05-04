@@ -26,6 +26,7 @@ public final class ReservationDtos {
             Instant startsAt,
             Instant endsAt,
             String timezone,
+            String bookingCode,
             ReservationStatus status,
             PaymentMode paymentMode,
             long totalAmountCents,

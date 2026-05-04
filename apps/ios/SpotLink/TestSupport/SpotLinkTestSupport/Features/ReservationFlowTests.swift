@@ -230,6 +230,43 @@ struct ReservationFlowTests {
         #expect(reservation.currency == "RSD")
     }
 
+    @Test("reservation dekodira pending operator confirmation status bez pristupnih instrukcija")
+    func reservationDecodesPendingOperatorConfirmation() throws {
+        let json = """
+        {
+          "id": "resv-001",
+          "customerId": "user-001",
+          "operatorId": "op-001",
+          "locationId": "loc-001",
+          "resourceId": "res-001",
+          "inventoryPoolId": "pool-001",
+          "holdId": "hold-001",
+          "vehicleId": "veh-001",
+          "startsAt": "2026-04-23T12:00:00Z",
+          "endsAt": "2026-04-23T14:00:00Z",
+          "timezone": "Europe/Belgrade",
+          "bookingCode": "SL-8F3K2Q9A",
+          "status": "PENDING_OPERATOR_CONFIRMATION",
+          "paymentMode": "PAY_ON_ARRIVAL",
+          "totalAmountCents": 530,
+          "currency": "RSD",
+          "accessInstructionsVisible": false,
+          "paymentExpiresAt": null,
+          "createdAt": "2026-04-23T10:00:00Z",
+          "updatedAt": "2026-04-23T10:05:00Z"
+        }
+        """
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
+
+        #expect(reservation.status == .pendingOperatorConfirmation)
+        #expect(reservation.status.displayName == "Ceka potvrdu operatora")
+        #expect(reservation.accessInstructionsVisible == false)
+        #expect(reservation.bookingCode == "SL-8F3K2Q9A")
+    }
+
     @Test("reservation gracefully decodes legacy response without booking code")
     func reservationDecodesMissingBookingCodeWithoutPlaceholder() throws {
         let json = """
@@ -374,6 +411,69 @@ struct ReservationFlowTests {
         #expect(paymentCalls == 0)
         #expect(viewModel.confirmationContext?.reservation.paymentMode == .payOnArrival)
         #expect(viewModel.confirmationContext?.reservation.status == .confirmed)
+        #expect(viewModel.confirmationContext?.paymentIntent == nil)
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test("manual confirmation flow prikazuje pending status bez online payment poziva")
+    func manualConfirmationFlowSkipsOnlinePaymentAfterPendingOperatorResponse() async {
+        let client = BookingMockAPIClient()
+        let result = makeBookingLocationResult(supportedPaymentModes: [.online])
+        let vehicle = makeVehicle()
+        let paymentMethod = makePaymentMethod()
+        let reservation = makeReservation(status: .pendingOperatorConfirmation, paymentMode: .online)
+
+        let reservationService = ReservationService(apiClient: client)
+        let locationService = LocationService(apiClient: client)
+        let vehicleService = VehicleService(apiClient: client)
+        let paymentService = PaymentService(apiClient: client)
+
+        var paymentCalls = 0
+
+        client.getHandler = { path, _ in
+            switch path {
+            case "/vehicles/me":
+                return [vehicle]
+            case "/payments/methods":
+                return [paymentMethod]
+            case "/reservations/\(reservation.id)":
+                return reservation
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat GET put: \(path)"))
+            }
+        }
+
+        client.postHandler = { path, _ in
+            switch path {
+            case "/reservations/quote":
+                return makeQuote(start: reservation.startsAt, end: reservation.endsAt)
+            case "/reservations":
+                return reservation
+            case "/payments/intents", "/payments/intents/pi-001/confirm":
+                paymentCalls += 1
+                throw APIError.serverError(500, APIErrorContext(message: "Online payment ne sme biti pozvan"))
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat POST put: \(path)"))
+            }
+        }
+
+        let viewModel = ReservationBookingViewModel(
+            result: result,
+            initialStartsAt: reservation.startsAt,
+            initialEndsAt: reservation.endsAt
+        )
+
+        await viewModel.loadIfNeeded(
+            reservationService: reservationService,
+            locationService: locationService,
+            vehicleService: vehicleService,
+            paymentService: paymentService
+        )
+        await viewModel.submitBooking(reservationService: reservationService, paymentService: paymentService)
+
+        #expect(paymentCalls == 0)
+        #expect(viewModel.selectedPaymentMode == .online)
+        #expect(viewModel.confirmationContext?.reservation.status == .pendingOperatorConfirmation)
         #expect(viewModel.confirmationContext?.paymentIntent == nil)
         #expect(viewModel.errorMessage == nil)
     }

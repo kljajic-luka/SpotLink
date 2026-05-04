@@ -58,6 +58,7 @@ class PaymentFoundationTest {
                                 """.formatted(resourceId, startsAt, endsAt, reservationIdempotencyKey)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.bookingCode").exists())
                 .andReturn();
 
         String reservationId = objectMapper.readTree(reservationResult.getResponse().getContentAsString())

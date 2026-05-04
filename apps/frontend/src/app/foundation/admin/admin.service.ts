@@ -67,6 +67,20 @@ export class AdminService {
     );
   }
 
+  confirmManualBooking(reservationId: string, reason?: string): Observable<AdminBookingDetail['reservation']> {
+    return this.api.post<AdminBookingDetail['reservation'], AdminActionRequest>(
+      `/admin/bookings/${encodeURIComponent(reservationId)}/confirm`,
+      { reason },
+    );
+  }
+
+  rejectManualBooking(reservationId: string, reason?: string): Observable<AdminBookingDetail['reservation']> {
+    return this.api.post<AdminBookingDetail['reservation'], AdminActionRequest>(
+      `/admin/bookings/${encodeURIComponent(reservationId)}/reject`,
+      { reason },
+    );
+  }
+
   markRefund(reservationId: string, payload: RefundMarkerRequest): Observable<AdminRefund> {
     return this.api.post<AdminRefund, RefundMarkerRequest>(
       `/admin/bookings/${encodeURIComponent(reservationId)}/refund-marker`,

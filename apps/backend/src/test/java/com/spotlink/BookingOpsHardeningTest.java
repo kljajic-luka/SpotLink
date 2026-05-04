@@ -117,6 +117,259 @@ class BookingOpsHardeningTest {
     }
 
     @Test
+    void manualConfirmationBookingStartsPendingAndBlocksCapacityUntilOperatorDecision() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1, "MANUAL");
+        MockHttpSession customerOne = registerCustomer("Mika");
+        MockHttpSession customerTwo = registerCustomer("Noa");
+
+        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(false))
+                .andExpect(jsonPath("$.bookingCode").exists())
+                .andReturn();
+        String reservationId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        assertThat(bookingHoldRepository.findByReservationId(UUID.fromString(reservationId)).orElseThrow().getStatus())
+                .isEqualTo(BookingHoldStatus.CONSUMED);
+        assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(UUID.fromString(reservationId)))
+                .extracting(event -> event.getEventType().name())
+                .contains("MANUAL_CONFIRMATION_REQUESTED");
+
+        createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "PAY_ON_ARRIVAL", "sl_manual_overlap_" + UUID.randomUUID())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RESOURCE_UNAVAILABLE"));
+
+        mockMvc.perform(post("/operator/bookings/%s/check-in".formatted(reservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        MvcResult upcoming = mockMvc.perform(get("/operator/bookings/upcoming")
+                        .session(operatorSession))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(upcoming.getResponse().getContentAsString())
+                .contains(reservationId, "PENDING_OPERATOR_CONFIRMATION", "bookingCode");
+    }
+
+    @Test
+    void operatorAndAdminCanConfirmPendingManualBookings() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 2, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Riley");
+        MockHttpSession adminSession = createAdminSession();
+
+        Instant startsAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult operatorPending = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_op_confirm_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andReturn();
+        String operatorReservationId = objectMapper.readTree(operatorPending.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(operatorReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "kapacitet potvrdjen"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(true))
+                .andExpect(jsonPath("$.bookingCode").exists());
+
+        MvcResult adminPending = createReservation(customerSession, resourceId, startsAt.plus(3, ChronoUnit.HOURS), endsAt.plus(3, ChronoUnit.HOURS), "PAY_ON_ARRIVAL", "sl_manual_admin_confirm_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andReturn();
+        String adminReservationId = objectMapper.readTree(adminPending.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/admin/bookings/%s/confirm".formatted(adminReservationId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "admin pilot approval"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(true));
+
+        assertThat(auditLogRepository.findAll())
+                .extracting(log -> log.getAction())
+                .contains("OPERATOR_CONFIRMED_BOOKING", "ADMIN_CONFIRMED_BOOKING");
+    }
+
+    @Test
+    void operatorAndAdminCanRejectPendingManualBookings() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 2, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Sky");
+        MockHttpSession adminSession = createAdminSession();
+
+        Instant startsAt = Instant.now().plus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult operatorPending = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_op_reject_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String operatorReservationId = objectMapper.readTree(operatorPending.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/reject".formatted(operatorReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "mesto nije dostupno"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(false));
+
+        MvcResult adminPending = createReservation(customerSession, resourceId, startsAt.plus(3, ChronoUnit.HOURS), endsAt.plus(3, ChronoUnit.HOURS), "PAY_ON_ARRIVAL", "sl_manual_admin_reject_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String adminReservationId = objectMapper.readTree(adminPending.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/admin/bookings/%s/reject".formatted(adminReservationId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "operator reported blackout"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(false));
+
+        assertThat(auditLogRepository.findAll())
+                .extracting(log -> log.getAction())
+                .contains("OPERATOR_REJECTED_BOOKING", "ADMIN_REJECTED_BOOKING");
+    }
+
+    @Test
+    void operatorCannotActOnAnotherOperatorsManualBooking() throws Exception {
+        MockHttpSession owningOperatorSession = registerOperator();
+        MockHttpSession otherOperatorSession = registerOperator();
+        UUID resourceId = createParkingResource(owningOperatorSession, 1, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Quinn");
+
+        Instant startsAt = Instant.now().plus(5, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_scope_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String reservationId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(reservationId))
+                        .with(csrf())
+                        .session(otherOperatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/operator/bookings/%s/reject".formatted(reservationId))
+                        .with(csrf())
+                        .session(otherOperatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+
+        assertThat(reservationRepository.findById(UUID.fromString(reservationId)).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.PENDING_OPERATOR_CONFIRMATION);
+    }
+
+    @Test
+    void manualConfirmRejectFailOutsidePendingOperatorState() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 2, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Sage");
+        MockHttpSession adminSession = createAdminSession();
+
+        Instant startsAt = Instant.now().plus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult confirmed = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_invalid_confirmed_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String confirmedId = objectMapper.readTree(confirmed.getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(confirmedId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(confirmedId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        mockMvc.perform(post("/admin/bookings/%s/reject".formatted(confirmedId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        MvcResult cancelled = createReservation(customerSession, resourceId, startsAt.plus(3, ChronoUnit.HOURS), endsAt.plus(3, ChronoUnit.HOURS), "PAY_ON_ARRIVAL", "sl_manual_invalid_cancelled_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andReturn();
+        String cancelledId = objectMapper.readTree(cancelled.getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(post("/admin/bookings/%s/cancel".formatted(cancelledId))
+                        .with(csrf())
+                        .session(adminSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "cancel pre potvrde"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(cancelledId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        mockMvc.perform(post("/operator/bookings/%s/reject".formatted(cancelledId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+    }
+
+    @Test
     void operatorPauseAndLifecycleActionsUseCentralStateTransitions() throws Exception {
         MockHttpSession operatorSession = registerOperator();
         UUID resourceId = createParkingResource(operatorSession, 1);
@@ -487,6 +740,10 @@ class BookingOpsHardeningTest {
     }
 
     private UUID createParkingResource(MockHttpSession operatorSession, int capacity) throws Exception {
+        return createParkingResource(operatorSession, capacity, "INSTANT");
+    }
+
+    private UUID createParkingResource(MockHttpSession operatorSession, int capacity, String confirmationMode) throws Exception {
         MvcResult locationResult = mockMvc.perform(post("/locations")
                         .with(csrf())
                         .session(operatorSession)
@@ -525,9 +782,10 @@ class BookingOpsHardeningTest {
                                   "currency": "RSD",
                                   "instantReserve": true,
                                   "active": true,
-                                  "capacity": %s
+                                  "capacity": %s,
+                                  "confirmationMode": "%s"
                                 }
-                                """.formatted(capacity)))
+                                """.formatted(capacity, confirmationMode)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(objectMapper.readTree(resourceResult.getResponse().getContentAsString()).get("id").asText());

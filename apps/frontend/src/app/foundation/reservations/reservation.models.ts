@@ -1,10 +1,12 @@
 export type ReservationStatus =
   | 'DRAFT'
   | 'PENDING_PAYMENT'
+  | 'PENDING_OPERATOR_CONFIRMATION'
   | 'CONFIRMED'
   | 'ACTIVE'
   | 'COMPLETED'
   | 'CANCELLED'
+  | 'REJECTED'
   | 'EXPIRED'
   | 'DISPUTED'
   | 'NO_SHOW';
@@ -21,6 +23,9 @@ export type BookingEventType =
   | 'HOLD_CREATED'
   | 'HOLD_EXPIRED'
   | 'STATUS_CHANGED'
+  | 'MANUAL_CONFIRMATION_REQUESTED'
+  | 'MANUAL_CONFIRMED'
+  | 'MANUAL_REJECTED'
   | 'PAYMENT_AUTHORIZED'
   | 'PAYMENT_FAILED'
   | 'CONFIRMED'
@@ -57,6 +62,7 @@ export interface Reservation {
   startsAt: string;
   endsAt: string;
   timezone: string;
+  bookingCode?: string;
   status: ReservationStatus;
   paymentMode: PaymentMode;
   totalAmountCents: number;

@@ -68,6 +68,7 @@ class ReservationFoundationTest {
         MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, idempotencyKey)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.bookingCode").exists())
                 .andExpect(jsonPath("$.paymentExpiresAt").exists())
                 .andReturn();
         JsonNode first = objectMapper.readTree(created.getResponse().getContentAsString());
