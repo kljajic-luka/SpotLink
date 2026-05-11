@@ -85,7 +85,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerOne = registerCustomer("Casey");
         MockHttpSession customerTwo = registerCustomer("Jordan");
 
-        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(2);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, "ONLINE", "sl_hold_" + UUID.randomUUID())
@@ -123,7 +123,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerOne = registerCustomer("Mika");
         MockHttpSession customerTwo = registerCustomer("Noa");
 
-        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(2);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult created = createReservation(customerOne, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_" + UUID.randomUUID())
@@ -167,7 +167,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerSession = registerCustomer("Riley");
         MockHttpSession adminSession = createAdminSession();
 
-        Instant startsAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(3);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult operatorPending = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_op_confirm_" + UUID.randomUUID())
@@ -221,7 +221,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerSession = registerCustomer("Sky");
         MockHttpSession adminSession = createAdminSession();
 
-        Instant startsAt = Instant.now().plus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(4);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult operatorPending = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_op_reject_" + UUID.randomUUID())
@@ -272,7 +272,7 @@ class BookingOpsHardeningTest {
         UUID resourceId = createParkingResource(owningOperatorSession, 1, "MANUAL");
         MockHttpSession customerSession = registerCustomer("Quinn");
 
-        Instant startsAt = Instant.now().plus(5, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(5);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_scope_" + UUID.randomUUID())
@@ -305,7 +305,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerSession = registerCustomer("Sage");
         MockHttpSession adminSession = createAdminSession();
 
-        Instant startsAt = Instant.now().plus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(6);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult confirmed = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_manual_invalid_confirmed_" + UUID.randomUUID())
@@ -370,12 +370,151 @@ class BookingOpsHardeningTest {
     }
 
     @Test
+    void manualOnlineBookingsCanBeConfirmedForPaymentOrRejectedByOperator() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Riley");
+
+        Instant startsAt = alignedFutureStart(7);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult pendingOnline = createReservation(
+                customerSession,
+                resourceId,
+                startsAt,
+                endsAt,
+                "ONLINE",
+                "sl_manual_confirm_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andExpect(jsonPath("$.paymentExpiresAt").doesNotExist())
+                .andExpect(jsonPath("$.operatorConfirmationExpiresAt").exists())
+                .andExpect(jsonPath("$.bookingCode").exists())
+                .andReturn();
+        String confirmedReservationId = objectMapper.readTree(pendingOnline.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(get("/operator/bookings/%s".formatted(confirmedReservationId))
+                        .session(operatorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservation.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andExpect(jsonPath("$.timeline").isArray());
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(confirmedReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "slot approved"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andExpect(jsonPath("$.paymentExpiresAt").exists())
+                .andExpect(jsonPath("$.operatorConfirmationExpiresAt").doesNotExist());
+
+        UUID confirmedId = UUID.fromString(confirmedReservationId);
+        assertThat(reservationRepository.findById(confirmedId).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.PENDING_PAYMENT);
+        assertThat(bookingHoldRepository.findByReservationId(confirmedId).orElseThrow().getStatus())
+                .isEqualTo(BookingHoldStatus.ACTIVE);
+        assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(confirmedId))
+                .extracting(event -> event.getEventType().name())
+                .contains("OPERATOR_CONFIRMATION_REQUESTED", "OPERATOR_CONFIRMED");
+
+        MvcResult pendingRejected = createReservation(
+                customerSession,
+                resourceId,
+                startsAt.plus(3, ChronoUnit.HOURS),
+                endsAt.plus(3, ChronoUnit.HOURS),
+                "ONLINE",
+                "sl_manual_reject_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andReturn();
+        String rejectedReservationId = objectMapper.readTree(pendingRejected.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/reject".formatted(rejectedReservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "slot unavailable"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(false))
+                .andExpect(jsonPath("$.paymentExpiresAt").doesNotExist())
+                .andExpect(jsonPath("$.operatorConfirmationExpiresAt").doesNotExist());
+
+        UUID rejectedId = UUID.fromString(rejectedReservationId);
+        assertThat(reservationRepository.findById(rejectedId).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.REJECTED);
+        assertThat(bookingHoldRepository.findByReservationId(rejectedId).orElseThrow().getStatus())
+                .isEqualTo(BookingHoldStatus.RELEASED);
+        assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(rejectedId))
+                .extracting(event -> event.getEventType().name())
+                .contains("OPERATOR_CONFIRMATION_REQUESTED", "OPERATOR_REJECTED");
+        assertThat(auditLogRepository.findAll())
+                .extracting(log -> log.getAction())
+                .contains("OPERATOR_CONFIRMED_BOOKING", "OPERATOR_REJECTED_BOOKING");
+    }
+
+    @Test
+    void manualPayOnArrivalBookingConfirmsImmediatelyWhenOperatorApproves() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Sawyer");
+
+        Instant startsAt = alignedFutureStart(8);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult pendingPayOnArrival = createReservation(
+                customerSession,
+                resourceId,
+                startsAt,
+                endsAt,
+                "PAY_ON_ARRIVAL",
+                "sl_manual_poa_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andExpect(jsonPath("$.operatorConfirmationExpiresAt").exists())
+                .andReturn();
+        String reservationId = objectMapper.readTree(pendingPayOnArrival.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(reservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "pay on arrival approved"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.accessInstructionsVisible").value(true))
+                .andExpect(jsonPath("$.paymentExpiresAt").doesNotExist())
+                .andExpect(jsonPath("$.operatorConfirmationExpiresAt").doesNotExist());
+
+        UUID parsedReservationId = UUID.fromString(reservationId);
+        assertThat(bookingHoldRepository.findByReservationId(parsedReservationId).orElseThrow().getStatus())
+                .isEqualTo(BookingHoldStatus.CONSUMED);
+        assertThat(paymentAttemptRepository.findByReservationIdOrderByCreatedAtDesc(parsedReservationId))
+                .hasSize(1)
+                .extracting(attempt -> attempt.getPaymentMode().name(), attempt -> attempt.getStatus().name())
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("PAY_ON_ARRIVAL", "PENDING"));
+    }
+
+    @Test
     void operatorPauseAndLifecycleActionsUseCentralStateTransitions() throws Exception {
         MockHttpSession operatorSession = registerOperator();
         UUID resourceId = createParkingResource(operatorSession, 1);
         MockHttpSession customerSession = registerCustomer("Avery");
 
-        Instant startsAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(3);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         mockMvc.perform(post("/operator/resources/%s/pause".formatted(resourceId))
@@ -507,7 +646,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerSession = registerCustomer("Morgan");
         MockHttpSession adminSession = createAdminSession();
 
-        Instant startsAt = Instant.now().plus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(4);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult created = createReservation(customerSession, resourceId, startsAt, endsAt, "PAY_ON_ARRIVAL", "sl_admin_" + UUID.randomUUID())
@@ -561,7 +700,7 @@ class BookingOpsHardeningTest {
         MockHttpSession customerSession = registerCustomer("Taylor");
         MockHttpSession adminSession = createAdminSession();
 
-        Instant startsAt = Instant.now().plus(5, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(5);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         MvcResult paidReservation = createReservation(customerSession, resourceId, startsAt, endsAt, "ONLINE", "sl_pay_ok_" + UUID.randomUUID())
@@ -663,6 +802,10 @@ class BookingOpsHardeningTest {
                           "idempotencyKey": "%s"
                         }
                         """.formatted(resourceId, paymentModeField, startsAt, endsAt, idempotencyKey)));
+    }
+
+    private Instant alignedFutureStart(long hoursAhead) {
+        return Instant.now().truncatedTo(ChronoUnit.HOURS).plus(hoursAhead, ChronoUnit.HOURS);
     }
 
     private org.springframework.test.web.servlet.ResultActions createPaymentIntent(
