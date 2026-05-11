@@ -29,6 +29,8 @@ import {
   toReservationCardViewModel,
 } from '@foundation/reservations';
 
+type OperatorBookingAction = 'check-in' | 'no-show' | 'cancel' | 'confirm' | 'reject';
+
 @Component({
   selector: 'sl-operator-workspace',
   standalone: true,
@@ -183,11 +185,11 @@ import {
                     </div>
                     <span>{{ bookingCard(booking).schedule }}</span>
                     <span>{{ bookingCard(booking).amount }}</span>
-                    <small>Booking code: {{ booking.bookingCode || 'N/A' }}</small>
+                    <small>Booking code {{ booking.bookingCode || shortId(booking.id) }}</small>
                     <small>
                       {{ paymentModeLabel(booking.paymentMode) }}
-                      @if (booking.paymentExpiresAt) {
-                        · hold istice {{ formatDateTime(booking.paymentExpiresAt) }}
+                      @if (reservationDeadlineLabel(booking); as deadlineLabel) {
+                        · {{ deadlineLabel }}
                       }
                     </small>
                   </button>
@@ -235,17 +237,13 @@ import {
                   </div>
 
                   <div class="detail-sheet__meta">
+                    <span>Booking code {{ detail()!.reservation.bookingCode || shortId(detail()!.reservation.id) }}</span>
                     <span>{{ paymentModeLabel(detail()!.reservation.paymentMode) }}</span>
                     <strong>{{ formatMoney(detail()!.reservation.totalAmountCents, detail()!.reservation.currency) }}</strong>
                   </div>
                 </div>
 
                 <div class="detail-grid">
-                  <article class="metric-card">
-                    <span>Booking code</span>
-                    <strong>{{ detail()!.reservation.bookingCode || 'N/A' }}</strong>
-                    <small>Kod koji backend izdaje za partner proveru.</small>
-                  </article>
                   <article class="metric-card">
                     <span>Hold</span>
                     <strong>
@@ -256,8 +254,8 @@ import {
                       }
                     </strong>
                     <small>
-                      @if (detail()!.hold?.expiresAt) {
-                        Istice {{ formatDateTime(detail()!.hold!.expiresAt) }}
+                      @if (reservationDeadlineLabel(detail()!.reservation); as deadlineLabel) {
+                        {{ deadlineLabel }}
                       } @else {
                         Rezervacija nema aktivan hold.
                       }
@@ -285,6 +283,13 @@ import {
                     <strong>{{ detail()!.supportCases.length }}</strong>
                     <small>Otvoreni ili istorijski slucajevi vezani za ovu rezervaciju.</small>
                   </article>
+                  <article class="metric-card">
+                    <span>Povracaj</span>
+                    <strong>
+                      {{ formatMoney(detail()!.reservation.refundEligibleCents || 0, detail()!.reservation.currency) }}
+                    </strong>
+                    <small>{{ cancellationWindowLabel(detail()!.reservation) }}</small>
+                  </article>
                 </div>
 
                 <div class="action-card">
@@ -301,18 +306,18 @@ import {
                     <sl-ui-button
                       variant="secondary"
                       [loading]="bookingActionBusy() === 'confirm'"
-                      [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                      [disabled]="!canConfirm(detail()!.reservation.status)"
                       (clicked)="runBookingAction('confirm')"
                     >
-                      Potvrdi zahtev
+                      Potvrdi rezervaciju
                     </sl-ui-button>
                     <sl-ui-button
-                      variant="danger"
+                      variant="secondary"
                       [loading]="bookingActionBusy() === 'reject'"
-                      [disabled]="!canConfirmManual(detail()!.reservation.status)"
+                      [disabled]="!canReject(detail()!.reservation.status)"
                       (clicked)="runBookingAction('reject')"
                     >
-                      Odbij zahtev
+                      Odbij rezervaciju
                     </sl-ui-button>
                     <sl-ui-button
                       [loading]="bookingActionBusy() === 'check-in'"
@@ -942,7 +947,7 @@ export class OperatorWorkspaceComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly workspaceError = signal<string | null>(null);
   readonly detailError = signal<string | null>(null);
-  readonly bookingActionBusy = signal<'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel' | null>(null);
+  readonly bookingActionBusy = signal<OperatorBookingAction | null>(null);
   readonly inventoryActionKey = signal<string | null>(null);
   readonly flashMessage = signal<string | null>(null);
   readonly inventoryState = signal<Record<string, InventoryControl>>({});
@@ -1000,7 +1005,7 @@ export class OperatorWorkspaceComponent implements OnInit {
       case 'PENDING_PAYMENT':
         return 'Ceka uplatu';
       case 'PENDING_OPERATOR_CONFIRMATION':
-        return 'Ceka potvrdu operatora';
+        return 'Ceka potvrdu partnera';
       case 'CONFIRMED':
         return 'Potvrdjena';
       case 'ACTIVE':
@@ -1009,10 +1014,10 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'Zavrsena';
       case 'CANCELLED':
         return 'Otkazana';
-      case 'REJECTED':
-        return 'Odbijena';
       case 'EXPIRED':
         return 'Istekla';
+      case 'REJECTED':
+        return 'Odbijena';
       case 'DISPUTED':
         return 'Sporna';
       case 'NO_SHOW':
@@ -1071,8 +1076,8 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'warning';
       case 'DRAFT':
         return 'neutral';
-      case 'CANCELLED':
       case 'REJECTED':
+      case 'CANCELLED':
       case 'EXPIRED':
       case 'DISPUTED':
       case 'NO_SHOW':
@@ -1092,12 +1097,12 @@ export class OperatorWorkspaceComponent implements OnInit {
         return 'Hold istekao';
       case 'STATUS_CHANGED':
         return 'Status promenjen';
-      case 'MANUAL_CONFIRMATION_REQUESTED':
-        return 'Zahtev ceka operatora';
-      case 'MANUAL_CONFIRMED':
-        return 'Operator potvrdio rezervaciju';
-      case 'MANUAL_REJECTED':
-        return 'Operator odbio rezervaciju';
+      case 'OPERATOR_CONFIRMATION_REQUESTED':
+        return 'Zahtev poslat partneru';
+      case 'OPERATOR_CONFIRMED':
+        return 'Partner potvrdio rezervaciju';
+      case 'OPERATOR_REJECTED':
+        return 'Partner odbio rezervaciju';
       case 'PAYMENT_AUTHORIZED':
         return 'Placanje autorizovano';
       case 'PAYMENT_FAILED':
@@ -1210,21 +1215,25 @@ export class OperatorWorkspaceComponent implements OnInit {
     return status === 'CONFIRMED';
   }
 
-  canConfirmManual(status: ReservationStatus): boolean {
+  canCancel(status: ReservationStatus): boolean {
+    return !['CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW', 'REJECTED'].includes(status);
+  }
+
+  canConfirm(status: ReservationStatus): boolean {
     return status === 'PENDING_OPERATOR_CONFIRMATION';
   }
 
-  canCancel(status: ReservationStatus): boolean {
-    return !['CANCELLED', 'REJECTED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
+  canReject(status: ReservationStatus): boolean {
+    return status === 'PENDING_OPERATOR_CONFIRMATION';
   }
 
-  runBookingAction(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): void {
+  runBookingAction(action: OperatorBookingAction): void {
     const reservation = this.detail()?.reservation;
     if (!reservation) {
       return;
     }
-    if ((action === 'confirm' || action === 'reject' || action === 'no-show' || action === 'cancel')
-        && !this.confirmOperatorAction(this.bookingActionConfirmation(action))) {
+    const requiresConfirmation = action === 'no-show' || action === 'cancel' || action === 'reject';
+    if (requiresConfirmation && !this.confirmOperatorAction(this.bookingActionConfirmation(action))) {
       return;
     }
 
@@ -1235,18 +1244,20 @@ export class OperatorWorkspaceComponent implements OnInit {
       ? { notes: this.optionalValue(this.bookingActionText) }
       : { reason: this.optionalValue(this.bookingActionText) };
 
-    let request;
-    if (action === 'confirm') {
-      request = this.operatorService.confirmManualBooking(reservation.id, payload);
-    } else if (action === 'reject') {
-      request = this.operatorService.rejectManualBooking(reservation.id, payload);
-    } else if (action === 'check-in') {
-      request = this.operatorService.checkIn(reservation.id, payload);
-    } else if (action === 'no-show') {
-      request = this.operatorService.markNoShow(reservation.id, payload);
-    } else {
-      request = this.operatorService.cancelBooking(reservation.id, payload);
-    }
+    const request = (() => {
+      switch (action) {
+        case 'check-in':
+          return this.operatorService.checkIn(reservation.id, payload);
+        case 'confirm':
+          return this.operatorService.confirmBooking(reservation.id, payload);
+        case 'reject':
+          return this.operatorService.rejectBooking(reservation.id, payload);
+        case 'no-show':
+          return this.operatorService.markNoShow(reservation.id, payload);
+        case 'cancel':
+          return this.operatorService.cancelBooking(reservation.id, payload);
+      }
+    })();
 
     request
       .pipe(finalize(() => this.bookingActionBusy.set(null)))
@@ -1527,7 +1538,31 @@ export class OperatorWorkspaceComponent implements OnInit {
     return trimmed ? trimmed : undefined;
   }
 
-  private bookingActionMessage(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): string {
+  reservationDeadlineLabel(reservation: Reservation): string | null {
+    if (reservation.status === 'PENDING_OPERATOR_CONFIRMATION' && reservation.operatorConfirmationExpiresAt) {
+      return `partner potvrda istice ${this.formatDateTime(reservation.operatorConfirmationExpiresAt)}`;
+    }
+
+    if (reservation.paymentExpiresAt) {
+      return `hold istice ${this.formatDateTime(reservation.paymentExpiresAt)}`;
+    }
+
+    return null;
+  }
+
+  cancellationWindowLabel(reservation: Reservation): string {
+    if (reservation.cancellableUntil) {
+      return `Otkazivanje do ${this.formatDateTime(reservation.cancellableUntil)}`;
+    }
+
+    if (reservation.cancellationPolicy === 'FULL_REFUND_BEFORE_START') {
+      return 'Pun povracaj pre pocetka rezervacije.';
+    }
+
+    return 'Politika otkazivanja nije dostupna.';
+  }
+
+  private bookingActionMessage(action: OperatorBookingAction): string {
     switch (action) {
       case 'confirm':
         return 'Rezervacija je potvrdjena.';
@@ -1542,12 +1577,12 @@ export class OperatorWorkspaceComponent implements OnInit {
     }
   }
 
-  private bookingActionConfirmation(action: 'confirm' | 'reject' | 'check-in' | 'no-show' | 'cancel'): string {
+  private bookingActionConfirmation(action: OperatorBookingAction): string {
     switch (action) {
       case 'confirm':
-        return 'Potvrditi manuelni zahtev za ovu rezervaciju?';
+        return 'Potvrditi ovu rezervaciju?';
       case 'reject':
-        return 'Odbiti manuelni zahtev za ovu rezervaciju?';
+        return 'Odbiti ovu rezervaciju?';
       case 'check-in':
         return 'Evidentirati dolazak vozaca?';
       case 'no-show':

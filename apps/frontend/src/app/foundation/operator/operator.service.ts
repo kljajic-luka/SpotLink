@@ -61,6 +61,26 @@ export class OperatorService {
     );
   }
 
+  confirmBooking(
+    reservationId: string,
+    payload: OperatorBookingActionRequest,
+  ): Observable<OperatorBookingDetail['reservation']> {
+    return this.api.post<OperatorBookingDetail['reservation'], OperatorBookingActionRequest>(
+      `/operator/bookings/${encodeURIComponent(reservationId)}/confirm`,
+      payload,
+    );
+  }
+
+  rejectBooking(
+    reservationId: string,
+    payload: OperatorBookingActionRequest,
+  ): Observable<OperatorBookingDetail['reservation']> {
+    return this.api.post<OperatorBookingDetail['reservation'], OperatorBookingActionRequest>(
+      `/operator/bookings/${encodeURIComponent(reservationId)}/reject`,
+      payload,
+    );
+  }
+
   cancelBooking(
     reservationId: string,
     payload: OperatorBookingActionRequest,

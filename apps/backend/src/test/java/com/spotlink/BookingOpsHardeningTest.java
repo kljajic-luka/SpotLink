@@ -135,10 +135,10 @@ class BookingOpsHardeningTest {
         String reservationId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
 
         assertThat(bookingHoldRepository.findByReservationId(UUID.fromString(reservationId)).orElseThrow().getStatus())
-                .isEqualTo(BookingHoldStatus.CONSUMED);
+                .isEqualTo(BookingHoldStatus.ACTIVE);
         assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(UUID.fromString(reservationId)))
                 .extracting(event -> event.getEventType().name())
-                .contains("MANUAL_CONFIRMATION_REQUESTED");
+                .contains("OPERATOR_CONFIRMATION_REQUESTED");
 
         createReservation(customerTwo, resourceId, startsAt.plus(15, ChronoUnit.MINUTES), endsAt.plus(15, ChronoUnit.MINUTES), "PAY_ON_ARRIVAL", "sl_manual_overlap_" + UUID.randomUUID())
                 .andExpect(status().isConflict())
@@ -506,6 +506,54 @@ class BookingOpsHardeningTest {
                 .hasSize(1)
                 .extracting(attempt -> attempt.getPaymentMode().name(), attempt -> attempt.getStatus().name())
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("PAY_ON_ARRIVAL", "PENDING"));
+    }
+
+    @Test
+    void expiredManualConfirmationCannotBeConfirmedByOperator() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession, 1, "MANUAL");
+        MockHttpSession customerSession = registerCustomer("Quinn");
+
+        Instant startsAt = alignedFutureStart(5);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+
+        MvcResult pendingReservation = createReservation(
+                customerSession,
+                resourceId,
+                startsAt,
+                endsAt,
+                "PAY_ON_ARRIVAL",
+                "sl_manual_expired_" + UUID.randomUUID())
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_OPERATOR_CONFIRMATION"))
+                .andReturn();
+        UUID reservationId = UUID.fromString(objectMapper.readTree(pendingReservation.getResponse().getContentAsString()).get("id").asText());
+        BookingHold hold = bookingHoldRepository.findByReservationId(reservationId).orElseThrow();
+        hold.setExpiresAt(Instant.now().minus(1, ChronoUnit.MINUTES));
+        bookingHoldRepository.saveAndFlush(hold);
+
+        mockMvc.perform(post("/operator/bookings/%s/confirm".formatted(reservationId))
+                        .with(csrf())
+                        .session(operatorSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "notes": "too late"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_RESERVATION_TRANSITION"));
+
+        assertThat(reservationRepository.findById(reservationId).orElseThrow().getStatus())
+                .isEqualTo(ReservationStatus.EXPIRED);
+        assertThat(bookingHoldRepository.findById(hold.getId()).orElseThrow().getStatus())
+                .isEqualTo(BookingHoldStatus.EXPIRED);
+        assertThat(paymentAttemptRepository.findByReservationIdOrderByCreatedAtDesc(reservationId))
+                .isEmpty();
+        assertThat(bookingEventRepository.findByReservationIdOrderByOccurredAtAsc(reservationId))
+                .extracting(event -> event.getEventType().name())
+                .contains("OPERATOR_CONFIRMATION_REQUESTED", "HOLD_EXPIRED")
+                .doesNotContain("OPERATOR_CONFIRMED");
     }
 
     @Test

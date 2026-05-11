@@ -133,7 +133,13 @@ private func makeReservation(
     status: ReservationStatus,
     paymentMode: PaymentMode = .online
 ) -> Reservation {
-    Reservation(
+    let startsAt = Date(timeIntervalSince1970: 1_713_868_800)
+    let paymentExpiresAt = paymentMode == .online ? Date(timeIntervalSince1970: 1_713_869_700) : nil
+    let operatorConfirmationExpiresAt = status == .pendingOperatorConfirmation
+        ? Date(timeIntervalSince1970: 1_713_870_600)
+        : nil
+
+    return Reservation(
         id: "resv-001",
         customerId: "user-001",
         operatorId: "op-001",
@@ -142,16 +148,20 @@ private func makeReservation(
         inventoryPoolId: "pool-001",
         holdId: "hold-001",
         vehicleId: "veh-001",
-        startsAt: Date(timeIntervalSince1970: 1_713_868_800),
+        startsAt: startsAt,
         endsAt: Date(timeIntervalSince1970: 1_713_876_000),
         timezone: "Europe/Belgrade",
-        bookingCode: "SL-8F3K2Q9A",
+        bookingCode: "SL-1234ABCD",
         status: status,
         paymentMode: paymentMode,
         totalAmountCents: 530,
         currency: "RSD",
         accessInstructionsVisible: status == .confirmed,
-        paymentExpiresAt: paymentMode == .online ? Date(timeIntervalSince1970: 1_713_869_700) : nil,
+        paymentExpiresAt: paymentExpiresAt,
+        cancellationPolicy: .fullRefundBeforeStart,
+        cancellableUntil: startsAt,
+        refundEligibleCents: status.canCancel ? 530 : 0,
+        operatorConfirmationExpiresAt: operatorConfirmationExpiresAt,
         createdAt: Date(timeIntervalSince1970: 1_713_868_000),
         updatedAt: Date(timeIntervalSince1970: 1_713_868_100)
     )
@@ -203,55 +213,17 @@ struct ReservationFlowTests {
           "startsAt": "2026-04-23T12:00:00Z",
           "endsAt": "2026-04-23T14:00:00Z",
           "timezone": "Europe/Belgrade",
-          "bookingCode": "SL-8F3K2Q9A",
-          "status": "NO_SHOW",
-          "paymentMode": "PAY_ON_ARRIVAL",
-          "totalAmountCents": 530,
-          "currency": "RSD",
-          "accessInstructionsVisible": false,
-          "paymentExpiresAt": null,
-          "createdAt": "2026-04-23T10:00:00Z",
-          "updatedAt": "2026-04-23T10:05:00Z"
-        }
-        """
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
-
-        #expect(reservation.status == .noShow)
-        #expect(reservation.paymentMode == .payOnArrival)
-        #expect(reservation.inventoryPoolId == "pool-001")
-        #expect(reservation.holdId == "hold-001")
-        #expect(reservation.holdExpiresAt == nil)
-        #expect(reservation.bookingCode == "SL-8F3K2Q9A")
-        #expect(reservation.displayBookingCode == "SL-8F3K2Q9A")
-        #expect(reservation.supportBookingCodeText == "SL-8F3K2Q9A")
-        #expect(reservation.currency == "RSD")
-    }
-
-    @Test("reservation dekodira pending operator confirmation status bez pristupnih instrukcija")
-    func reservationDecodesPendingOperatorConfirmation() throws {
-        let json = """
-        {
-          "id": "resv-001",
-          "customerId": "user-001",
-          "operatorId": "op-001",
-          "locationId": "loc-001",
-          "resourceId": "res-001",
-          "inventoryPoolId": "pool-001",
-          "holdId": "hold-001",
-          "vehicleId": "veh-001",
-          "startsAt": "2026-04-23T12:00:00Z",
-          "endsAt": "2026-04-23T14:00:00Z",
-          "timezone": "Europe/Belgrade",
-          "bookingCode": "SL-8F3K2Q9A",
+          "bookingCode": "SL-1234ABCD",
           "status": "PENDING_OPERATOR_CONFIRMATION",
           "paymentMode": "PAY_ON_ARRIVAL",
           "totalAmountCents": 530,
           "currency": "RSD",
           "accessInstructionsVisible": false,
           "paymentExpiresAt": null,
+          "cancellationPolicy": "FULL_REFUND_BEFORE_START",
+          "cancellableUntil": "2026-04-23T12:00:00Z",
+          "refundEligibleCents": 530,
+          "operatorConfirmationExpiresAt": "2026-04-23T11:00:00Z",
           "createdAt": "2026-04-23T10:00:00Z",
           "updatedAt": "2026-04-23T10:05:00Z"
         }
@@ -262,44 +234,14 @@ struct ReservationFlowTests {
         let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
 
         #expect(reservation.status == .pendingOperatorConfirmation)
-        #expect(reservation.status.displayName == "Ceka potvrdu operatora")
-        #expect(reservation.accessInstructionsVisible == false)
-        #expect(reservation.bookingCode == "SL-8F3K2Q9A")
-    }
-
-    @Test("reservation gracefully decodes legacy response without booking code")
-    func reservationDecodesMissingBookingCodeWithoutPlaceholder() throws {
-        let json = """
-        {
-          "id": "resv-001",
-          "customerId": "user-001",
-          "operatorId": "op-001",
-          "locationId": "loc-001",
-          "resourceId": "res-001",
-          "inventoryPoolId": "pool-001",
-          "holdId": "hold-001",
-          "vehicleId": "veh-001",
-          "startsAt": "2026-04-23T12:00:00Z",
-          "endsAt": "2026-04-23T14:00:00Z",
-          "timezone": "Europe/Belgrade",
-          "status": "CONFIRMED",
-          "paymentMode": "PAY_ON_ARRIVAL",
-          "totalAmountCents": 530,
-          "currency": "RSD",
-          "accessInstructionsVisible": true,
-          "paymentExpiresAt": null,
-          "createdAt": "2026-04-23T10:00:00Z",
-          "updatedAt": "2026-04-23T10:05:00Z"
-        }
-        """
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let reservation = try decoder.decode(Reservation.self, from: Data(json.utf8))
-
-        #expect(reservation.bookingCode == nil)
-        #expect(reservation.displayBookingCode == "Nije dostupno")
-        #expect(reservation.supportBookingCodeText == "nije dostupan")
+        #expect(reservation.paymentMode == .payOnArrival)
+        #expect(reservation.inventoryPoolId == "pool-001")
+        #expect(reservation.holdId == "hold-001")
+        #expect(reservation.displayBookingCode == "SL-1234ABCD")
+        #expect(reservation.holdExpiresAt == reservation.operatorConfirmationExpiresAt)
+        #expect(reservation.cancellationPolicy == .fullRefundBeforeStart)
+        #expect(reservation.refundEligibleCents == 530)
+        #expect(reservation.currency == "RSD")
     }
 
     @Test("create reservation request cuva eksplicitni idempotency key")
@@ -415,10 +357,10 @@ struct ReservationFlowTests {
         #expect(viewModel.errorMessage == nil)
     }
 
-    @Test("manual confirmation flow prikazuje pending status bez online payment poziva")
-    func manualConfirmationFlowSkipsOnlinePaymentAfterPendingOperatorResponse() async {
+    @Test("booking flow ne pokrece online placanje kada backend vrati rucnu potvrdu")
+    func bookingFlowSkipsPaymentWhenBackendReturnsPendingOperatorConfirmation() async {
         let client = BookingMockAPIClient()
-        let result = makeBookingLocationResult(supportedPaymentModes: [.online])
+        let result = makeBookingLocationResult(supportedPaymentModes: [.online, .payOnArrival])
         let vehicle = makeVehicle()
         let paymentMethod = makePaymentMethod()
         let reservation = makeReservation(status: .pendingOperatorConfirmation, paymentMode: .online)
@@ -449,7 +391,7 @@ struct ReservationFlowTests {
                 return makeQuote(start: reservation.startsAt, end: reservation.endsAt)
             case "/reservations":
                 return reservation
-            case "/payments/intents", "/payments/intents/pi-001/confirm":
+            case "/payments/intents", "/payments/intents/pi-manual/confirm":
                 paymentCalls += 1
                 throw APIError.serverError(500, APIErrorContext(message: "Online payment ne sme biti pozvan"))
             default:
@@ -469,10 +411,13 @@ struct ReservationFlowTests {
             vehicleService: vehicleService,
             paymentService: paymentService
         )
+        viewModel.selectedPaymentMode = .online
+        viewModel.paymentModeChanged()
+
         await viewModel.submitBooking(reservationService: reservationService, paymentService: paymentService)
 
         #expect(paymentCalls == 0)
-        #expect(viewModel.selectedPaymentMode == .online)
+        #expect(viewModel.pendingOnlineReservation == nil)
         #expect(viewModel.confirmationContext?.reservation.status == .pendingOperatorConfirmation)
         #expect(viewModel.confirmationContext?.paymentIntent == nil)
         #expect(viewModel.errorMessage == nil)

@@ -47,7 +47,7 @@ class ReservationFoundationTest {
         UUID resourceId = createParkingResource(operatorSession);
         MockHttpSession customerSession = registerCustomer();
 
-        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(2);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         mockMvc.perform(post("/reservations/quote")
@@ -105,7 +105,7 @@ class ReservationFoundationTest {
         registerCustomer(customerEmail);
         JsonNode token = token(customerEmail);
 
-        Instant startsAt = Instant.now().plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(2);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         mockMvc.perform(post("/reservations/quote")
@@ -142,6 +142,10 @@ class ReservationFoundationTest {
                           "idempotencyKey": "%s"
                         }
                         """.formatted(resourceId, startsAt, endsAt, idempotencyKey)));
+    }
+
+    private Instant alignedFutureStart(long hoursAhead) {
+        return Instant.now().truncatedTo(ChronoUnit.HOURS).plus(hoursAhead, ChronoUnit.HOURS);
     }
 
     private MockHttpSession registerOperator() throws Exception {

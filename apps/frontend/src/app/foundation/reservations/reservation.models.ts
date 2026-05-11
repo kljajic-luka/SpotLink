@@ -6,12 +6,14 @@ export type ReservationStatus =
   | 'ACTIVE'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'REJECTED'
   | 'EXPIRED'
+  | 'REJECTED'
   | 'DISPUTED'
   | 'NO_SHOW';
 
 export type PaymentMode = 'ONLINE' | 'PAY_ON_ARRIVAL';
+
+export type ReservationCancellationPolicy = 'FULL_REFUND_BEFORE_START';
 
 export type BookingHoldStatus = 'ACTIVE' | 'CONSUMED' | 'RELEASED' | 'EXPIRED';
 
@@ -23,9 +25,9 @@ export type BookingEventType =
   | 'HOLD_CREATED'
   | 'HOLD_EXPIRED'
   | 'STATUS_CHANGED'
-  | 'MANUAL_CONFIRMATION_REQUESTED'
-  | 'MANUAL_CONFIRMED'
-  | 'MANUAL_REJECTED'
+  | 'OPERATOR_CONFIRMATION_REQUESTED'
+  | 'OPERATOR_CONFIRMED'
+  | 'OPERATOR_REJECTED'
   | 'PAYMENT_AUTHORIZED'
   | 'PAYMENT_FAILED'
   | 'CONFIRMED'
@@ -69,6 +71,10 @@ export interface Reservation {
   currency: string;
   accessInstructionsVisible: boolean;
   paymentExpiresAt?: string;
+  cancellationPolicy?: ReservationCancellationPolicy;
+  cancellableUntil?: string;
+  refundEligibleCents?: number;
+  operatorConfirmationExpiresAt?: string;
   createdAt: string;
   updatedAt?: string;
 }

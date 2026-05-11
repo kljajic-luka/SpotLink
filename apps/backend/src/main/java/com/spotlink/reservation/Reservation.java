@@ -43,8 +43,18 @@ public class Reservation extends AuditableEntity {
     @Column(nullable = false, length = 80)
     private String timezone;
 
-    @Column(length = 16, unique = true)
+    @Column(nullable = false, length = 16, unique = true)
     private String bookingCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 64)
+    private ReservationCancellationPolicy cancellationPolicy = ReservationCancellationPolicy.FULL_REFUND_BEFORE_START;
+
+    @Column(nullable = false)
+    private Instant cancellableUntil;
+
+    @Column(nullable = false)
+    private long refundEligibleCents;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -61,6 +71,9 @@ public class Reservation extends AuditableEntity {
 
     @Column
     private Instant paymentExpiresAt;
+
+    @Column
+    private Instant operatorConfirmationExpiresAt;
 
     @Column(length = 160)
     private String idempotencyKey;
@@ -157,6 +170,30 @@ public class Reservation extends AuditableEntity {
         this.bookingCode = bookingCode;
     }
 
+    public ReservationCancellationPolicy getCancellationPolicy() {
+        return cancellationPolicy;
+    }
+
+    public void setCancellationPolicy(ReservationCancellationPolicy cancellationPolicy) {
+        this.cancellationPolicy = cancellationPolicy;
+    }
+
+    public Instant getCancellableUntil() {
+        return cancellableUntil;
+    }
+
+    public void setCancellableUntil(Instant cancellableUntil) {
+        this.cancellableUntil = cancellableUntil;
+    }
+
+    public long getRefundEligibleCents() {
+        return refundEligibleCents;
+    }
+
+    public void setRefundEligibleCents(long refundEligibleCents) {
+        this.refundEligibleCents = refundEligibleCents;
+    }
+
     public ReservationStatus getStatus() {
         return status;
     }
@@ -195,6 +232,14 @@ public class Reservation extends AuditableEntity {
 
     public void setPaymentExpiresAt(Instant paymentExpiresAt) {
         this.paymentExpiresAt = paymentExpiresAt;
+    }
+
+    public Instant getOperatorConfirmationExpiresAt() {
+        return operatorConfirmationExpiresAt;
+    }
+
+    public void setOperatorConfirmationExpiresAt(Instant operatorConfirmationExpiresAt) {
+        this.operatorConfirmationExpiresAt = operatorConfirmationExpiresAt;
     }
 
     public String getIdempotencyKey() {

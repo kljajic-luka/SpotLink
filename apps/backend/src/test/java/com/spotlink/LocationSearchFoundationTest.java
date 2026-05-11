@@ -86,7 +86,7 @@ class LocationSearchFoundationTest {
 
     @Test
     void searchSamoJednimVremenomVracaValidacionuGresku() throws Exception {
-        Instant startsAt = Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(1);
         mockMvc.perform(get("/locations/search")
                         .param("startsAt", startsAt.toString()))
                 .andExpect(status().isBadRequest())
@@ -136,7 +136,7 @@ class LocationSearchFoundationTest {
         String locationId = createLocationInBeograd(operatorSession, "Blokirana Lokacija", BEOGRAD_LAT + 0.002, BEOGRAD_LON + 0.002);
         createResource(operatorSession, locationId, "PARKING_SPOT", 200);
 
-        Instant startsAt = Instant.now().plus(10, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(10);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         // Kreiranje blokade koja pokriva trazeni period
@@ -173,7 +173,7 @@ class LocationSearchFoundationTest {
         String resourceId = createResourceWithCapacity(operatorSession, locationId, "PARKING_SPOT", 200, 5);
 
         MockHttpSession customerSession = registerCustomer();
-        Instant startsAt = Instant.now().plus(20, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(20);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
 
         // Kreiramo 4 rezervacije (kapacitet je 5, treba ostati 1 dostupno)
@@ -290,6 +290,10 @@ class LocationSearchFoundationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private Instant alignedFutureStart(long hoursAhead) {
+        return Instant.now().truncatedTo(ChronoUnit.HOURS).plus(hoursAhead, ChronoUnit.HOURS);
     }
 
     private MockHttpSession registerCustomer() throws Exception {

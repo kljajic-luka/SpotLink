@@ -7,9 +7,7 @@ import com.spotlink.inventory.InventoryPool;
 import com.spotlink.inventory.InventoryPoolService;
 import com.spotlink.operator.OperatorAccount;
 import com.spotlink.operator.OperatorAccountRepository;
-import com.spotlink.reservation.BookingHoldRepository;
-import com.spotlink.reservation.ReservationRepository;
-import com.spotlink.reservation.ReservationStatus;
+import com.spotlink.reservation.ReservationAvailabilityPolicy;
 import com.spotlink.security.CurrentUserService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -17,12 +15,10 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,20 +32,12 @@ public class LocationService {
 
     private static final double DEFAULT_RADIUS_KM = 10.0;
 
-    private static final Collection<ReservationStatus> CONFIRMED_BLOCKING_STATUSES = List.of(
-            ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
-            ReservationStatus.CONFIRMED,
-            ReservationStatus.ACTIVE,
-            ReservationStatus.DISPUTED,
-            ReservationStatus.NO_SHOW);
-
     private final ParkingLocationRepository locations;
     private final ParkingResourceRepository resources;
     private final OperatorAccountRepository operators;
     private final LocationHoursRepository locationHours;
     private final AvailabilityExceptionRepository availabilityExceptions;
-    private final ReservationRepository reservations;
-    private final BookingHoldRepository bookingHolds;
+    private final ReservationAvailabilityPolicy availabilityPolicy;
     private final CurrentUserService currentUser;
     private final LocationMapper mapper;
     private final InventoryPoolService inventoryPools;
@@ -61,8 +49,7 @@ public class LocationService {
             OperatorAccountRepository operators,
             LocationHoursRepository locationHours,
             AvailabilityExceptionRepository availabilityExceptions,
-            ReservationRepository reservations,
-            BookingHoldRepository bookingHolds,
+            ReservationAvailabilityPolicy availabilityPolicy,
             CurrentUserService currentUser,
             LocationMapper mapper,
             InventoryPoolService inventoryPools,
@@ -72,8 +59,7 @@ public class LocationService {
         this.operators = operators;
         this.locationHours = locationHours;
         this.availabilityExceptions = availabilityExceptions;
-        this.reservations = reservations;
-        this.bookingHolds = bookingHolds;
+        this.availabilityPolicy = availabilityPolicy;
         this.currentUser = currentUser;
         this.mapper = mapper;
         this.inventoryPools = inventoryPools;
@@ -136,9 +122,9 @@ public class LocationService {
                         .stream()
                         .filter(resource -> matchesResourceFilters(resource, filters))
                         .collect(Collectors.groupingBy(ParkingResource::getLocationId));
-                Map<UUID, InventoryPool> poolsByResourceId = inventoryPools.findByLocationIds(locationIds).stream()
-                    .filter(pool -> pool.getSourceResourceId() != null)
-                    .collect(Collectors.toMap(InventoryPool::getSourceResourceId, pool -> pool, (left, right) -> left));
+        Map<UUID, InventoryPool> poolsByResourceId = inventoryPools.findByLocationIds(locationIds).stream()
+                .filter(pool -> pool.getSourceResourceId() != null)
+                .collect(Collectors.toMap(InventoryPool::getSourceResourceId, pool -> pool, (left, right) -> left));
 
         // Gradimo rezultate sa dostupnoscu
         List<LocationDtos.LocationSearchResult> results = new ArrayList<>();
@@ -148,29 +134,19 @@ public class LocationService {
             List<ParkingResource> availableResources;
             long availableCount;
             if (hasStartsAt) {
-                // Filtriramo resurse koji su dostupni u trazenom periodu
-                boolean isBlacked = availabilityExceptions.countOverlapping(
-                        sl.location().getId(), filters.startsAt(), filters.endsAt()) > 0;
-                if (isBlacked) {
-                    continue; // cela lokacija je u blokadi
-                }
-                // Proveravamo radno vreme
-                if (!isWithinHours(sl.location(), filters.startsAt(), filters.endsAt())) {
-                    continue;
-                }
                 availableResources = activeResources.stream()
-                    .filter(r -> availableCapacity(poolsByResourceId.get(r.getId()), filters) > 0)
+                        .filter(r -> availableCapacity(sl.location(), poolsByResourceId.get(r.getId()), filters) > 0)
                         .toList();
                 availableCount = availableResources.stream()
-                    .mapToLong(r -> availableCapacity(poolsByResourceId.get(r.getId()), filters))
+                        .mapToLong(r -> availableCapacity(sl.location(), poolsByResourceId.get(r.getId()), filters))
                         .sum();
             } else {
                 availableResources = activeResources;
                 availableCount = activeResources.stream()
-                    .map(r -> poolsByResourceId.getOrDefault(r.getId(), null))
-                    .filter(java.util.Objects::nonNull)
-                    .mapToLong(InventoryPool::getBaseCapacity)
-                    .sum();
+                        .map(r -> poolsByResourceId.getOrDefault(r.getId(), null))
+                        .filter(java.util.Objects::nonNull)
+                        .mapToLong(InventoryPool::getBaseCapacity)
+                        .sum();
             }
 
             if (hasStartsAt && availableResources.isEmpty()) {
@@ -203,47 +179,11 @@ public class LocationService {
 
     private record ScoredLocation(ParkingLocation location, Double distanceKm) {}
 
-    private long availableCapacity(InventoryPool pool, LocationDtos.SearchFilters filters) {
+    private long availableCapacity(ParkingLocation location, InventoryPool pool, LocationDtos.SearchFilters filters) {
         if (pool == null) {
             return 0;
         }
-        InventoryPoolService.AvailabilityDecision decision = inventoryPools.availabilityForWindow(pool, filters.startsAt(), filters.endsAt());
-        if (decision.sellableCapacity() <= 0) {
-            return 0;
-        }
-        long overlappingReservations = reservations.countPoolOverlaps(
-                pool.getId(),
-                filters.startsAt(),
-                filters.endsAt(),
-                CONFIRMED_BLOCKING_STATUSES);
-        long overlappingHolds = bookingHolds.countActiveOverlaps(pool.getId(), filters.startsAt(), filters.endsAt(), Instant.now(clock));
-        return Math.max(0, decision.sellableCapacity() - overlappingReservations - overlappingHolds);
-    }
-
-    private boolean isWithinHours(ParkingLocation location, java.time.Instant startsAt, java.time.Instant endsAt) {
-        List<LocationHours> hours = locationHours.findByLocationIdOrderByDayOfWeek(location.getId());
-        if (hours.isEmpty()) {
-            return true; // nema definisanog radnog vremena - tretiramo kao uvek otvoreno
-        }
-        try {
-            ZoneId zone = ZoneId.of(location.getTimezone());
-            ZonedDateTime startLocal = startsAt.atZone(zone);
-            ZonedDateTime endLocal = endsAt.atZone(zone);
-            DayOfWeek startDay = startLocal.getDayOfWeek();
-            DayOfWeek endDay = endLocal.getDayOfWeek();
-
-            return hours.stream().anyMatch(h -> {
-                DayOfWeek hourDay = DayOfWeek.valueOf(h.getDayOfWeek());
-                if (hourDay != startDay && hourDay != endDay) return false;
-                LocalTime open = LocalTime.parse(h.getOpenTime());
-                LocalTime close = LocalTime.parse(h.getCloseTime());
-                LocalTime reqStart = startLocal.toLocalTime();
-                LocalTime reqEnd = endLocal.toLocalTime();
-                return !reqStart.isBefore(open) && !reqEnd.isAfter(close);
-            });
-        } catch (Exception e) {
-            return true; // ako ne mozemo da parsiramo, ne blokiramo
-        }
+        return availabilityPolicy.assess(location, pool, filters.startsAt(), filters.endsAt(), Instant.now(clock)).availableCapacity();
     }
 
     @Transactional(readOnly = true)
@@ -413,7 +353,7 @@ public class LocationService {
         requireOperator(location);
         for (LocationDtos.LocationHoursEntry entry : request.entries()) {
             try {
-                DayOfWeek.valueOf(entry.dayOfWeek().toUpperCase());
+                DayOfWeek.valueOf(entry.dayOfWeek().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 throw new ValidationException("dayOfWeek", "Nevalidan dan: " + entry.dayOfWeek());
             }

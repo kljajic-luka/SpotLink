@@ -3,6 +3,7 @@ package com.spotlink.operator;
 import com.spotlink.admin.AuditService;
 import com.spotlink.core.ApiPage;
 import com.spotlink.core.AppProperties;
+import com.spotlink.core.ConflictException;
 import com.spotlink.inventory.AvailabilityOverrideSource;
 import com.spotlink.inventory.InventoryPool;
 import com.spotlink.inventory.InventoryPoolService;
@@ -32,8 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class OperatorService {
 
     private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(
-            ReservationStatus.PENDING_PAYMENT,
             ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
+            ReservationStatus.PENDING_PAYMENT,
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED);
@@ -42,12 +43,12 @@ public class OperatorService {
     private final ParkingLocationRepository locations;
     private final ParkingResourceRepository resources;
     private final ReservationRepository reservations;
-        private final ReservationService reservationService;
+    private final ReservationService reservationService;
     private final SupportTicketRepository supportTickets;
-        private final InventoryPoolService inventoryPools;
+    private final InventoryPoolService inventoryPools;
     private final CurrentUserService currentUser;
     private final AppProperties appProperties;
-        private final AuditService auditService;
+    private final AuditService auditService;
     private final Clock clock;
 
     public OperatorService(
@@ -113,67 +114,67 @@ public class OperatorService {
                 .toList();
     }
 
-        @Transactional(readOnly = true)
-        public ApiPage<ReservationDtos.ReservationDto> upcomingBookings(int page, int size) {
-                return reservationService.operatorUpcoming(page, size);
-        }
+    @Transactional(readOnly = true)
+    public ApiPage<ReservationDtos.ReservationDto> upcomingBookings(int page, int size) {
+        return reservationService.operatorUpcoming(page, size);
+    }
 
-        @Transactional(readOnly = true)
-        public ReservationDtos.BookingDetailDto bookingDetail(UUID reservationId) {
-                return reservationService.operatorDetail(reservationId);
-        }
+    @Transactional(readOnly = true)
+    public ReservationDtos.BookingDetailDto bookingDetail(UUID reservationId) {
+        return reservationService.operatorDetail(reservationId);
+    }
 
-        @Transactional
-        public ReservationDtos.ReservationDto checkIn(UUID reservationId, String notes) {
-                return reservationService.checkIn(reservationId, notes);
-        }
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto confirmBooking(UUID reservationId, String notes) {
+        return reservationService.confirmAsOperator(reservationId, notes);
+    }
 
-        @Transactional
-        public ReservationDtos.ReservationDto markNoShow(UUID reservationId, String reason) {
-                return reservationService.markNoShow(reservationId, reason);
-        }
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto rejectBooking(UUID reservationId, String reason) {
+        return reservationService.rejectAsOperator(reservationId, reason);
+    }
 
-        @Transactional
-        public ReservationDtos.ReservationDto cancelBooking(UUID reservationId, String reason) {
-                return reservationService.cancelAsOperator(reservationId, reason);
-        }
+    @Transactional
+    public ReservationDtos.ReservationDto checkIn(UUID reservationId, String notes) {
+        return reservationService.checkIn(reservationId, notes);
+    }
 
-        @Transactional
-        public ReservationDtos.ReservationDto confirmManualBooking(UUID reservationId, String notes) {
-                return reservationService.confirmManualAsOperator(reservationId, notes);
-        }
+    @Transactional
+    public ReservationDtos.ReservationDto markNoShow(UUID reservationId, String reason) {
+        return reservationService.markNoShow(reservationId, reason);
+    }
 
-        @Transactional
-        public ReservationDtos.ReservationDto rejectManualBooking(UUID reservationId, String reason) {
-                return reservationService.rejectManualAsOperator(reservationId, reason);
-        }
+    @Transactional
+    public ReservationDtos.ReservationDto cancelBooking(UUID reservationId, String reason) {
+        return reservationService.cancelAsOperator(reservationId, reason);
+    }
 
-        @Transactional
-        public OperatorDtos.InventoryControlDto pauseSales(UUID resourceId, String reason) {
-                ParkingResource resource = requireOwnedResource(resourceId);
-                InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
-                inventoryPools.pause(pool, currentUser.userId(), AvailabilityOverrideSource.OPERATOR, reason);
-                auditService.record(currentUser.userId(), "OPERATOR_PAUSED_SALES", "inventory_pool", pool.getId().toString(), reason);
-                return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), true, reason, pool.getBaseCapacity());
-        }
+    @Transactional
+    public OperatorDtos.InventoryControlDto pauseSales(UUID resourceId, String reason) {
+        ParkingResource resource = requireOwnedResource(resourceId);
+        InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
+        inventoryPools.pause(pool, currentUser.userId(), AvailabilityOverrideSource.OPERATOR, reason);
+        auditService.record(currentUser.userId(), "OPERATOR_PAUSED_SALES", "inventory_pool", pool.getId().toString(), reason);
+        return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), true, reason, pool.getBaseCapacity());
+    }
 
-        @Transactional
-        public OperatorDtos.InventoryControlDto unpauseSales(UUID resourceId) {
-                ParkingResource resource = requireOwnedResource(resourceId);
-                InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
-                inventoryPools.unpause(pool);
-                auditService.record(currentUser.userId(), "OPERATOR_UNPAUSED_SALES", "inventory_pool", pool.getId().toString(), null);
-                return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), false, null, pool.getBaseCapacity());
-        }
+    @Transactional
+    public OperatorDtos.InventoryControlDto unpauseSales(UUID resourceId) {
+        ParkingResource resource = requireOwnedResource(resourceId);
+        InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
+        inventoryPools.unpause(pool);
+        auditService.record(currentUser.userId(), "OPERATOR_UNPAUSED_SALES", "inventory_pool", pool.getId().toString(), null);
+        return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), false, null, pool.getBaseCapacity());
+    }
 
-        @Transactional
-        public OperatorDtos.InventoryControlDto adjustSellableCapacity(UUID resourceId, Integer sellableCapacity, String reason) {
-                ParkingResource resource = requireOwnedResource(resourceId);
-                InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
-                inventoryPools.capCapacity(pool, currentUser.userId(), AvailabilityOverrideSource.OPERATOR, sellableCapacity, reason);
-                auditService.record(currentUser.userId(), "OPERATOR_ADJUSTED_CAPACITY", "inventory_pool", pool.getId().toString(), reason);
-                return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), pool.isPaused(), pool.getPauseReason(), pool.getBaseCapacity());
-        }
+    @Transactional
+    public OperatorDtos.InventoryControlDto adjustSellableCapacity(UUID resourceId, Integer sellableCapacity, String reason) {
+        ParkingResource resource = requireOwnedResource(resourceId);
+        InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(resourceId);
+        inventoryPools.capCapacity(pool, currentUser.userId(), AvailabilityOverrideSource.OPERATOR, sellableCapacity, reason);
+        auditService.record(currentUser.userId(), "OPERATOR_ADJUSTED_CAPACITY", "inventory_pool", pool.getId().toString(), reason);
+        return new OperatorDtos.InventoryControlDto(resource.getId(), pool.getId(), pool.isPaused(), pool.getPauseReason(), pool.getBaseCapacity());
+    }
 
     private OperatorDtos.OperatorResourceHealth toHealth(ParkingResource resource, Instant now) {
         UUID currentReservationId = reservations

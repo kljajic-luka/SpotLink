@@ -10,8 +10,8 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
     case active         = "ACTIVE"
     case completed      = "COMPLETED"
     case cancelled      = "CANCELLED"
-    case rejected       = "REJECTED"
     case expired        = "EXPIRED"
+    case rejected       = "REJECTED"
     case disputed       = "DISPUTED"
     case noShow         = "NO_SHOW"
 
@@ -19,13 +19,13 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
         switch self {
         case .draft:          return "Nacrt"
         case .pendingPayment: return "Ceka placanje"
-        case .pendingOperatorConfirmation: return "Ceka potvrdu operatora"
+        case .pendingOperatorConfirmation: return "Ceka potvrdu partnera"
         case .confirmed:      return "Potvrdjeno"
         case .active:         return "Aktivno"
         case .completed:      return "Zavrseno"
         case .cancelled:      return "Otkazano"
-        case .rejected:       return "Odbijeno"
         case .expired:        return "Isteklo"
+        case .rejected:       return "Odbijeno"
         case .disputed:       return "Sporno"
         case .noShow:         return "Nedolazak"
         }
@@ -40,8 +40,8 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
         case .active:         return "green"
         case .completed:      return "gray"
         case .cancelled:      return "red"
-        case .rejected:       return "red"
         case .expired:        return "gray"
+        case .rejected:       return "red"
         case .disputed:       return "red"
         case .noShow:         return "orange"
         }
@@ -49,14 +49,14 @@ public enum ReservationStatus: String, Decodable, CaseIterable, Sendable {
 
     public var isTerminal: Bool {
         switch self {
-        case .completed, .cancelled, .rejected, .expired: return true
+        case .completed, .cancelled, .expired, .rejected: return true
         default: return false
         }
     }
 
     public var canCancel: Bool {
         switch self {
-        case .draft, .pendingPayment, .pendingOperatorConfirmation, .confirmed, .active, .disputed: return true
+        case .draft, .pendingPayment, .pendingOperatorConfirmation, .confirmed: return true
         default: return false
         }
     }
@@ -89,6 +89,17 @@ public enum PaymentMode: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum ReservationCancellationPolicy: String, Decodable, CaseIterable, Sendable {
+    case fullRefundBeforeStart = "FULL_REFUND_BEFORE_START"
+
+    public var displayName: String {
+        switch self {
+        case .fullRefundBeforeStart:
+            return "Pun povracaj pre pocetka"
+        }
+    }
+}
+
 // MARK: - Reservation
 
 public struct Reservation: Decodable, Identifiable, Sendable {
@@ -110,11 +121,71 @@ public struct Reservation: Decodable, Identifiable, Sendable {
     public let currency: String
     public let accessInstructionsVisible: Bool
     public let paymentExpiresAt: Date?
+    public let cancellationPolicy: ReservationCancellationPolicy?
+    public let cancellableUntil: Date?
+    public let refundEligibleCents: Int?
+    public let operatorConfirmationExpiresAt: Date?
     public let createdAt: Date
     public let updatedAt: Date?
 
+    public init(
+        id: String,
+        customerId: String,
+        operatorId: String,
+        locationId: String,
+        resourceId: String,
+        inventoryPoolId: String?,
+        holdId: String?,
+        vehicleId: String?,
+        startsAt: Date,
+        endsAt: Date,
+        timezone: String,
+        bookingCode: String?,
+        status: ReservationStatus,
+        paymentMode: PaymentMode,
+        totalAmountCents: Int,
+        currency: String,
+        accessInstructionsVisible: Bool,
+        paymentExpiresAt: Date?,
+        cancellationPolicy: ReservationCancellationPolicy? = nil,
+        cancellableUntil: Date? = nil,
+        refundEligibleCents: Int? = nil,
+        operatorConfirmationExpiresAt: Date? = nil,
+        createdAt: Date,
+        updatedAt: Date?
+    ) {
+        self.id = id
+        self.customerId = customerId
+        self.operatorId = operatorId
+        self.locationId = locationId
+        self.resourceId = resourceId
+        self.inventoryPoolId = inventoryPoolId
+        self.holdId = holdId
+        self.vehicleId = vehicleId
+        self.startsAt = startsAt
+        self.endsAt = endsAt
+        self.timezone = timezone
+        self.bookingCode = bookingCode
+        self.status = status
+        self.paymentMode = paymentMode
+        self.totalAmountCents = totalAmountCents
+        self.currency = currency
+        self.accessInstructionsVisible = accessInstructionsVisible
+        self.paymentExpiresAt = paymentExpiresAt
+        self.cancellationPolicy = cancellationPolicy
+        self.cancellableUntil = cancellableUntil
+        self.refundEligibleCents = refundEligibleCents
+        self.operatorConfirmationExpiresAt = operatorConfirmationExpiresAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
     public var totalAmountFormatted: String {
         formatCents(totalAmountCents, currency: currency)
+    }
+
+    public var refundEligibleAmountFormatted: String {
+        formatCents(refundEligibleCents ?? 0, currency: currency)
     }
 
     public var displayBookingCode: String {
@@ -126,11 +197,32 @@ public struct Reservation: Decodable, Identifiable, Sendable {
     }
 
     public var holdExpiresAt: Date? {
-        paymentExpiresAt
+        switch status {
+        case .pendingPayment:
+            return paymentExpiresAt
+        case .pendingOperatorConfirmation:
+            return operatorConfirmationExpiresAt
+        default:
+            return paymentExpiresAt ?? operatorConfirmationExpiresAt
+        }
     }
 
     public var hasActiveOnlinePaymentHold: Bool {
         paymentMode == .online && status == .pendingPayment && holdExpiresAt != nil
+    }
+
+    public var hasPendingOperatorConfirmation: Bool {
+        status == .pendingOperatorConfirmation
+    }
+
+    public var canCancel: Bool {
+        guard status.canCancel else {
+            return false
+        }
+        guard let cancellableUntil else {
+            return true
+        }
+        return cancellableUntil >= Date()
     }
 }
 
@@ -251,9 +343,9 @@ public enum BookingEventType: String, Decodable, CaseIterable, Sendable {
     case holdCreated       = "HOLD_CREATED"
     case holdExpired       = "HOLD_EXPIRED"
     case statusChanged     = "STATUS_CHANGED"
-    case manualConfirmationRequested = "MANUAL_CONFIRMATION_REQUESTED"
-    case manualConfirmed   = "MANUAL_CONFIRMED"
-    case manualRejected    = "MANUAL_REJECTED"
+    case operatorConfirmationRequested = "OPERATOR_CONFIRMATION_REQUESTED"
+    case operatorConfirmed = "OPERATOR_CONFIRMED"
+    case operatorRejected  = "OPERATOR_REJECTED"
     case paymentAuthorized = "PAYMENT_AUTHORIZED"
     case paymentFailed     = "PAYMENT_FAILED"
     case confirmed         = "CONFIRMED"
@@ -266,8 +358,8 @@ public enum BookingEventType: String, Decodable, CaseIterable, Sendable {
 
     public var isCustomerVisible: Bool {
         switch self {
-        case .created, .holdCreated, .holdExpired, .paymentAuthorized, .paymentFailed,
-             .manualConfirmationRequested, .manualConfirmed, .manualRejected,
+        case .created, .holdCreated, .holdExpired, .operatorConfirmationRequested,
+             .operatorConfirmed, .operatorRejected, .paymentAuthorized, .paymentFailed,
              .confirmed, .cancelled, .operatorCancelled, .checkedIn, .noShow, .refundMarked:
             return true
         case .legacyImported, .statusChanged, .adminOverride:

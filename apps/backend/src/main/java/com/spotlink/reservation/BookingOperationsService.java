@@ -36,7 +36,6 @@ import com.spotlink.vehicle.VehicleService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,16 +53,9 @@ public class BookingOperationsService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
-    private static final List<ReservationStatus> POOL_BLOCKING_STATUSES = List.of(
-            ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
-            ReservationStatus.CONFIRMED,
-            ReservationStatus.ACTIVE,
-            ReservationStatus.DISPUTED,
-            ReservationStatus.NO_SHOW);
-
     private static final List<ReservationStatus> UPCOMING_OPERATOR_STATUSES = List.of(
-            ReservationStatus.PENDING_PAYMENT,
             ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
+            ReservationStatus.PENDING_PAYMENT,
             ReservationStatus.CONFIRMED,
             ReservationStatus.ACTIVE,
             ReservationStatus.DISPUTED,
@@ -79,6 +71,7 @@ public class BookingOperationsService {
     private final SupportTicketRepository supportTickets;
     private final InventoryPoolService inventoryPools;
     private final LocationService locationService;
+    private final ReservationAvailabilityPolicy availabilityPolicy;
     private final VehicleService vehicleService;
     private final OperatorAccountRepository operators;
     private final CurrentUserService currentUser;
@@ -100,6 +93,7 @@ public class BookingOperationsService {
             SupportTicketRepository supportTickets,
             InventoryPoolService inventoryPools,
             LocationService locationService,
+            ReservationAvailabilityPolicy availabilityPolicy,
             VehicleService vehicleService,
             OperatorAccountRepository operators,
             CurrentUserService currentUser,
@@ -119,6 +113,7 @@ public class BookingOperationsService {
         this.supportTickets = supportTickets;
         this.inventoryPools = inventoryPools;
         this.locationService = locationService;
+        this.availabilityPolicy = availabilityPolicy;
         this.vehicleService = vehicleService;
         this.operators = operators;
         this.currentUser = currentUser;
@@ -157,9 +152,7 @@ public class BookingOperationsService {
     public ReservationDtos.ReservationQuote quote(ReservationDtos.ReservationQuoteRequest request) {
         InventoryPool pool = inventoryPools.requireByResourceId(request.resourceId());
         ParkingLocation location = locationService.requireLocation(pool.getLocationId());
-        validateWindow(request.startsAt(), request.endsAt());
-        validatePoolIsSellable(pool, location);
-        validateAvailability(pool, request.startsAt(), request.endsAt(), Instant.now(clock));
+        availabilityPolicy.assertBookable(location, pool, request.startsAt(), request.endsAt(), Instant.now(clock));
         validateVehicleFit(pool, request.vehicleId());
         return buildQuote(request.resourceId(), pool, request.startsAt(), request.endsAt(), request.promoCode(), Instant.now(clock));
     }
@@ -183,19 +176,14 @@ public class BookingOperationsService {
             ParkingResource resource = locationService.requireResource(request.resourceId());
             InventoryPool pool = inventoryPools.requireByResourceIdForUpdate(request.resourceId());
             ParkingLocation location = locationService.requireLocation(pool.getLocationId());
-            validateWindow(request.startsAt(), request.endsAt());
-            validatePoolIsSellable(pool, location);
-            validateAvailability(pool, request.startsAt(), request.endsAt(), now);
+            availabilityPolicy.assertBookable(location, pool, request.startsAt(), request.endsAt(), now);
             validateVehicleFit(pool, request.vehicleId());
 
             PaymentMode paymentMode = resolvePaymentMode(pool, request.paymentMode());
-            boolean manualConfirmation = pool.getConfirmationMode() == ConfirmationMode.MANUAL;
-            ReservationStatus initialStatus = manualConfirmation
-                    ? ReservationStatus.PENDING_OPERATOR_CONFIRMATION
-                    : paymentMode == PaymentMode.PAY_ON_ARRIVAL
-                            ? ReservationStatus.CONFIRMED
-                            : ReservationStatus.PENDING_PAYMENT;
+            ConfirmationMode confirmationMode = pool.getConfirmationMode() == null ? ConfirmationMode.INSTANT : pool.getConfirmationMode();
+            ReservationStatus initialStatus = initialStatus(paymentMode, confirmationMode);
             ReservationDtos.ReservationQuote quote = buildQuote(resource.getId(), pool, request.startsAt(), request.endsAt(), request.promoCode(), now);
+            Instant holdExpiresAt = holdExpiresAt(initialStatus, quote.expiresAt(), now);
 
             Reservation reservation = new Reservation();
             reservation.setCustomerId(userId);
@@ -208,12 +196,16 @@ public class BookingOperationsService {
             reservation.setEndsAt(request.endsAt());
             reservation.setTimezone(location.getTimezone());
             reservation.setBookingCode(generateBookingCode());
+            reservation.setCancellationPolicy(ReservationCancellationPolicy.FULL_REFUND_BEFORE_START);
+            reservation.setCancellableUntil(request.startsAt());
+            reservation.setRefundEligibleCents(0);
             reservation.setStatus(initialStatus);
             reservation.setPaymentMode(paymentMode);
             reservation.setTotalAmountCents(quote.totalAmountCents());
             reservation.setCurrency(quote.currency());
             reservation.setAccessInstructionsVisible(initialStatus == ReservationStatus.CONFIRMED);
             reservation.setPaymentExpiresAt(initialStatus == ReservationStatus.PENDING_PAYMENT ? quote.expiresAt() : null);
+            reservation.setOperatorConfirmationExpiresAt(initialStatus == ReservationStatus.PENDING_OPERATOR_CONFIRMATION ? holdExpiresAt : null);
             reservation.setIdempotencyKey(request.idempotencyKey());
             Reservation saved = reservations.save(reservation);
 
@@ -223,8 +215,8 @@ public class BookingOperationsService {
             hold.setCustomerId(userId);
             hold.setStartsAt(request.startsAt());
             hold.setEndsAt(request.endsAt());
-            hold.setExpiresAt(quote.expiresAt());
-            hold.setStatus(initialStatus == ReservationStatus.PENDING_PAYMENT ? BookingHoldStatus.ACTIVE : BookingHoldStatus.CONSUMED);
+            hold.setExpiresAt(holdExpiresAt);
+            hold.setStatus(initialStatus == ReservationStatus.CONFIRMED ? BookingHoldStatus.CONSUMED : BookingHoldStatus.ACTIVE);
             hold.setIdempotencyKey(request.idempotencyKey());
             hold.setAmountCents(quote.totalAmountCents());
             hold.setCurrency(quote.currency());
@@ -235,28 +227,28 @@ public class BookingOperationsService {
             recordEvent(saved.getId(), BookingEventType.CREATED, BookingActorType.CUSTOMER, userId, null,
                     metadata(
                             "paymentMode", paymentMode.name(),
-                            "confirmationMode", pool.getConfirmationMode().name(),
                             "inventoryPoolId", pool.getId(),
+                            "confirmationMode", confirmationMode.name(),
                             "bookingCode", saved.getBookingCode()));
             recordEvent(saved.getId(), BookingEventType.HOLD_CREATED, BookingActorType.SYSTEM, null, null,
                     metadata("holdId", savedHold.getId(), "expiresAt", savedHold.getExpiresAt()));
 
-            if (paymentMode == PaymentMode.PAY_ON_ARRIVAL) {
-                createPayOnArrivalAttempt(saved, now);
+            if (initialStatus == ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
+                recordEvent(saved.getId(), BookingEventType.OPERATOR_CONFIRMATION_REQUESTED, BookingActorType.SYSTEM, null, null,
+                        metadata("expiresAt", saved.getOperatorConfirmationExpiresAt()));
             }
-            if (manualConfirmation) {
-                recordEvent(saved.getId(), BookingEventType.MANUAL_CONFIRMATION_REQUESTED, BookingActorType.SYSTEM, null, null,
-                        metadata("confirmationMode", pool.getConfirmationMode().name()));
-            } else if (initialStatus == ReservationStatus.CONFIRMED) {
+
+            if (initialStatus == ReservationStatus.CONFIRMED) {
+                createPayOnArrivalAttempt(saved, now);
                 recordEvent(saved.getId(), BookingEventType.CONFIRMED, BookingActorType.SYSTEM, null, null,
                         metadata("paymentMode", paymentMode.name()));
             }
 
             auditReservationAction(userId, "RESERVATION_CREATED", saved, metadata(
                     "paymentMode", paymentMode.name(),
-                    "confirmationMode", pool.getConfirmationMode().name(),
                     "inventoryPoolId", pool.getId(),
                     "holdId", savedHold.getId(),
+                    "confirmationMode", confirmationMode.name(),
                     "bookingCode", saved.getBookingCode()));
 
             ReservationDtos.ReservationDto dto = toDto(saved);
@@ -276,11 +268,19 @@ public class BookingOperationsService {
         Reservation reservation = reservations.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
         requireParticipant(reservation);
+        Instant now = Instant.now(clock);
+        if (!canCustomerCancel(reservation, now)) {
+            throw new ConflictException("CANCELLATION_NOT_ALLOWED", "Reservation can only be cancelled before it starts.");
+        }
+        long refundEligibleCents = refundEligibleCentsAtCancellation(reservation, now);
+        reservation.setRefundEligibleCents(refundEligibleCents);
         applyTransition(reservation, ReservationStatus.CANCELLED, BookingEventType.CANCELLED, BookingActorType.CUSTOMER,
                 currentUser.userId(), reason);
         releaseHold(reservation);
         cancelPendingAttempts(reservation.getId());
-        auditReservationAction(currentUser.userId(), "RESERVATION_CANCELLED", reservation, metadata("reason", reason));
+        auditReservationAction(currentUser.userId(), "RESERVATION_CANCELLED", reservation, metadata(
+                "reason", reason,
+                "refundEligibleCents", refundEligibleCents));
         return toDto(reservation);
     }
 
@@ -289,15 +289,58 @@ public class BookingOperationsService {
         return expireOverdueHolds(Instant.now(clock));
     }
 
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto confirmAsOperator(UUID reservationId, String notes) {
+        Instant now = Instant.now(clock);
+        Reservation reservation = reservations.findByIdForUpdate(reservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
+        requireOperatorReservation(reservation);
+        expireReservationIfHoldOverdue(reservation, now);
+        requirePendingOperatorConfirmation(reservation);
+        UUID actorUserId = currentUser.userId();
+
+        if (reservation.getPaymentMode() == PaymentMode.PAY_ON_ARRIVAL) {
+            applyTransition(reservation, ReservationStatus.CONFIRMED, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.OPERATOR,
+                    actorUserId, notes);
+            consumeHold(reservation);
+            createPayOnArrivalAttempt(reservation, now);
+        } else {
+            applyTransition(reservation, ReservationStatus.PENDING_PAYMENT, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.OPERATOR,
+                    actorUserId, notes);
+            Instant paymentExpiresAt = now.plus(Duration.ofMinutes(appProperties.getQuoteTtlMinutes()));
+            reservation.setPaymentExpiresAt(paymentExpiresAt);
+            refreshHoldExpiry(reservation, paymentExpiresAt);
+        }
+
+        auditReservationAction(actorUserId, "OPERATOR_CONFIRMED_BOOKING", reservation, metadata(
+                "notes", notes,
+                "paymentMode", reservation.getPaymentMode().name()));
+        return toDto(reservation);
+    }
+
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto rejectAsOperator(UUID reservationId, String reason) {
+        Instant now = Instant.now(clock);
+        Reservation reservation = reservations.findByIdForUpdate(reservationId)
+                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
+        requireOperatorReservation(reservation);
+        expireReservationIfHoldOverdue(reservation, now);
+        requirePendingOperatorConfirmation(reservation);
+        UUID actorUserId = currentUser.userId();
+        applyTransition(reservation, ReservationStatus.REJECTED, BookingEventType.OPERATOR_REJECTED, BookingActorType.OPERATOR,
+                actorUserId, reason);
+        releaseHold(reservation);
+        cancelPendingAttempts(reservation.getId());
+        auditReservationAction(actorUserId, "OPERATOR_REJECTED_BOOKING", reservation, metadata("reason", reason));
+        return toDto(reservation);
+    }
+
     @Transactional
     public void confirmAfterPayment(UUID reservationId, UUID actorUserId, String provider, String providerReference) {
         Reservation reservation = reservations.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
         if (reservation.getStatus() == ReservationStatus.CONFIRMED || reservation.getStatus() == ReservationStatus.ACTIVE) {
             return;
-        }
-        if (reservation.getStatus() == ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
-            throw new ConflictException("OPERATOR_CONFIRMATION_REQUIRED", "Reservation requires operator confirmation before it can be confirmed.");
         }
         applyTransition(reservation, ReservationStatus.CONFIRMED, BookingEventType.PAYMENT_AUTHORIZED, BookingActorType.PAYMENT_PROVIDER,
                 actorUserId, provider);
@@ -346,24 +389,6 @@ public class BookingOperationsService {
         cancelPendingAttempts(reservation.getId());
         auditReservationAction(actorUserId, "OPERATOR_CANCELLED_BOOKING", reservation, metadata("reason", reason));
         return toDto(reservation);
-    }
-
-    @Transactional
-    public ReservationDtos.ReservationDto confirmManualAsOperator(UUID reservationId, String notes) {
-        Reservation reservation = reservations.findByIdForUpdate(reservationId)
-                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
-        requireOperatorReservation(reservation);
-        UUID actorUserId = currentUser.userId();
-        return confirmManualBooking(reservation, BookingActorType.OPERATOR, actorUserId, notes, "OPERATOR_CONFIRMED_BOOKING");
-    }
-
-    @Transactional
-    public ReservationDtos.ReservationDto rejectManualAsOperator(UUID reservationId, String reason) {
-        Reservation reservation = reservations.findByIdForUpdate(reservationId)
-                .orElseThrow(() -> new NotFoundException("Reservation was not found."));
-        requireOperatorReservation(reservation);
-        UUID actorUserId = currentUser.userId();
-        return rejectManualBooking(reservation, BookingActorType.OPERATOR, actorUserId, reason, "OPERATOR_REJECTED_BOOKING");
     }
 
     @Transactional
@@ -448,20 +473,49 @@ public class BookingOperationsService {
         return toDto(reservation);
     }
 
-    @Transactional
-    public ReservationDtos.ReservationDto confirmManualAsAdmin(UUID reservationId, String notes) {
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto confirmAsAdmin(UUID reservationId, String notes) {
+        Instant now = Instant.now(clock);
         Reservation reservation = reservations.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
+        expireReservationIfHoldOverdue(reservation, now);
+        requirePendingOperatorConfirmation(reservation);
         UUID actorUserId = currentUser.userId();
-        return confirmManualBooking(reservation, BookingActorType.ADMIN, actorUserId, notes, "ADMIN_CONFIRMED_BOOKING");
+
+        if (reservation.getPaymentMode() == PaymentMode.PAY_ON_ARRIVAL) {
+            applyTransition(reservation, ReservationStatus.CONFIRMED, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.ADMIN,
+                    actorUserId, notes);
+            consumeHold(reservation);
+            createPayOnArrivalAttempt(reservation, now);
+        } else {
+            applyTransition(reservation, ReservationStatus.PENDING_PAYMENT, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.ADMIN,
+                    actorUserId, notes);
+            Instant paymentExpiresAt = now.plus(Duration.ofMinutes(appProperties.getQuoteTtlMinutes()));
+            reservation.setPaymentExpiresAt(paymentExpiresAt);
+            refreshHoldExpiry(reservation, paymentExpiresAt);
+        }
+
+        auditReservationAction(actorUserId, "ADMIN_CONFIRMED_BOOKING", reservation, metadata(
+                "notes", notes,
+                "paymentMode", reservation.getPaymentMode().name()));
+        return toDto(reservation);
     }
 
-    @Transactional
-    public ReservationDtos.ReservationDto rejectManualAsAdmin(UUID reservationId, String reason) {
+    @Transactional(noRollbackFor = ConflictException.class)
+    public ReservationDtos.ReservationDto rejectAsAdmin(UUID reservationId, String reason) {
+        Instant now = Instant.now(clock);
         Reservation reservation = reservations.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new NotFoundException("Reservation was not found."));
+        expireReservationIfHoldOverdue(reservation, now);
+        requirePendingOperatorConfirmation(reservation);
         UUID actorUserId = currentUser.userId();
-        return rejectManualBooking(reservation, BookingActorType.ADMIN, actorUserId, reason, "ADMIN_REJECTED_BOOKING");
+
+        applyTransition(reservation, ReservationStatus.REJECTED, BookingEventType.OPERATOR_REJECTED, BookingActorType.ADMIN,
+                actorUserId, reason);
+        releaseHold(reservation);
+        cancelPendingAttempts(reservation.getId());
+        auditReservationAction(actorUserId, "ADMIN_REJECTED_BOOKING", reservation, metadata("reason", reason));
+        return toDto(reservation);
     }
 
     @Transactional
@@ -496,34 +550,8 @@ public class BookingOperationsService {
         return toRefundDto(saved);
     }
 
-    private ReservationDtos.ReservationDto confirmManualBooking(
-            Reservation reservation,
-            BookingActorType actorType,
-            UUID actorUserId,
-            String notes,
-            String auditAction) {
-        requirePendingOperatorConfirmation(reservation);
-        applyTransition(reservation, ReservationStatus.CONFIRMED, BookingEventType.MANUAL_CONFIRMED, actorType, actorUserId, notes);
-        consumeHold(reservation);
-        auditReservationAction(actorUserId, auditAction, reservation, metadata("notes", notes));
-        return toDto(reservation);
-    }
-
-    private ReservationDtos.ReservationDto rejectManualBooking(
-            Reservation reservation,
-            BookingActorType actorType,
-            UUID actorUserId,
-            String reason,
-            String auditAction) {
-        requirePendingOperatorConfirmation(reservation);
-        applyTransition(reservation, ReservationStatus.REJECTED, BookingEventType.MANUAL_REJECTED, actorType, actorUserId, reason);
-        releaseHold(reservation);
-        cancelPendingAttempts(reservation.getId());
-        auditReservationAction(actorUserId, auditAction, reservation, metadata("reason", reason));
-        return toDto(reservation);
-    }
-
     public ReservationDtos.ReservationDto toDto(Reservation reservation) {
+        Instant now = Instant.now(clock);
         return new ReservationDtos.ReservationDto(
                 reservation.getId(),
                 reservation.getCustomerId(),
@@ -537,12 +565,16 @@ public class BookingOperationsService {
                 reservation.getEndsAt(),
                 reservation.getTimezone(),
                 reservation.getBookingCode(),
+                reservation.getCancellationPolicy(),
+                reservation.getCancellableUntil(),
+                displayedRefundEligibleCents(reservation, now),
                 reservation.getStatus(),
                 reservation.getPaymentMode(),
                 reservation.getTotalAmountCents(),
                 reservation.getCurrency(),
                 reservation.isAccessInstructionsVisible(),
                 reservation.getPaymentExpiresAt(),
+                reservation.getOperatorConfirmationExpiresAt(),
                 reservation.getCreatedAt(),
                 reservation.getUpdatedAt());
     }
@@ -567,44 +599,6 @@ public class BookingOperationsService {
                 subtotal + fees - discount,
                 pool.getCurrency(),
                 now.plus(Duration.ofMinutes(appProperties.getQuoteTtlMinutes())));
-    }
-
-    private void validateWindow(Instant startsAt, Instant endsAt) {
-        if (!startsAt.isBefore(endsAt)) {
-            throw new ConflictException("INVALID_RESERVATION_WINDOW", "Reservation end time must be after start time.");
-        }
-        if (startsAt.isBefore(Instant.now(clock).minus(Duration.ofMinutes(1)))) {
-            throw new ConflictException("INVALID_RESERVATION_WINDOW", "Reservation cannot start in the past.");
-        }
-    }
-
-    private void validatePoolIsSellable(InventoryPool pool, ParkingLocation location) {
-        if (!location.isActive() || !pool.isActive()) {
-            throw new ConflictException("RESOURCE_UNAVAILABLE", "Parking inventory is not currently active.");
-        }
-        InventoryPoolService.AvailabilityDecision decision = inventoryPools.availabilityForWindow(
-                pool,
-                Instant.now(clock),
-                Instant.now(clock).plus(1, ChronoUnit.MINUTES));
-        if (decision.paused()) {
-            throw new ConflictException("RESOURCE_PAUSED", decision.reason() == null
-                    ? "Parking inventory is currently paused."
-                    : decision.reason());
-        }
-    }
-
-    private void validateAvailability(InventoryPool pool, Instant startsAt, Instant endsAt, Instant now) {
-        InventoryPoolService.AvailabilityDecision decision = inventoryPools.availabilityForWindow(pool, startsAt, endsAt);
-        if (decision.paused() || decision.sellableCapacity() <= 0) {
-            throw new ConflictException("RESOURCE_UNAVAILABLE", decision.reason() == null
-                    ? "Parking inventory is not available for this time window."
-                    : decision.reason());
-        }
-        long confirmedReservations = reservations.countPoolOverlaps(pool.getId(), startsAt, endsAt, POOL_BLOCKING_STATUSES);
-        long activeHolds = bookingHolds.countActiveOverlaps(pool.getId(), startsAt, endsAt, now);
-        if (confirmedReservations + activeHolds >= decision.sellableCapacity()) {
-            throw new ConflictException("RESOURCE_UNAVAILABLE", "Parking inventory is not available for this time window.");
-        }
     }
 
     private void validateVehicleFit(InventoryPool pool, UUID vehicleId) {
@@ -638,20 +632,6 @@ public class BookingOperationsService {
         return hours * pool.getHourlyRateCents();
     }
 
-    private String generateBookingCode() {
-        for (int attempts = 0; attempts < 10; attempts++) {
-            String code = "SL-" + UUID.randomUUID()
-                    .toString()
-                    .replace("-", "")
-                    .substring(0, 8)
-                    .toUpperCase();
-            if (!reservations.existsByBookingCode(code)) {
-                return code;
-            }
-        }
-        throw new ConflictException("BOOKING_CODE_GENERATION_FAILED", "Could not allocate a booking code. Try again.");
-    }
-
     private PaymentMode resolvePaymentMode(InventoryPool pool, PaymentMode requestedMode) {
         PaymentMode paymentMode = requestedMode == null
                 ? (pool.isPayOnArrivalEnabled() ? PaymentMode.PAY_ON_ARRIVAL : PaymentMode.ONLINE)
@@ -660,6 +640,20 @@ public class BookingOperationsService {
             throw new ConflictException("PAY_ON_ARRIVAL_NOT_AVAILABLE", "Pay on arrival is not available for this inventory.");
         }
         return paymentMode;
+    }
+
+    private ReservationStatus initialStatus(PaymentMode paymentMode, ConfirmationMode confirmationMode) {
+        if (confirmationMode == ConfirmationMode.MANUAL) {
+            return ReservationStatus.PENDING_OPERATOR_CONFIRMATION;
+        }
+        return paymentMode == PaymentMode.PAY_ON_ARRIVAL ? ReservationStatus.CONFIRMED : ReservationStatus.PENDING_PAYMENT;
+    }
+
+    private Instant holdExpiresAt(ReservationStatus status, Instant quoteExpiresAt, Instant now) {
+        if (status == ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
+            return now.plus(Duration.ofHours(appProperties.getManualConfirmationTtlHours()));
+        }
+        return quoteExpiresAt;
     }
 
     private int expireOverdueHolds(Instant now) {
@@ -671,14 +665,33 @@ public class BookingOperationsService {
             hold.setStatus(BookingHoldStatus.EXPIRED);
             if (hold.getReservationId() != null) {
                 reservations.findByIdForUpdate(hold.getReservationId()).ifPresent(reservation -> {
-                    if (reservation.getStatus() == ReservationStatus.PENDING_PAYMENT) {
+                    if (reservation.getStatus() == ReservationStatus.PENDING_PAYMENT
+                            || reservation.getStatus() == ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
                         applyTransition(reservation, ReservationStatus.EXPIRED, BookingEventType.HOLD_EXPIRED, BookingActorType.SYSTEM, null,
-                                "Payment hold expired");
+                                "Booking hold expired");
+                        cancelPendingAttempts(reservation.getId());
                     }
                 });
             }
         }
         return expiredHolds.size();
+    }
+
+    private void expireReservationIfHoldOverdue(Reservation reservation, Instant now) {
+        if (reservation.getHoldId() == null
+                || (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT
+                && reservation.getStatus() != ReservationStatus.PENDING_OPERATOR_CONFIRMATION)) {
+            return;
+        }
+
+        bookingHolds.findById(reservation.getHoldId()).ifPresent(hold -> {
+            if (hold.getStatus() == BookingHoldStatus.ACTIVE && !hold.getExpiresAt().isAfter(now)) {
+                hold.setStatus(BookingHoldStatus.EXPIRED);
+                applyTransition(reservation, ReservationStatus.EXPIRED, BookingEventType.HOLD_EXPIRED, BookingActorType.SYSTEM, null,
+                        "Booking hold expired");
+                cancelPendingAttempts(reservation.getId());
+            }
+        });
     }
 
     private void createPayOnArrivalAttempt(Reservation reservation, Instant now) {
@@ -710,25 +723,23 @@ public class BookingOperationsService {
             reservation.setAccessInstructionsVisible(true);
         }
         if (target == ReservationStatus.CANCELLED
-                || target == ReservationStatus.REJECTED
                 || target == ReservationStatus.EXPIRED
-                || target == ReservationStatus.NO_SHOW) {
+                || target == ReservationStatus.NO_SHOW
+                || target == ReservationStatus.REJECTED) {
             reservation.setAccessInstructionsVisible(false);
         }
-        if (target == ReservationStatus.CONFIRMED || target == ReservationStatus.REJECTED) {
+        if (target == ReservationStatus.CONFIRMED
+                || target == ReservationStatus.CANCELLED
+                || target == ReservationStatus.EXPIRED
+                || target == ReservationStatus.REJECTED) {
             reservation.setPaymentExpiresAt(null);
+        }
+        if (target != ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
+            reservation.setOperatorConfirmationExpiresAt(null);
         }
         recordEvent(reservation.getId(), eventType, actorType, actorId, notes, metadata(
                 "from", from.name(),
                 "to", target.name()));
-    }
-
-    private void requirePendingOperatorConfirmation(Reservation reservation) {
-        if (reservation.getStatus() != ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
-            throw new ConflictException(
-                    "INVALID_RESERVATION_TRANSITION",
-                    "Reservation must be pending operator confirmation for this action.");
-        }
     }
 
     private void releaseHold(Reservation reservation) {
@@ -736,7 +747,7 @@ public class BookingOperationsService {
             return;
         }
         bookingHolds.findById(reservation.getHoldId()).ifPresent(hold -> {
-            if (hold.getStatus() == BookingHoldStatus.ACTIVE || hold.getStatus() == BookingHoldStatus.CONSUMED) {
+            if (hold.getStatus() == BookingHoldStatus.ACTIVE) {
                 hold.setStatus(BookingHoldStatus.RELEASED);
             }
         });
@@ -749,6 +760,17 @@ public class BookingOperationsService {
         bookingHolds.findById(reservation.getHoldId()).ifPresent(hold -> {
             if (hold.getStatus() == BookingHoldStatus.ACTIVE) {
                 hold.setStatus(BookingHoldStatus.CONSUMED);
+            }
+        });
+    }
+
+    private void refreshHoldExpiry(Reservation reservation, Instant expiresAt) {
+        if (reservation.getHoldId() == null) {
+            return;
+        }
+        bookingHolds.findById(reservation.getHoldId()).ifPresent(hold -> {
+            if (hold.getStatus() == BookingHoldStatus.ACTIVE) {
+                hold.setExpiresAt(expiresAt);
             }
         });
     }
@@ -921,6 +943,50 @@ public class BookingOperationsService {
         if (!reservation.getOperatorId().equals(currentOperator().getId())) {
             throw new AccessDeniedException("Reservation does not belong to the current operator.");
         }
+    }
+
+    private void requirePendingOperatorConfirmation(Reservation reservation) {
+        if (reservation.getStatus() != ReservationStatus.PENDING_OPERATOR_CONFIRMATION) {
+            throw new ConflictException(
+                    "INVALID_RESERVATION_TRANSITION",
+                    "Reservation is not waiting for operator confirmation.");
+        }
+    }
+
+    private boolean canCustomerCancel(Reservation reservation, Instant now) {
+        if (!now.isBefore(reservation.getStartsAt())) {
+            return false;
+        }
+        return !isTerminalStatus(reservation.getStatus());
+    }
+
+    private boolean isTerminalStatus(ReservationStatus status) {
+        return status == ReservationStatus.CANCELLED
+                || status == ReservationStatus.COMPLETED
+                || status == ReservationStatus.EXPIRED
+                || status == ReservationStatus.REJECTED
+                || status == ReservationStatus.NO_SHOW;
+    }
+
+    private long refundEligibleCentsAtCancellation(Reservation reservation, Instant now) {
+        return now.isBefore(reservation.getStartsAt()) ? reservation.getTotalAmountCents() : 0;
+    }
+
+    private long displayedRefundEligibleCents(Reservation reservation, Instant now) {
+        if (reservation.getRefundEligibleCents() > 0) {
+            return reservation.getRefundEligibleCents();
+        }
+        return canCustomerCancel(reservation, now) ? reservation.getTotalAmountCents() : 0;
+    }
+
+    private String generateBookingCode() {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String code = "SL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            if (!reservations.existsByBookingCode(code)) {
+                return code;
+            }
+        }
+        throw new ConflictException("BOOKING_CODE_GENERATION_FAILED", "Could not allocate a booking code.");
     }
 
     private boolean matchesFilters(Reservation reservation, UUID operatorId, UUID locationId, ReservationStatus status) {

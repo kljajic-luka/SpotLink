@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminService {
 
     private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES = List.of(
+            ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
             ReservationStatus.PENDING_PAYMENT,
             ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
             ReservationStatus.CONFIRMED,

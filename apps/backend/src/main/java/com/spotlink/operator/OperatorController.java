@@ -48,6 +48,20 @@ public class OperatorController {
         return operatorService.bookingDetail(reservationId);
     }
 
+    @PostMapping({"/operator/bookings/{reservationId}/confirm", "/v1/operator/bookings/{reservationId}/confirm"})
+    ReservationDtos.ReservationDto confirm(
+            @PathVariable UUID reservationId,
+            @RequestBody(required = false) OperatorDtos.BookingActionRequest request) {
+        return operatorService.confirmBooking(reservationId, request == null ? null : request.notes());
+    }
+
+    @PostMapping({"/operator/bookings/{reservationId}/reject", "/v1/operator/bookings/{reservationId}/reject"})
+    ReservationDtos.ReservationDto reject(
+            @PathVariable UUID reservationId,
+            @RequestBody(required = false) OperatorDtos.BookingActionRequest request) {
+        return operatorService.rejectBooking(reservationId, request == null ? null : request.reason());
+    }
+
     @PostMapping({"/operator/bookings/{reservationId}/check-in", "/v1/operator/bookings/{reservationId}/check-in"})
     ReservationDtos.ReservationDto checkIn(
             @PathVariable UUID reservationId,
@@ -67,20 +81,6 @@ public class OperatorController {
             @PathVariable UUID reservationId,
             @RequestBody(required = false) OperatorDtos.BookingActionRequest request) {
         return operatorService.cancelBooking(reservationId, request == null ? null : request.reason());
-    }
-
-    @PostMapping({"/operator/bookings/{reservationId}/confirm", "/v1/operator/bookings/{reservationId}/confirm"})
-    ReservationDtos.ReservationDto confirmManualBooking(
-            @PathVariable UUID reservationId,
-            @RequestBody(required = false) OperatorDtos.BookingActionRequest request) {
-        return operatorService.confirmManualBooking(reservationId, request == null ? null : request.notes());
-    }
-
-    @PostMapping({"/operator/bookings/{reservationId}/reject", "/v1/operator/bookings/{reservationId}/reject"})
-    ReservationDtos.ReservationDto rejectManualBooking(
-            @PathVariable UUID reservationId,
-            @RequestBody(required = false) OperatorDtos.BookingActionRequest request) {
-        return operatorService.rejectManualBooking(reservationId, request == null ? null : request.reason());
     }
 
     @PostMapping({"/operator/resources/{resourceId}/pause", "/v1/operator/resources/{resourceId}/pause"})

@@ -39,7 +39,7 @@ class PaymentFoundationTest {
         UUID resourceId = createParkingResource(operatorSession);
         MockHttpSession customerSession = registerCustomer();
 
-        Instant startsAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+        Instant startsAt = alignedFutureStart(3);
         Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
         String reservationIdempotencyKey = "sl_rez_" + UUID.randomUUID();
 
@@ -140,6 +140,10 @@ class PaymentFoundationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private Instant alignedFutureStart(long hoursAhead) {
+        return Instant.now().truncatedTo(ChronoUnit.HOURS).plus(hoursAhead, ChronoUnit.HOURS);
     }
 
     private MockHttpSession registerCustomer() throws Exception {

@@ -42,6 +42,14 @@ public class ReservationService {
         return bookingOperations.expireOverdueHolds();
     }
 
+    public ReservationDtos.ReservationDto confirmAsOperator(UUID reservationId, String notes) {
+        return bookingOperations.confirmAsOperator(reservationId, notes);
+    }
+
+    public ReservationDtos.ReservationDto rejectAsOperator(UUID reservationId, String reason) {
+        return bookingOperations.rejectAsOperator(reservationId, reason);
+    }
+
     public void confirmAfterPayment(UUID reservationId, UUID actorUserId, String provider, String providerReference) {
         bookingOperations.confirmAfterPayment(reservationId, actorUserId, provider, providerReference);
     }
@@ -63,11 +71,11 @@ public class ReservationService {
     }
 
     public ReservationDtos.ReservationDto confirmManualAsOperator(UUID reservationId, String notes) {
-        return bookingOperations.confirmManualAsOperator(reservationId, notes);
+        return bookingOperations.confirmAsOperator(reservationId, notes);
     }
 
     public ReservationDtos.ReservationDto rejectManualAsOperator(UUID reservationId, String reason) {
-        return bookingOperations.rejectManualAsOperator(reservationId, reason);
+        return bookingOperations.rejectAsOperator(reservationId, reason);
     }
 
     public ReservationDtos.ReservationDto checkIn(UUID reservationId, String notes) {
@@ -91,11 +99,11 @@ public class ReservationService {
     }
 
     public ReservationDtos.ReservationDto confirmManualAsAdmin(UUID reservationId, String notes) {
-        return bookingOperations.confirmManualAsAdmin(reservationId, notes);
+        return bookingOperations.confirmAsAdmin(reservationId, notes);
     }
 
     public ReservationDtos.ReservationDto rejectManualAsAdmin(UUID reservationId, String reason) {
-        return bookingOperations.rejectManualAsAdmin(reservationId, reason);
+        return bookingOperations.rejectAsAdmin(reservationId, reason);
     }
 
     public PaymentDtos.RefundDto markRefundAsAdmin(UUID reservationId, Long amountCents, String reason) {

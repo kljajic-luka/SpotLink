@@ -14,19 +14,21 @@ public class ReservationStateMachine {
 
     public ReservationStateMachine() {
         transitions.put(ReservationStatus.DRAFT, EnumSet.of(
-                ReservationStatus.PENDING_PAYMENT,
                 ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
+                ReservationStatus.PENDING_PAYMENT,
                 ReservationStatus.CONFIRMED,
                 ReservationStatus.CANCELLED));
+        transitions.put(ReservationStatus.PENDING_OPERATOR_CONFIRMATION, EnumSet.of(
+                ReservationStatus.PENDING_PAYMENT,
+                ReservationStatus.CONFIRMED,
+                ReservationStatus.REJECTED,
+                ReservationStatus.CANCELLED,
+                ReservationStatus.EXPIRED));
         transitions.put(ReservationStatus.PENDING_PAYMENT, EnumSet.of(
                 ReservationStatus.CONFIRMED,
                 ReservationStatus.PENDING_OPERATOR_CONFIRMATION,
                 ReservationStatus.CANCELLED,
                 ReservationStatus.EXPIRED));
-        transitions.put(ReservationStatus.PENDING_OPERATOR_CONFIRMATION, EnumSet.of(
-                ReservationStatus.CONFIRMED,
-                ReservationStatus.CANCELLED,
-                ReservationStatus.REJECTED));
         transitions.put(ReservationStatus.CONFIRMED, EnumSet.of(
                 ReservationStatus.ACTIVE,
                 ReservationStatus.CANCELLED,
@@ -39,8 +41,8 @@ public class ReservationStateMachine {
                 ReservationStatus.DISPUTED,
                 ReservationStatus.NO_SHOW));
         transitions.put(ReservationStatus.COMPLETED, EnumSet.of(ReservationStatus.DISPUTED));
-        transitions.put(ReservationStatus.CANCELLED, EnumSet.noneOf(ReservationStatus.class));
         transitions.put(ReservationStatus.REJECTED, EnumSet.noneOf(ReservationStatus.class));
+        transitions.put(ReservationStatus.CANCELLED, EnumSet.noneOf(ReservationStatus.class));
         transitions.put(ReservationStatus.EXPIRED, EnumSet.noneOf(ReservationStatus.class));
         transitions.put(ReservationStatus.DISPUTED, EnumSet.of(
                 ReservationStatus.CANCELLED,

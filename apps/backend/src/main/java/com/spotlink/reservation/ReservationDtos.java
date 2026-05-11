@@ -27,12 +27,16 @@ public final class ReservationDtos {
             Instant endsAt,
             String timezone,
             String bookingCode,
+            ReservationCancellationPolicy cancellationPolicy,
+            Instant cancellableUntil,
+            long refundEligibleCents,
             ReservationStatus status,
             PaymentMode paymentMode,
             long totalAmountCents,
             String currency,
             boolean accessInstructionsVisible,
             Instant paymentExpiresAt,
+            Instant operatorConfirmationExpiresAt,
             Instant createdAt,
             Instant updatedAt
     ) {

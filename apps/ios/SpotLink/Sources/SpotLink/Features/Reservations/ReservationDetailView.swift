@@ -191,7 +191,7 @@ public struct ReservationDetailView: View {
                             openSupport: { showSupportComposer = true }
                         )
 
-                        if reservation.status.canCancel {
+                        if reservation.canCancel {
                             LoadingButton(
                                 "Otkazi rezervaciju",
                                 isLoading: viewModel.isCancelling,
@@ -326,7 +326,7 @@ struct ReservationPaymentStateCard: View {
 
             if let holdMessage {
                 ReservationInstructionBlock(
-                    title: "Hold za online placanje",
+                    title: stateNoticeTitle,
                     message: holdMessage
                 )
             }
@@ -372,20 +372,47 @@ struct ReservationPaymentStateCard: View {
     }
 
     private var holdMessage: String? {
-        guard reservation.paymentMode == .online,
-              reservation.status == .pendingPayment else {
+        if reservation.paymentMode == .online,
+           reservation.status == .pendingPayment {
+            if let expiresAt = reservation.holdExpiresAt {
+                return "Mesto je zadrzano do \(formatReservationDateTime(expiresAt, timezone: reservation.timezone)). Ako placanje ne bude potvrdjeno do tada, rezervacija moze isteci."
+            }
+            return "Online rezervacija nema prikazan istek holda. Kontaktirajte podrsku ako placanje ne prodje."
+        }
+
+        guard reservation.status == .pendingOperatorConfirmation else {
             return nil
         }
-        if let expiresAt = reservation.holdExpiresAt {
-            return "Mesto je zadrzano do \(formatReservationDateTime(expiresAt, timezone: reservation.timezone)). Ako placanje ne bude potvrdjeno do tada, rezervacija moze isteci."
+
+        if let expiresAt = reservation.operatorConfirmationExpiresAt {
+            return "Partner pregled traje do \(formatReservationDateTime(expiresAt, timezone: reservation.timezone)). Ako potvrda ne stigne do tada, zahtev moze automatski isteci ili biti odbijen."
         }
-        return "Online rezervacija nema prikazan istek holda. Kontaktirajte podrsku ako placanje ne prodje."
+        return "Partner pregled rezervacije je u toku. Status ce biti azuriran cim partner potvrdi ili odbije zahtev."
+    }
+
+    private var stateNoticeTitle: String {
+        reservation.status == .pendingOperatorConfirmation
+            ? "Partner potvrda"
+            : "Hold za online placanje"
     }
 
     private var cancellationText: String {
-        reservation.status.canCancel
-            ? "Otkazivanje je dostupno za trenutno stanje. Sistem ce ponovo proveriti stanje pre promene."
-            : "Otkazivanje nije dostupno za trenutno stanje rezervacije."
+        guard reservation.canCancel else {
+            if let cancellableUntil = reservation.cancellableUntil {
+                return "Otkazivanje vise nije dostupno nakon \(formatReservationDateTime(cancellableUntil, timezone: reservation.timezone))."
+            }
+            return "Otkazivanje nije dostupno za trenutno stanje rezervacije."
+        }
+
+        if let cancellableUntil = reservation.cancellableUntil {
+            return "Otkazivanje je dostupno do \(formatReservationDateTime(cancellableUntil, timezone: reservation.timezone)). Trenutno pravo na povracaj iznosi \(reservation.refundEligibleAmountFormatted)."
+        }
+
+        if let cancellationPolicy = reservation.cancellationPolicy {
+            return "Otkazivanje je dostupno prema politici: \(cancellationPolicy.displayName.lowercased())."
+        }
+
+        return "Otkazivanje je dostupno za trenutno stanje. Sistem ce ponovo proveriti stanje pre promene."
     }
 }
 
@@ -507,12 +534,12 @@ private extension BookingEventType {
             return "Mesto je privremeno zadrzano"
         case .holdExpired:
             return "Hold je istekao"
-        case .manualConfirmationRequested:
-            return "Zahtev ceka operatora"
-        case .manualConfirmed:
-            return "Operator je potvrdio rezervaciju"
-        case .manualRejected:
-            return "Operator je odbio rezervaciju"
+        case .operatorConfirmationRequested:
+            return "Partner pregleda zahtev"
+        case .operatorConfirmed:
+            return "Partner je potvrdio rezervaciju"
+        case .operatorRejected:
+            return "Partner je odbio rezervaciju"
         case .paymentAuthorized:
             return "Placanje je autorizovano"
         case .paymentFailed:
@@ -536,11 +563,11 @@ private extension BookingEventType {
 
     var customerIcon: String {
         switch self {
-        case .paymentAuthorized, .confirmed, .manualConfirmed:
+        case .paymentAuthorized, .confirmed, .operatorConfirmed:
             return "checkmark.circle.fill"
-        case .paymentFailed, .holdExpired, .cancelled, .operatorCancelled, .manualRejected, .noShow:
+        case .paymentFailed, .holdExpired, .cancelled, .operatorCancelled, .operatorRejected, .noShow:
             return "exclamationmark.triangle.fill"
-        case .holdCreated, .manualConfirmationRequested:
+        case .holdCreated, .operatorConfirmationRequested:
             return "timer"
         case .refundMarked:
             return "arrow.uturn.left.circle.fill"
@@ -593,8 +620,8 @@ struct ReservationTrustCard: View {
                 .font(SpotLinkDesign.Typography.headline)
 
             ReservationInstructionBlock(
-                title: trustTitle,
-                message: trustMessage
+                title: "Partner garantuje mesto",
+                message: "SpotLink prikazuje samo partnerski inventar sa garantovanom rezervacijom. Ako na ulazu postoji problem, podrska i operator dobijaju isti booking code: \(reservation.supportBookingCodeText)."
             )
 
             ReservationInstructionBlock(
@@ -604,28 +631,6 @@ struct ReservationTrustCard: View {
         }
         .padding(SpotLinkDesign.Spacing.md)
         .spotlinkCard()
-    }
-
-    private var trustTitle: String {
-        switch reservation.status {
-        case .pendingOperatorConfirmation:
-            return "Ceka potvrdu partnera"
-        case .rejected, .cancelled, .expired:
-            return "Rezervacija nije potvrdjena"
-        default:
-            return "Partner garantuje mesto"
-        }
-    }
-
-    private var trustMessage: String {
-        switch reservation.status {
-        case .pendingOperatorConfirmation:
-            return "Kapacitet je zadrzan i booking code je \(reservation.supportBookingCodeText), ali pristup nije garantovan dok operator ne potvrdi rezervaciju."
-        case .rejected:
-            return "Operator je odbio zahtev. Booking code \(reservation.supportBookingCodeText) ostaje samo za podrsku i evidenciju."
-        default:
-            return "SpotLink prikazuje partnerski inventar sa garantovanom rezervacijom tek kada je status potvrdjen. Ako na ulazu postoji problem, podrska i operator dobijaju isti booking code: \(reservation.supportBookingCodeText)."
-        }
     }
 }
 
@@ -735,7 +740,7 @@ func accessInstructionsText(
             return "Instrukcije za ulaz ce biti vidljive kada placanje bude potvrdjeno pre isteka holda."
         }
         if reservation.status == .pendingOperatorConfirmation {
-            return "Instrukcije za ulaz ce biti vidljive tek kada operator potvrdi rezervaciju."
+            return "Instrukcije za ulaz ce biti dostupne kada partner potvrdi rezervaciju. Pratite booking code i status potvrde u detaljima rezervacije."
         }
         return "Instrukcije za ulaz trenutno nisu dostupne za stanje \(reservation.status.displayName.lowercased())."
     }

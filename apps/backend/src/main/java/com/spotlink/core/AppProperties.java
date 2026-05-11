@@ -12,6 +12,10 @@ public class AppProperties {
     private final Jwt jwt = new Jwt();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
+    private int bookingSlotMinutes = 15;
+    private int minReservationMinutes = 15;
+    private int maxReservationDays = 30;
+    private int manualConfirmationTtlHours = 24;
     private boolean mockPaymentEnabled = true;
     private long holdExpiryScanMs = 60000;
 
@@ -41,6 +45,38 @@ public class AppProperties {
 
     public void setQuoteTtlMinutes(int quoteTtlMinutes) {
         this.quoteTtlMinutes = quoteTtlMinutes;
+    }
+
+    public int getBookingSlotMinutes() {
+        return bookingSlotMinutes;
+    }
+
+    public void setBookingSlotMinutes(int bookingSlotMinutes) {
+        this.bookingSlotMinutes = bookingSlotMinutes;
+    }
+
+    public int getMinReservationMinutes() {
+        return minReservationMinutes;
+    }
+
+    public void setMinReservationMinutes(int minReservationMinutes) {
+        this.minReservationMinutes = minReservationMinutes;
+    }
+
+    public int getMaxReservationDays() {
+        return maxReservationDays;
+    }
+
+    public void setMaxReservationDays(int maxReservationDays) {
+        this.maxReservationDays = maxReservationDays;
+    }
+
+    public int getManualConfirmationTtlHours() {
+        return manualConfirmationTtlHours;
+    }
+
+    public void setManualConfirmationTtlHours(int manualConfirmationTtlHours) {
+        this.manualConfirmationTtlHours = manualConfirmationTtlHours;
     }
 
     public boolean isMockPaymentEnabled() {

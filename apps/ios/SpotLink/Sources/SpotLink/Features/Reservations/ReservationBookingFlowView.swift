@@ -228,7 +228,7 @@ public final class ReservationBookingViewModel: ObservableObject {
                 )
             )
 
-            if selectedPaymentMode == .payOnArrival || reservation.status == .pendingOperatorConfirmation {
+            if reservation.status != .pendingPayment {
                 let latestReservation = (try? await reservationService.getReservation(reservation.id)) ?? reservation
                 completeReservation(
                     latestReservation,
@@ -300,7 +300,7 @@ public final class ReservationBookingViewModel: ObservableObject {
 
     public var primaryActionTitle: String {
         if selectedResource?.confirmationMode == .manual {
-            return "Posalji zahtev za potvrdu"
+            return "Posalji zahtev za rezervaciju"
         }
         return selectedPaymentMode == .payOnArrival
             ? "Rezervisi uz placanje na dolasku"
@@ -597,7 +597,7 @@ public struct ReservationBookingFlowView: View {
             } else {
                 ReservationFactGrid(items: [
                     ReservationFact(title: "Valuta", value: viewModel.quote?.currency ?? "RSD", icon: "banknote"),
-                    ReservationFact(title: "Potvrda", value: "Sistemska potvrda", icon: "checkmark.seal")
+                    ReservationFact(title: "Potvrda", value: viewModel.selectedResource?.confirmationMode.displayName ?? "Partner potvrda", icon: "checkmark.seal")
                 ])
             }
         }
@@ -641,10 +641,8 @@ public struct ReservationBookingFlowView: View {
                 .font(SpotLinkDesign.Typography.headline)
 
             ReservationInstructionBlock(
-                title: viewModel.selectedResource?.confirmationMode == .manual ? "Zahtev za rezervaciju" : "Garantovana rezervacija",
-                message: viewModel.selectedResource?.confirmationMode == .manual
-                    ? "SpotLink cuva kapacitet i izdaje booking code, ali pristup nije garantovan dok operator ne potvrdi zahtev."
-                    : "SpotLink prikazuje samo partnerski, off-street inventar. Rezervacija dobija booking code i podrsku za oporavak ako dodje do problema na ulazu."
+                title: "Garantovana rezervacija",
+                message: "SpotLink prikazuje samo partnerski, off-street inventar. Rezervacija dobija booking code i podrsku za oporavak ako dodje do problema na ulazu."
             )
             ReservationInstructionBlock(
                 title: "Pristup i potvrda",
@@ -731,14 +729,18 @@ struct ReservationConfirmationView: View {
 
     let context: ReservationConfirmationContext
 
+    private var isPendingOperatorConfirmation: Bool {
+        context.reservation.status == .pendingOperatorConfirmation
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.lg) {
                 VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.sm) {
-                    Label(headerTitle, systemImage: headerIcon)
+                    Label(confirmationTitle, systemImage: confirmationIcon)
                         .font(SpotLinkDesign.Typography.title2.weight(.bold))
-                        .foregroundStyle(headerColor)
-                    Text(headerMessage)
+                        .foregroundStyle(confirmationColor)
+                    Text(confirmationMessage)
                         .font(SpotLinkDesign.Typography.callout)
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 }
@@ -793,7 +795,7 @@ struct ReservationConfirmationView: View {
             }
             .padding(SpotLinkDesign.Spacing.md)
         }
-        .navigationTitle("Potvrda")
+        .navigationTitle(isPendingOperatorConfirmation ? "Cekanje potvrde" : "Potvrda")
         .spotlinkInlineNavigationTitle()
         .sheet(isPresented: $showSupportComposer) {
             NavigationStack {
@@ -809,27 +811,21 @@ struct ReservationConfirmationView: View {
         }
     }
 
-    private var headerTitle: String {
-        context.reservation.status == .pendingOperatorConfirmation
-            ? "Zahtev ceka operatora"
-            : "Rezervacija je spremna"
+    private var confirmationTitle: String {
+        isPendingOperatorConfirmation ? "Zahtev je poslat" : "Rezervacija je spremna"
     }
 
-    private var headerIcon: String {
-        context.reservation.status == .pendingOperatorConfirmation
-            ? "clock.badge.checkmark"
-            : "checkmark.circle.fill"
+    private var confirmationIcon: String {
+        isPendingOperatorConfirmation ? "hourglass.circle.fill" : "checkmark.circle.fill"
     }
 
-    private var headerColor: Color {
-        context.reservation.status == .pendingOperatorConfirmation
-            ? SpotLinkDesign.Colors.warning
-            : SpotLinkDesign.Colors.success
+    private var confirmationColor: Color {
+        isPendingOperatorConfirmation ? SpotLinkDesign.Colors.warning : SpotLinkDesign.Colors.success
     }
 
-    private var headerMessage: String {
-        if context.reservation.status == .pendingOperatorConfirmation {
-            return "Booking code je sacuvan i kapacitet je zadrzan, ali pristup nije garantovan dok operator ne potvrdi rezervaciju."
+    private var confirmationMessage: String {
+        if isPendingOperatorConfirmation {
+            return "Partner lokacija pregleda zahtev. Booking code je vec dodeljen i podrska moze da prati status dok cekate potvrdu ili odbijanje."
         }
         return "Partner lokacija i booking code su sacuvani za dolazak. Ako na ulazu nesto krene po zlu, podrska vidi isti booking code i rezervaciju."
     }

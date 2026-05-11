@@ -26,7 +26,7 @@ import {
   SupportCase,
 } from '@foundation/reservations';
 
-type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
+type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
 
 @Component({
   selector: 'sl-admin-portal',
@@ -114,7 +114,7 @@ type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-locati
                   <span>{{ shortId(booking.id) }}</span>
                   <strong>{{ formatMoney(booking.totalAmountCents, booking.currency) }}</strong>
                   <small>{{ formatDateTime(booking.startsAt) }}</small>
-                  <small>{{ booking.bookingCode || 'No code' }}</small>
+                  <small>{{ booking.bookingCode || shortId(booking.id) }}</small>
                   <sl-status-pill [tone]="statusTone(booking.status)">
                     {{ reservationStatusLabel(booking.status) }}
                   </sl-status-pill>
@@ -151,6 +151,7 @@ type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-locati
                 <div>
                   <h3>{{ shortId(detail()!.reservation.id) }}</h3>
                   <p>{{ formatDateTime(detail()!.reservation.startsAt) }} - {{ formatDateTime(detail()!.reservation.endsAt) }}</p>
+                  <small>{{ detail()!.reservation.bookingCode || shortId(detail()!.reservation.id) }}</small>
                 </div>
                 <sl-status-pill [tone]="statusTone(detail()!.reservation.status)">
                   {{ reservationStatusLabel(detail()!.reservation.status) }}
@@ -179,12 +180,20 @@ type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-locati
                   <dd>{{ paymentModeLabel(detail()!.reservation.paymentMode) }}</dd>
                 </div>
                 <div>
-                  <dt>Booking code</dt>
-                  <dd>{{ detail()!.reservation.bookingCode || 'None' }}</dd>
-                </div>
-                <div>
                   <dt>Hold</dt>
                   <dd>{{ detail()!.hold ? detail()!.hold!.status : 'None' }}</dd>
+                </div>
+                <div>
+                  <dt>Cancellation</dt>
+                  <dd>{{ cancellationLabel(detail()!.reservation) }}</dd>
+                </div>
+                <div>
+                  <dt>Refund eligible</dt>
+                  <dd>{{ formatMoney(detail()!.reservation.refundEligibleCents || 0, detail()!.reservation.currency) }}</dd>
+                </div>
+                <div>
+                  <dt>Approval deadline</dt>
+                  <dd>{{ detail()!.reservation.operatorConfirmationExpiresAt ? formatDateTime(detail()!.reservation.operatorConfirmationExpiresAt) : 'N/A' }}</dd>
                 </div>
               </dl>
 
@@ -210,22 +219,6 @@ type AdminActionKey = 'confirm' | 'reject' | 'cancel' | 'refund' | 'pause-locati
                 </div>
 
                 <div class="button-row">
-                  <sl-ui-button
-                    variant="secondary"
-                    [loading]="actionBusy() === 'confirm'"
-                    [disabled]="!canConfirmManual(detail()!.reservation.status)"
-                    (clicked)="confirmManualBooking()"
-                  >
-                    Confirm manual
-                  </sl-ui-button>
-                  <sl-ui-button
-                    variant="danger"
-                    [loading]="actionBusy() === 'reject'"
-                    [disabled]="!canConfirmManual(detail()!.reservation.status)"
-                    (clicked)="rejectManualBooking()"
-                  >
-                    Reject manual
-                  </sl-ui-button>
                   <sl-ui-button
                     variant="danger"
                     [loading]="actionBusy() === 'cancel'"
@@ -657,8 +650,8 @@ export class AdminPortalComponent implements OnInit {
     'ACTIVE',
     'COMPLETED',
     'CANCELLED',
-    'REJECTED',
     'EXPIRED',
+    'REJECTED',
     'DISPUTED',
     'NO_SHOW',
   ];
@@ -744,28 +737,6 @@ export class AdminPortalComponent implements OnInit {
 
     this.runManualAction('cancel', () =>
       this.adminService.cancelBooking(reservation.id, this.optionalValue(this.actionReason)),
-    );
-  }
-
-  confirmManualBooking(): void {
-    const reservation = this.detail()?.reservation;
-    if (!reservation || !this.confirmManualAction('Confirm this manual booking?')) {
-      return;
-    }
-
-    this.runManualAction('confirm', () =>
-      this.adminService.confirmManualBooking(reservation.id, this.optionalValue(this.actionReason)),
-    );
-  }
-
-  rejectManualBooking(): void {
-    const reservation = this.detail()?.reservation;
-    if (!reservation || !this.confirmManualAction('Reject this manual booking?')) {
-      return;
-    }
-
-    this.runManualAction('reject', () =>
-      this.adminService.rejectManualBooking(reservation.id, this.optionalValue(this.actionReason)),
     );
   }
 
@@ -855,11 +826,7 @@ export class AdminPortalComponent implements OnInit {
   }
 
   canCancel(status: ReservationStatus): boolean {
-    return !['CANCELLED', 'REJECTED', 'COMPLETED', 'EXPIRED', 'NO_SHOW'].includes(status);
-  }
-
-  canConfirmManual(status: ReservationStatus): boolean {
-    return status === 'PENDING_OPERATOR_CONFIRMATION';
+    return !['CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW', 'REJECTED'].includes(status);
   }
 
   reservationStatusLabel(status: ReservationStatus): string {
@@ -878,10 +845,10 @@ export class AdminPortalComponent implements OnInit {
         return 'Completed';
       case 'CANCELLED':
         return 'Cancelled';
-      case 'REJECTED':
-        return 'Rejected';
       case 'EXPIRED':
         return 'Expired';
+      case 'REJECTED':
+        return 'Rejected';
       case 'DISPUTED':
         return 'Disputed';
       case 'NO_SHOW':
@@ -900,8 +867,8 @@ export class AdminPortalComponent implements OnInit {
         return 'warning';
       case 'DRAFT':
         return 'neutral';
-      case 'CANCELLED':
       case 'REJECTED':
+      case 'CANCELLED':
       case 'EXPIRED':
       case 'DISPUTED':
       case 'NO_SHOW':
@@ -914,7 +881,54 @@ export class AdminPortalComponent implements OnInit {
   }
 
   bookingEventLabel(event: BookingEvent): string {
-    return event.eventType.replaceAll('_', ' ');
+    switch (event.eventType) {
+      case 'LEGACY_IMPORTED':
+        return 'Legacy imported';
+      case 'CREATED':
+        return 'Created';
+      case 'HOLD_CREATED':
+        return 'Hold created';
+      case 'HOLD_EXPIRED':
+        return 'Hold expired';
+      case 'STATUS_CHANGED':
+        return 'Status changed';
+      case 'OPERATOR_CONFIRMATION_REQUESTED':
+        return 'Operator confirmation requested';
+      case 'OPERATOR_CONFIRMED':
+        return 'Operator confirmed';
+      case 'OPERATOR_REJECTED':
+        return 'Operator rejected';
+      case 'PAYMENT_AUTHORIZED':
+        return 'Payment authorized';
+      case 'PAYMENT_FAILED':
+        return 'Payment failed';
+      case 'CONFIRMED':
+        return 'Confirmed';
+      case 'CANCELLED':
+        return 'Cancelled';
+      case 'OPERATOR_CANCELLED':
+        return 'Operator cancelled';
+      case 'CHECKED_IN':
+        return 'Checked in';
+      case 'NO_SHOW':
+        return 'No-show';
+      case 'ADMIN_OVERRIDE':
+        return 'Admin override';
+      case 'REFUND_MARKED':
+        return 'Refund marked';
+    }
+  }
+
+  cancellationLabel(reservation: Reservation): string {
+    if (reservation.cancellableUntil) {
+      return `Until ${this.formatDateTime(reservation.cancellableUntil)}`;
+    }
+
+    if (reservation.cancellationPolicy === 'FULL_REFUND_BEFORE_START') {
+      return 'Full refund before start';
+    }
+
+    return 'N/A';
   }
 
   paymentAttemptLabel(attempt: PaymentAttempt): string {
@@ -1024,10 +1038,6 @@ export class AdminPortalComponent implements OnInit {
 
   private successMessageFor(action: AdminActionKey): string {
     switch (action) {
-      case 'confirm':
-        return 'Booking confirmed. Audit events refreshed.';
-      case 'reject':
-        return 'Booking rejected. Audit events refreshed.';
       case 'cancel':
         return 'Booking cancelled. Audit events refreshed.';
       case 'refund':
