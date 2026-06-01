@@ -157,6 +157,7 @@ Important backend variables:
 | `MOCK_PAYMENT_ENABLED` | Enables/disables mock payment provider |
 
 Production profiles reject the built-in development JWT secret.
+Production profiles (`prod` or `production`) also reject `MOCK_PAYMENT_ENABLED=true`; mock payments are allowed only for dev/test style profiles.
 
 Vazno za iOS mapu:
 
@@ -236,8 +237,12 @@ Maven and SwiftPM resolve backend/iOS dependencies through their own toolchains.
 | `make test-backend` | Maven testovi |
 | `make test-frontend` | Angular ChromeHeadless testovi (CI=1) |
 | `make test-ios` | iOS Swift testovi |
+| `make test-ios-xcode` | Xcode simulator testovi preko `SpotLinkApp` sheme |
 | `make build` | CI Angular produkcioni build |
 | `make build-backend` | Maven package (preskoci testove) |
+| `make build-ios-xcode` | Xcode simulator build preko `SpotLinkApp` sheme |
+| `make build-ios-release-unsigned` | Unsigned iOS Release build validation |
+| `make release-gate` | Backend, frontend, SwiftPM, Xcode simulator testovi i unsigned Release iOS build |
 | `npm run start` | Angular dev server |
 | `npm run start:backend` | Spring Boot (dev profil) |
 | `npm run build` | Build Angular frontend |
@@ -265,9 +270,33 @@ iOS simulator build, after full Xcode is installed:
 ```bash
 xcodebuild build \
   -project apps/ios/SpotLink.xcodeproj \
-  -scheme SpotLink \
+  -scheme SpotLinkApp \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
+
+## Release Gate
+
+Week 1 release stabilization validates an unsigned Release build only. Apple signing, App Store Connect credentials, signed archives, and TestFlight upload remain a human-controlled later gate.
+
+Run the complete local gate:
+
+```bash
+make release-gate
+```
+
+The target runs these checks in order:
+
+```bash
+mvn -f apps/backend/pom.xml clean test
+npm --prefix apps/frontend run test:ci
+npm --prefix apps/frontend run build:ci
+swift package clean --package-path apps/ios/SpotLink
+swift test --package-path apps/ios/SpotLink
+xcodebuild test -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,id=<available simulator>' CODE_SIGNING_ALLOWED=NO
+xcodebuild build -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+```
+
+Passing means the engineering release gate is green for backend, frontend, SwiftPM, Xcode simulator tests, and unsigned iOS Release compilation. A failure means staging/TestFlight prep should not proceed until that command is fixed.
 
 ## API Surface
 

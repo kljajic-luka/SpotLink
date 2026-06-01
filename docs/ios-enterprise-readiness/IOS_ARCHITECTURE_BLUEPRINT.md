@@ -476,8 +476,8 @@ Example commands:
 ```bash
 mvn -f apps/backend/pom.xml verify
 npm run build
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -configuration Debug build
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -configuration Debug build
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 swift test
 ```
 
@@ -490,4 +490,3 @@ Use the exact workspace/project path once the iOS implementation exists.
 3. External TestFlight with production-like backend, APNs sandbox/production configured, real payment test mode, crash reporting, privacy links.
 4. Release candidate archive with production backend, production APNs, production payment provider, production signing, privacy manifest, App Store metadata, and monitoring.
 5. Phased App Store rollout with crash, payment, reservation, and support dashboards monitored.
-

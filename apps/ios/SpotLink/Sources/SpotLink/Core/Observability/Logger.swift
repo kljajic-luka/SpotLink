@@ -16,7 +16,7 @@ public enum SpotLinkLogger {
     #if DEBUG
     nonisolated(unsafe) public static var minimumLevel: Level = .debug
     #else
-    public static var minimumLevel: Level = .error
+    nonisolated(unsafe) public static var minimumLevel: Level = .error
     #endif
 
     public static func debug(_ message: @autoclosure () -> String, file: String = #file, line: Int = #line) {

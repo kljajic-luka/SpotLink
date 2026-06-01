@@ -10,13 +10,13 @@ public class AppProperties {
     private final Cors cors = new Cors();
     private final Cookie cookie = new Cookie();
     private final Jwt jwt = new Jwt();
+    private final MockPayment mockPayment = new MockPayment();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
     private int bookingSlotMinutes = 15;
     private int minReservationMinutes = 15;
     private int maxReservationDays = 30;
     private int manualConfirmationTtlHours = 24;
-    private boolean mockPaymentEnabled = true;
     private long holdExpiryScanMs = 60000;
 
     public Cors getCors() {
@@ -29,6 +29,10 @@ public class AppProperties {
 
     public Jwt getJwt() {
         return jwt;
+    }
+
+    public MockPayment getMockPayment() {
+        return mockPayment;
     }
 
     public String getDefaultCurrency() {
@@ -80,11 +84,11 @@ public class AppProperties {
     }
 
     public boolean isMockPaymentEnabled() {
-        return mockPaymentEnabled;
+        return mockPayment.isEnabled();
     }
 
     public void setMockPaymentEnabled(boolean mockPaymentEnabled) {
-        this.mockPaymentEnabled = mockPaymentEnabled;
+        this.mockPayment.setEnabled(mockPaymentEnabled);
     }
 
     public long getHoldExpiryScanMs() {
@@ -143,6 +147,18 @@ public class AppProperties {
 
         public void setSessionTtlHours(int sessionTtlHours) {
             this.sessionTtlHours = sessionTtlHours;
+        }
+    }
+
+    public static class MockPayment {
+        private boolean enabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
     }
 

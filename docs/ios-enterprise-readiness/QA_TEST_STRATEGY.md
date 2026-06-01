@@ -53,7 +53,7 @@ Required:
 Command examples after iOS project exists:
 
 ```bash
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 swift test
 ```
 
@@ -129,7 +129,7 @@ Critical iOS UI tests:
 Command:
 
 ```bash
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkUITests -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
 ## Smoke Tests
@@ -397,8 +397,8 @@ Minimum gate set:
 ```bash
 mvn -f apps/backend/pom.xml verify
 npm run build
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -configuration Debug build
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -configuration Debug build
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
 Add once available:
@@ -410,4 +410,3 @@ Add once available:
 - Release archive validation.
 - Secret scanning.
 - Production config assertions: no mock payments, no local API URL, analytics consent honored.
-

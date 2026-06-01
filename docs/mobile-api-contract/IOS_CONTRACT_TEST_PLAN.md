@@ -178,7 +178,7 @@ Use exact project paths once Agent 1 finalizes iOS structure:
 
 ```bash
 swift test
-xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLink -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 mvn -f apps/backend/pom.xml test
 ```
 

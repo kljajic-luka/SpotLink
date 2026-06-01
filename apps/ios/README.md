@@ -12,7 +12,9 @@ Native iOS aplikacija za SpotLink parking platformu, izgradjenja na SwiftUI + MV
 apps/ios/
 ├── SpotLink.xcodeproj/              # Xcode projekat (app target, test targeti, sheme)
 │   ├── project.pbxproj
-│   └── xcshareddata/xcschemes/SpotLink.xcscheme
+│   └── xcshareddata/xcschemes/
+│       ├── SpotLinkApp.xcscheme
+│       └── SpotLinkLocalDevice.xcscheme
 │
 ├── SpotLink/                        # Swift Package (biblioteka + test support)
 │   ├── Package.swift
@@ -55,19 +57,36 @@ xcodebuild -list -project apps/ios/SpotLink.xcodeproj
 # Build za iOS Simulator
 xcodebuild build \
   -project apps/ios/SpotLink.xcodeproj \
-  -scheme SpotLink \
+  -scheme SpotLinkApp \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
-  CODE_SIGN_IDENTITY="-" \
-  CODE_SIGNING_REQUIRED=NO
+  CODE_SIGNING_ALLOWED=NO
 
 # Unit testovi
 xcodebuild test \
   -project apps/ios/SpotLink.xcodeproj \
-  -scheme SpotLink \
-  -destination 'platform=iOS Simulator,name=iPhone 16'
+  -scheme SpotLinkApp \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  CODE_SIGNING_ALLOWED=NO
+
+# Unsigned Release build validation, bez Apple signing kredencijala
+xcodebuild build \
+  -project apps/ios/SpotLink.xcodeproj \
+  -scheme SpotLinkApp \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO
 ```
 
 ---
+
+## Sheme
+
+| Shema | Namena |
+|-------|--------|
+| `SpotLinkApp` | Kanonska CI/test/build shema za app target. Ne postavlja `SPOTLINK_ENV` ili local-device override. |
+| `SpotLinkLocalDevice` | Dev-only shema za pokretanje na fizickom uredjaju prema backend-u na Mac-u. |
+
+`SpotLinkApp` je jedina shema koju treba koristiti u CI i release-gate komandama. Swift Package proizvod ostaje `SpotLink`.
 
 ## Konfiguracija okruzenja
 
@@ -78,13 +97,14 @@ xcodebuild test \
 | Release      | production   | https://api.spotlink.app/api |
 
 Za override u Debug build-u: postaviti `SPOTLINK_ENV` env varijablu u Xcode scheme argumentima.
-Za testiranje na fizickom iPhone-u preko backend-a na Mac-u, koristiti:
+Za testiranje na fizickom iPhone-u preko backend-a na Mac-u, koristiti `SpotLinkLocalDevice`, koji vec postavlja:
 
 ```text
 SPOTLINK_ENV=localDevice
+SPOTLINK_LOCAL_DEVICE_API_BASE_URL=http://192.168.1.151:8080/api
 ```
 
-Ako se Mac IP promeni, dodati i:
+Ako se Mac IP promeni, azurirati:
 
 ```text
 SPOTLINK_LOCAL_DEVICE_API_BASE_URL=http://<MAC_IP>:8080/api
@@ -123,4 +143,5 @@ i proveriti sa iPhone Safari-jem da `http://<MAC_IP>:8080/api/health` vraca `UP`
 
 - `swift test` koristi Swift Testing izlaz koji prvo prikazuje prazan XCTest summary, pa zatim stvarni Swift Testing run summary.
 - `DEVELOPMENT_TEAM` je prazno – potrebno podesiti pre TestFlight slanja.
+- Week 1 release gate validira samo unsigned Release build (`CODE_SIGNING_ALLOWED=NO`); signed archive i TestFlight upload su human-controlled koraci za kasnije.
 - App icon je placeholder (nema stvarne slike).
