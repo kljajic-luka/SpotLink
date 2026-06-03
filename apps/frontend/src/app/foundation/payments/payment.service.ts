@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiClient } from '@foundation/networking';
 import {
   CreatePaymentIntentRequest,
+  PaymentCapabilities,
   PaymentIntent,
   PaymentMethod,
   PaymentProviderResult,
@@ -12,6 +13,10 @@ import {
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private readonly api = inject(ApiClient);
+
+  capabilities(): Observable<PaymentCapabilities> {
+    return this.api.get<PaymentCapabilities>('/payments/capabilities');
+  }
 
   listPaymentMethods(): Observable<PaymentMethod[]> {
     return this.api.get<PaymentMethod[]>('/payments/methods');
@@ -24,6 +29,13 @@ export class PaymentService {
   confirmIntent(paymentIntentId: string): Observable<PaymentProviderResult> {
     return this.api.post<PaymentProviderResult>(
       `/payments/intents/${encodeURIComponent(paymentIntentId)}/confirm`,
+      {},
+    );
+  }
+
+  cancelIntent(paymentIntentId: string): Observable<PaymentProviderResult> {
+    return this.api.post<PaymentProviderResult>(
+      `/payments/intents/${encodeURIComponent(paymentIntentId)}/cancel`,
       {},
     );
   }

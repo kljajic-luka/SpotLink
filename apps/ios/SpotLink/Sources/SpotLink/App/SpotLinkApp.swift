@@ -1,6 +1,6 @@
 import SwiftUI
 // Eksplicitni import SPM biblioteke.
-// Xcode app target se zove SpotLink a PRODUCT_MODULE_NAME=SpotLinkApp,
+// Xcode app target se zove SpotLinkApp, proizvod ostaje SpotLink.app,
 // pa je ovaj import neophodan da bi kompajler razresio SessionManager,
 // AppEnvironment i RootView koji dolaze iz SPM modula SpotLinkCore.
 import SpotLinkCore

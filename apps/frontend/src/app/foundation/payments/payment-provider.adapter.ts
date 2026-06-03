@@ -1,8 +1,15 @@
 import { Observable } from 'rxjs';
 
-import { CreatePaymentIntentRequest, PaymentIntent, PaymentProviderResult } from './payment.models';
+import {
+  CreatePaymentIntentRequest,
+  PaymentCapabilities,
+  PaymentIntent,
+  PaymentProviderResult,
+} from './payment.models';
 
 export abstract class PaymentProviderAdapter {
+  abstract capabilities(): Observable<PaymentCapabilities>;
+
   abstract createIntent(payload: CreatePaymentIntentRequest): Observable<PaymentIntent>;
 
   abstract confirmIntent(paymentIntentId: string): Observable<PaymentProviderResult>;

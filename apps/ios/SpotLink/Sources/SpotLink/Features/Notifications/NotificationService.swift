@@ -1,8 +1,13 @@
 import Foundation
 
+public protocol DeviceTokenLifecycleServicing: Sendable {
+    func registerDeviceToken(_ token: String) async throws
+    func unregisterDeviceToken(_ token: String) async throws
+}
+
 // MARK: - Notification Service
 
-public final class NotificationService: Sendable {
+public final class NotificationService: DeviceTokenLifecycleServicing {
     private let apiClient: APIClientProtocol
 
     public init(apiClient: APIClientProtocol) {
@@ -27,6 +32,13 @@ public final class NotificationService: Sendable {
         let _: EmptyResponse = try await apiClient.post(
             "/notifications/device-tokens",
             body: RegisterDeviceTokenRequest(deviceToken: token))
+    }
+
+    /// Odjavljuje APNs device token sa backenda za trenutnog korisnika.
+    public func unregisterDeviceToken(_ token: String) async throws {
+        let _: EmptyResponse = try await apiClient.post(
+            "/notifications/device-tokens/unregister",
+            body: UnregisterDeviceTokenRequest(deviceToken: token))
     }
 }
 

@@ -55,6 +55,10 @@ public struct UpdateProfileRequest: Encodable, Sendable {
     }
 }
 
+public struct AccountDeletionRequest: Encodable, Sendable {
+    public init() {}
+}
+
 // MARK: - Operator
 
 public struct OperatorAccount: Decodable, Identifiable, Sendable {

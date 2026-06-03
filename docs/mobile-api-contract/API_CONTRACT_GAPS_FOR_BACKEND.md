@@ -104,11 +104,11 @@ The gaps below now track remaining hardening work.
 
 - Area: Account deletion and privacy endpoints
 - Priority: P1
-- Current behavior: No account deletion request/status endpoint found.
-- Desired mobile behavior: In-app account deletion or compliant request flow with status and retention messaging.
+- Current behavior: Account deletion request intake exists through support tickets, and admins can process approved deletion tickets with anonymization/revocation. No user-visible deletion status/export/privacy-choice endpoint exists yet.
+- Desired mobile behavior: In-app account deletion request with status/retention messaging and owner-approved privacy-choice flows where legally required.
 - Backend files likely affected: user/account module, support/admin module, audit logging.
-- iOS impact: App Store account deletion requirement is blocked.
-- Suggested acceptance criteria: Authenticated user can request deletion; admin/support can audit it; app receives clear status.
+- iOS impact: Request flow is usable, but richer status/privacy-choice UX remains blocked until product/legal defines it.
+- Suggested acceptance criteria: Authenticated user can request deletion; admin/support can audit and process it; app receives clear request and completion/unauthorized status.
 
 ## MOB-BE-010
 

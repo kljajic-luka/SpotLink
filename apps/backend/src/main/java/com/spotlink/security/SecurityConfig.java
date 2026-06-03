@@ -74,7 +74,7 @@ public class SecurityConfig {
                                 "/v1/analytics/events",
                                 "/analytics/events"))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/health", "/v1/health", "/actuator/health", "/actuator/info", "/openapi/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/health", "/v1/health", "/actuator/health", "/actuator/health/**", "/actuator/info", "/openapi/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/auth/login", "/auth/logout", "/auth/register/**", "/auth/password/**", "/auth/token", "/auth/token/**").permitAll()
                         .requestMatchers("/v1/auth/login", "/v1/auth/logout", "/v1/auth/register/**", "/v1/auth/password/**", "/v1/auth/token", "/v1/auth/token/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/analytics/events").permitAll()

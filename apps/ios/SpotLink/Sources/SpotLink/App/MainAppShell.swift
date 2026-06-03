@@ -93,6 +93,10 @@ struct ProfileOverviewView: View {
     @EnvironmentObject private var session: SessionManager
     @EnvironmentObject private var appContainer: SpotLinkAppContainer
     @EnvironmentObject private var pushManager: PushNotificationManager
+    @State private var isRequestingAccountDeletion = false
+    @State private var showAccountDeletionConfirmation = false
+    @State private var profileAlert: ProfileAlert?
+    private let legalConfiguration = LegalConfiguration.current()
 
     var body: some View {
         List {
@@ -142,6 +146,34 @@ struct ProfileOverviewView: View {
             Section("Nalog") {
                 infoRow(title: "Tip korisnika", value: sessionInfo.user.isOperator ? "Partner / operator" : "Kupac")
                 infoRow(title: "Podrska", value: sessionInfo.user.isSupport ? "Ukljucena" : "Standardna korisnicka podrska")
+
+                Button(role: .destructive) {
+                    showAccountDeletionConfirmation = true
+                } label: {
+                    Label(
+                        isRequestingAccountDeletion ? "Slanje zahteva..." : "Zatrazi brisanje naloga",
+                        systemImage: "trash"
+                    )
+                }
+                .disabled(isRequestingAccountDeletion)
+            }
+
+            Section("Privatnost i podrska") {
+                Link(destination: legalConfiguration.privacyPolicyURL) {
+                    Label("Politika privatnosti", systemImage: "hand.raised")
+                }
+                Link(destination: legalConfiguration.termsURL) {
+                    Label("Uslovi koriscenja", systemImage: "doc.text")
+                }
+                Link(destination: legalConfiguration.supportURL) {
+                    Label("Centar za podrsku", systemImage: "questionmark.circle")
+                }
+                Link(destination: legalConfiguration.supportMailURL) {
+                    Label(legalConfiguration.supportEmail, systemImage: "envelope")
+                }
+                Link(destination: legalConfiguration.accountDeletionURL) {
+                    Label("Informacije o brisanju naloga", systemImage: "person.crop.circle.badge.xmark")
+                }
             }
 
             Section {
@@ -156,6 +188,27 @@ struct ProfileOverviewView: View {
         }
         .navigationTitle("Profil")
         .spotlinkListStyle()
+        .confirmationDialog(
+            "Zatrazi brisanje naloga?",
+            isPresented: $showAccountDeletionConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Posalji zahtev", role: .destructive) {
+                Task {
+                    await requestAccountDeletion()
+                }
+            }
+            Button("Odustani", role: .cancel) {}
+        } message: {
+            Text("SpotLink podrska ce pregledati zahtev pre bilo kakvog brisanja ili anonimizacije naloga.")
+        }
+        .alert(item: $profileAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("U redu"))
+            )
+        }
     }
 
     private var notificationStatusTitle: String {
@@ -171,6 +224,30 @@ struct ProfileOverviewView: View {
         }
     }
 
+    @MainActor
+    private func requestAccountDeletion() async {
+        guard !isRequestingAccountDeletion else { return }
+        isRequestingAccountDeletion = true
+        defer { isRequestingAccountDeletion = false }
+
+        do {
+            let ticket = try await appContainer.profileService.requestAccountDeletion()
+            profileAlert = ProfileAlert(
+                title: "Zahtev poslat",
+                message: "Zahtev za brisanje naloga je evidentiran (tiket \(String(ticket.id.prefix(8)))). Podrska ce obraditi zahtev. Odredjeni zapisi mogu biti zadrzani zbog zakonskih, platnih ili zastite od zloupotrebe."
+            )
+        } catch let error as APIError {
+            SpotLinkLogger.warn("account_deletion_request_failed code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+            profileAlert = ProfileAlert(title: "Zahtev nije poslat", message: error.userFacingMessageWithReference)
+        } catch {
+            SpotLinkLogger.warn("account_deletion_request_failed error=\(error.localizedDescription)")
+            profileAlert = ProfileAlert(
+                title: "Zahtev nije poslat",
+                message: "Zahtev trenutno nije moguce poslati. Pokusajte ponovo."
+            )
+        }
+    }
+
     @ViewBuilder
     private func infoRow(title: String, value: String) -> some View {
         HStack {
@@ -180,5 +257,11 @@ struct ProfileOverviewView: View {
                 .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                 .multilineTextAlignment(.trailing)
         }
+    }
+
+    private struct ProfileAlert: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
     }
 }

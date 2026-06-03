@@ -22,9 +22,11 @@ import com.spotlink.partner.ConfirmationMode;
 import com.spotlink.payment.PaymentAttempt;
 import com.spotlink.payment.PaymentAttemptRepository;
 import com.spotlink.payment.PaymentAttemptStatus;
+import com.spotlink.payment.PaymentAuthority;
 import com.spotlink.payment.PaymentDtos;
 import com.spotlink.payment.PaymentProviderEvent;
 import com.spotlink.payment.PaymentProviderEventRepository;
+import com.spotlink.payment.PaymentProviderEventStatus;
 import com.spotlink.payment.Refund;
 import com.spotlink.payment.RefundRepository;
 import com.spotlink.security.CurrentUserService;
@@ -67,6 +69,7 @@ public class BookingOperationsService {
     private final CheckinRepository checkins;
     private final PaymentAttemptRepository paymentAttempts;
     private final PaymentProviderEventRepository paymentProviderEvents;
+    private final PaymentAuthority paymentAuthority;
     private final RefundRepository refunds;
     private final SupportTicketRepository supportTickets;
     private final InventoryPoolService inventoryPools;
@@ -89,6 +92,7 @@ public class BookingOperationsService {
             CheckinRepository checkins,
             PaymentAttemptRepository paymentAttempts,
             PaymentProviderEventRepository paymentProviderEvents,
+            PaymentAuthority paymentAuthority,
             RefundRepository refunds,
             SupportTicketRepository supportTickets,
             InventoryPoolService inventoryPools,
@@ -109,6 +113,7 @@ public class BookingOperationsService {
         this.checkins = checkins;
         this.paymentAttempts = paymentAttempts;
         this.paymentProviderEvents = paymentProviderEvents;
+        this.paymentAuthority = paymentAuthority;
         this.refunds = refunds;
         this.supportTickets = supportTickets;
         this.inventoryPools = inventoryPools;
@@ -305,6 +310,7 @@ public class BookingOperationsService {
             consumeHold(reservation);
             createPayOnArrivalAttempt(reservation, now);
         } else {
+            paymentAuthority.requireOnlinePaymentsEnabled();
             applyTransition(reservation, ReservationStatus.PENDING_PAYMENT, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.OPERATOR,
                     actorUserId, notes);
             Instant paymentExpiresAt = now.plus(Duration.ofMinutes(appProperties.getQuoteTtlMinutes()));
@@ -488,6 +494,7 @@ public class BookingOperationsService {
             consumeHold(reservation);
             createPayOnArrivalAttempt(reservation, now);
         } else {
+            paymentAuthority.requireOnlinePaymentsEnabled();
             applyTransition(reservation, ReservationStatus.PENDING_PAYMENT, BookingEventType.OPERATOR_CONFIRMED, BookingActorType.ADMIN,
                     actorUserId, notes);
             Instant paymentExpiresAt = now.plus(Duration.ofMinutes(appProperties.getQuoteTtlMinutes()));
@@ -540,6 +547,11 @@ public class BookingOperationsService {
         if (attempt != null) {
             attempt.setStatus(PaymentAttemptStatus.REFUND_MARKED);
             attempt.setLastTransitionAt(Instant.now(clock));
+            recordPaymentProviderEvent(
+                    attempt,
+                    "refund:" + saved.getId() + ":marked",
+                    "REFUND_MARKED",
+                    metadata("refundId", saved.getId(), "amountCents", saved.getAmountCents(), "reason", reason));
         }
         recordEvent(reservationId, BookingEventType.REFUND_MARKED, BookingActorType.ADMIN, actorUserId, reason,
                 metadata("refundId", saved.getId(), "amountCents", saved.getAmountCents()));
@@ -638,6 +650,9 @@ public class BookingOperationsService {
                 : requestedMode;
         if (paymentMode == PaymentMode.PAY_ON_ARRIVAL && !pool.isPayOnArrivalEnabled()) {
             throw new ConflictException("PAY_ON_ARRIVAL_NOT_AVAILABLE", "Pay on arrival is not available for this inventory.");
+        }
+        if (paymentMode == PaymentMode.ONLINE) {
+            paymentAuthority.requireOnlinePaymentsEnabled();
         }
         return paymentMode;
     }
@@ -780,8 +795,32 @@ public class BookingOperationsService {
             if (attempt.getStatus() == PaymentAttemptStatus.PENDING || attempt.getStatus() == PaymentAttemptStatus.REQUIRES_ACTION) {
                 attempt.setStatus(PaymentAttemptStatus.CANCELLED);
                 attempt.setLastTransitionAt(Instant.now(clock));
+                recordPaymentProviderEvent(
+                        attempt,
+                        attempt.getId() + ":LOCAL_CANCELLED",
+                        "LOCAL_CANCELLED",
+                        metadata("reservationId", reservationId));
             }
         }
+    }
+
+    private void recordPaymentProviderEvent(
+            PaymentAttempt attempt,
+            String externalEventId,
+            String eventType,
+            Map<String, Object> payload) {
+        if (paymentProviderEvents.existsByProviderAndExternalEventId(attempt.getProvider(), externalEventId)) {
+            return;
+        }
+        PaymentProviderEvent event = new PaymentProviderEvent();
+        event.setPaymentAttemptId(attempt.getId());
+        event.setProvider(attempt.getProvider());
+        event.setExternalEventId(externalEventId);
+        event.setEventType(eventType);
+        event.setPayload(serializePayload(payload));
+        event.setStatus(PaymentProviderEventStatus.PROCESSED);
+        event.setProcessedAt(Instant.now(clock));
+        paymentProviderEvents.save(event);
     }
 
     private void recordEvent(

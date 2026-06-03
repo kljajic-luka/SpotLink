@@ -25,21 +25,33 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let tokenProvider: TokenProvider
+    private let unauthorizedHandler: (@Sendable () async -> Void)?
 
-    public convenience init(baseURL: URL, tokenProvider: TokenProvider) {
+    public convenience init(
+        baseURL: URL,
+        tokenProvider: TokenProvider,
+        unauthorizedHandler: (@Sendable () async -> Void)? = nil
+    ) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.init(
             baseURL: baseURL,
             tokenProvider: tokenProvider,
-            session: URLSession(configuration: config)
+            session: URLSession(configuration: config),
+            unauthorizedHandler: unauthorizedHandler
         )
     }
 
-    init(baseURL: URL, tokenProvider: TokenProvider, session: URLSession) {
+    init(
+        baseURL: URL,
+        tokenProvider: TokenProvider,
+        session: URLSession,
+        unauthorizedHandler: (@Sendable () async -> Void)? = nil
+    ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
+        self.unauthorizedHandler = unauthorizedHandler
 
         self.session = session
 
@@ -153,7 +165,8 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 401:
-            throw APIError.unauthorized
+            await unauthorizedHandler?()
+            throw APIError.unauthorized(context)
         case 403:
             throw APIError.forbidden
         case 404:

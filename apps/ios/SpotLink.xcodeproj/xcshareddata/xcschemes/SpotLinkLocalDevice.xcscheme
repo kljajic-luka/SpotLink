@@ -16,7 +16,7 @@
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "BB0000000000000000000001"
                BuildableName = "SpotLink.app"
-               BlueprintName = "SpotLink"
+               BlueprintName = "SpotLinkApp"
                ReferencedContainer = "container:SpotLink.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -77,6 +77,13 @@
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "SPOTLINK_UITEST_APP_BUNDLE_IDENTIFIER"
+            value = "com.spotlink.app"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -94,7 +101,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BB0000000000000000000001"
             BuildableName = "SpotLink.app"
-            BlueprintName = "SpotLink"
+            BlueprintName = "SpotLinkApp"
             ReferencedContainer = "container:SpotLink.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -123,7 +130,7 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BB0000000000000000000001"
             BuildableName = "SpotLink.app"
-            BlueprintName = "SpotLink"
+            BlueprintName = "SpotLinkApp"
             ReferencedContainer = "container:SpotLink.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

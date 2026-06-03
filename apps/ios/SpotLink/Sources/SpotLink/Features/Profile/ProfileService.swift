@@ -20,4 +20,8 @@ public final class ProfileService: Sendable {
     public func updateProfile(_ request: UpdateProfileRequest) async throws -> UserProfileDetails {
         try await apiClient.patch("/users/me/profile", body: request)
     }
+
+    public func requestAccountDeletion() async throws -> SupportTicket {
+        try await apiClient.post("/users/me/deletion-request", body: AccountDeletionRequest())
+    }
 }

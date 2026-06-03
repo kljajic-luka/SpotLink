@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 
 import { ApiClient, ApiPage } from '@foundation/networking';
 import {
+  AccountDeletionFulfillmentResponse,
   AdminActionRequest,
   AdminAuditEvent,
   AdminBookingDetail,
@@ -123,5 +124,12 @@ export class AdminService {
         size,
       },
     });
+  }
+
+  processAccountDeletion(ticketId: string): Observable<AccountDeletionFulfillmentResponse> {
+    return this.api.post<AccountDeletionFulfillmentResponse, Record<string, never>>(
+      `/admin/support-cases/${encodeURIComponent(ticketId)}/process-account-deletion`,
+      {},
+    );
   }
 }

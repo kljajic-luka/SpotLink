@@ -9,10 +9,16 @@ public final class AuthService: ObservableObject {
 
     private let apiClient: APIClientProtocol
     private let session: SessionManager
+    private let pushLifecycle: PushDeviceTokenLifecycle?
 
-    public init(apiClient: APIClientProtocol, session: SessionManager) {
+    public init(
+        apiClient: APIClientProtocol,
+        session: SessionManager,
+        pushLifecycle: PushDeviceTokenLifecycle? = nil
+    ) {
         self.apiClient = apiClient
         self.session = session
+        self.pushLifecycle = pushLifecycle
     }
 
     // MARK: - Login
@@ -22,6 +28,7 @@ public final class AuthService: ObservableObject {
         let request = MobileTokenRequest(email: email, password: password)
         let tokenResponse: MobileTokenResponse = try await apiClient.post("/auth/token", body: request)
         session.establish(tokenResponse)
+        await syncPushTokenIfAuthenticated()
     }
 
     /// Registracija novog kupca.
@@ -30,6 +37,7 @@ public final class AuthService: ObservableObject {
         let tokenResponse: MobileTokenResponse = try await apiClient.post("/auth/token", body: MobileTokenRequest(
             email: request.email, password: request.password))
         session.establish(tokenResponse)
+        await syncPushTokenIfAuthenticated()
     }
 
     /// Registracija novog operatora.
@@ -38,6 +46,7 @@ public final class AuthService: ObservableObject {
         let tokenResponse: MobileTokenResponse = try await apiClient.post("/auth/token", body: MobileTokenRequest(
             email: request.email, password: request.password))
         session.establish(tokenResponse)
+        await syncPushTokenIfAuthenticated()
     }
 
     // MARK: - Password Reset
@@ -57,6 +66,7 @@ public final class AuthService: ObservableObject {
     // MARK: - Logout
 
     public func logout() async {
+        await pushLifecycle?.unregisterKnownDeviceTokenBeforeLogout()
         if let refreshToken = session.currentRefreshToken() {
             do {
                 let _: EmptyResponse = try await apiClient.post(
@@ -71,18 +81,25 @@ public final class AuthService: ObservableObject {
 
     public func refreshSession() async throws {
         guard let refreshToken = session.currentRefreshToken() else {
-            throw APIError.unauthorized
+            throw APIError.unauthorized()
         }
         let tokenResponse: MobileTokenResponse = try await apiClient.post(
             "/auth/token/refresh",
             body: RefreshTokenRequest(refreshToken: refreshToken))
         session.establish(tokenResponse)
+        await syncPushTokenIfAuthenticated()
     }
 
     // MARK: - Session Restore
 
     public func restoreSession() async {
         await session.restoreSession()
+        await syncPushTokenIfAuthenticated()
+    }
+
+    private func syncPushTokenIfAuthenticated() async {
+        guard session.state.isAuthenticated else { return }
+        await pushLifecycle?.uploadKnownDeviceTokenIfAuthenticated()
     }
 }
 

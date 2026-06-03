@@ -1,5 +1,6 @@
 package com.spotlink.payment;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -10,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, UUID> {
 
     Optional<PaymentAttempt> findByCustomerIdAndIdempotencyKey(UUID customerId, String idempotencyKey);
+
+    long countByCustomerIdAndStatusIn(UUID customerId, Collection<PaymentAttemptStatus> statuses);
 
     List<PaymentAttempt> findByReservationIdOrderByCreatedAtDesc(UUID reservationId);
 

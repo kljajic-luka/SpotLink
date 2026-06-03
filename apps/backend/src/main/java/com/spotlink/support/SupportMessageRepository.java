@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SupportMessageRepository extends JpaRepository<SupportMessage, UUID> {
 
     List<SupportMessage> findByTicketIdOrderByCreatedAtAsc(UUID ticketId);
+
+    List<SupportMessage> findBySenderUserId(UUID senderUserId);
 }

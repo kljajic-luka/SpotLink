@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Observable, finalize } from 'rxjs';
 
 import {
+  AccountDeletionFulfillmentResponse,
   AdminAuditEvent,
   AdminBookingDetail,
   AdminPaymentAttempt,
@@ -26,7 +27,7 @@ import {
   SupportCase,
 } from '@foundation/reservations';
 
-type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
+type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator' | 'account-deletion';
 
 @Component({
   selector: 'sl-admin-portal',
@@ -377,6 +378,17 @@ type AdminActionKey = 'cancel' | 'refund' | 'pause-location' | 'pause-operator';
                   <strong>{{ supportCase.subject }}</strong>
                   <span>{{ supportLabel(supportCase) }}</span>
                   <small>{{ formatDateTime(supportCase.updatedAt) }}</small>
+                  @if (isAccountDeletionCase(supportCase) && supportCase.status !== 'RESOLVED') {
+                    <sl-ui-button
+                      variant="danger"
+                      size="sm"
+                      [loading]="actionBusy() === 'account-deletion'"
+                      [disabled]="actionBusy() !== null"
+                      (clicked)="processAccountDeletion(supportCase)"
+                    >
+                      Process deletion
+                    </sl-ui-button>
+                  }
                 </article>
               } @empty {
                 <p class="muted">No support cases loaded.</p>
@@ -825,6 +837,27 @@ export class AdminPortalComponent implements OnInit {
     });
   }
 
+  processAccountDeletion(supportCase: AdminSupportCase): void {
+    if (!this.isAccountDeletionCase(supportCase)) {
+      return;
+    }
+    if (!this.confirmManualAction('Process this account deletion request?')) {
+      return;
+    }
+
+    this.actionBusy.set('account-deletion');
+    this.actionError.set(null);
+    this.flashMessage.set(null);
+
+    this.adminService
+      .processAccountDeletion(supportCase.id)
+      .pipe(finalize(() => this.actionBusy.set(null)))
+      .subscribe({
+        next: (result) => this.handleAccountDeletionResult(result),
+        error: (error) => this.actionError.set(this.toErrorMessage(error, 'Account deletion processing failed.')),
+      });
+  }
+
   canCancel(status: ReservationStatus): boolean {
     return !['CANCELLED', 'COMPLETED', 'EXPIRED', 'NO_SHOW', 'REJECTED'].includes(status);
   }
@@ -943,6 +976,10 @@ export class AdminPortalComponent implements OnInit {
     return supportCase.status.replaceAll('_', ' ');
   }
 
+  isAccountDeletionCase(supportCase: SupportCase): boolean {
+    return supportCase.category === 'ACCOUNT' && supportCase.subject === 'Account deletion request';
+  }
+
   metadataSummary(event: AdminAuditEvent): string {
     if (!event.metadata) {
       return 'No metadata';
@@ -1036,6 +1073,24 @@ export class AdminPortalComponent implements OnInit {
     this.searchBookings();
   }
 
+  private handleAccountDeletionResult(result: AccountDeletionFulfillmentResponse): void {
+    if (result.status === 'BLOCKED') {
+      this.actionError.set(
+        `Account deletion blocked: ${result.blockers
+          .map((blocker) => `${blocker.code} (${blocker.count})`)
+          .join(', ')}`,
+      );
+    } else {
+      this.flashMessage.set(
+        result.status === 'ALREADY_PROCESSED'
+          ? 'Account deletion was already processed. Audit events refreshed.'
+          : 'Account deletion processed. Audit events refreshed.',
+      );
+    }
+    this.loadSupportCases();
+    this.loadAuditEvents();
+  }
+
   private successMessageFor(action: AdminActionKey): string {
     switch (action) {
       case 'cancel':
@@ -1046,6 +1101,8 @@ export class AdminPortalComponent implements OnInit {
         return 'Location paused. Audit events refreshed.';
       case 'pause-operator':
         return 'Operator paused. Audit events refreshed.';
+      case 'account-deletion':
+        return 'Account deletion processed. Audit events refreshed.';
     }
   }
 

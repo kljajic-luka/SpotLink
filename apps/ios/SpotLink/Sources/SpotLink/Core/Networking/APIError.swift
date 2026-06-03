@@ -33,7 +33,7 @@ public struct APIErrorContext: Sendable, Equatable {
 
 /// Mapira backend ApiErrorResponse na Swift error.
 public enum APIError: Error, Sendable {
-    case unauthorized
+    case unauthorized(APIErrorContext? = nil)
     case forbidden
     case notFound(APIErrorContext)
     case conflict(APIErrorContext)
@@ -79,6 +79,8 @@ public enum APIError: Error, Sendable {
 
     public var code: String? {
         switch self {
+        case .unauthorized(let context):
+            return context?.code
         case .notFound(let context), .conflict(let context), .validation(let context):
             return context.code
         case .serverError(_, let context), .unknown(_, let context):
@@ -90,6 +92,8 @@ public enum APIError: Error, Sendable {
 
     public var requestId: String? {
         switch self {
+        case .unauthorized(let context):
+            return context?.requestId
         case .notFound(let context), .conflict(let context), .validation(let context):
             return context.requestId
         case .serverError(_, let context), .unknown(_, let context):

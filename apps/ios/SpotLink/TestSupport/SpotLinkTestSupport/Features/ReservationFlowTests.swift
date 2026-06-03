@@ -115,6 +115,23 @@ private func makePaymentMethod() -> PaymentMethod {
     )
 }
 
+private func makePaymentCapabilities(onlinePaymentsEnabled: Bool = true) -> PaymentCapabilities {
+    PaymentCapabilities(
+        onlinePaymentsEnabled: onlinePaymentsEnabled,
+        activeProvider: onlinePaymentsEnabled ? "MOCK" : "UNCONFIGURED",
+        mockProvider: onlinePaymentsEnabled,
+        mockPaymentMethodsAllowed: onlinePaymentsEnabled,
+        operations: PaymentOperationCapabilities(
+            authorize: onlinePaymentsEnabled,
+            capture: onlinePaymentsEnabled,
+            cancel: onlinePaymentsEnabled,
+            refund: onlinePaymentsEnabled,
+            webhook: false,
+            reconciliation: false
+        )
+    )
+}
+
 private func makeQuote(start: Date, end: Date) -> ReservationQuote {
     ReservationQuote(
         resourceId: "res-001",
@@ -306,6 +323,8 @@ struct ReservationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
             case "/payments/methods":
                 return [PaymentMethod]()
             case "/reservations/\(reservation.id)":
@@ -376,6 +395,8 @@ struct ReservationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
             case "/payments/methods":
                 return [paymentMethod]
             case "/reservations/\(reservation.id)":
@@ -425,13 +446,50 @@ struct ReservationFlowTests {
 
     @Test("booking flow ogranicava placanje na mode koji resurs podrzava")
     @MainActor
-    func bookingFlowRestrictsPaymentModesToSelectedResourceCapabilities() {
+    func bookingFlowRestrictsPaymentModesToSelectedResourceCapabilities() async {
+        let client = BookingMockAPIClient()
         let result = makeBookingLocationResult(supportedPaymentModes: [.online])
         let reservation = makeReservation(status: .pendingPayment, paymentMode: .online)
+        let vehicle = makeVehicle()
+        let paymentMethod = makePaymentMethod()
+        let reservationService = ReservationService(apiClient: client)
+        let locationService = LocationService(apiClient: client)
+        let vehicleService = VehicleService(apiClient: client)
+        let paymentService = PaymentService(apiClient: client)
+
+        client.getHandler = { path, _ in
+            switch path {
+            case "/vehicles/me":
+                return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
+            case "/payments/methods":
+                return [paymentMethod]
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat GET put: \(path)"))
+            }
+        }
+
+        client.postHandler = { path, _ in
+            switch path {
+            case "/reservations/quote":
+                return makeQuote(start: reservation.startsAt, end: reservation.endsAt)
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat POST put: \(path)"))
+            }
+        }
+
         let viewModel = ReservationBookingViewModel(
             result: result,
             initialStartsAt: reservation.startsAt,
             initialEndsAt: reservation.endsAt
+        )
+
+        await viewModel.loadIfNeeded(
+            reservationService: reservationService,
+            locationService: locationService,
+            vehicleService: vehicleService,
+            paymentService: paymentService
         )
 
         #expect(viewModel.availablePaymentModes == [.online])
@@ -441,6 +499,61 @@ struct ReservationFlowTests {
         viewModel.paymentModeChanged()
 
         #expect(viewModel.selectedPaymentMode == .online)
+    }
+
+    @Test("booking flow sakriva online placanje kada backend capabilities kazu da nije dostupno")
+    func bookingFlowFallsBackWhenOnlinePaymentCapabilitiesAreDisabled() async {
+        let client = BookingMockAPIClient()
+        let result = makeBookingLocationResult(supportedPaymentModes: [.online, .payOnArrival])
+        let reservation = makeReservation(status: .confirmed, paymentMode: .payOnArrival)
+        let vehicle = makeVehicle()
+        let reservationService = ReservationService(apiClient: client)
+        let locationService = LocationService(apiClient: client)
+        let vehicleService = VehicleService(apiClient: client)
+        let paymentService = PaymentService(apiClient: client)
+
+        client.getHandler = { path, _ in
+            switch path {
+            case "/vehicles/me":
+                return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities(onlinePaymentsEnabled: false)
+            case "/payments/methods":
+                throw APIError.serverError(500, APIErrorContext(message: "Nacini placanja ne smeju biti trazeni kada online nije dostupan"))
+            case "/reservations/\(reservation.id)":
+                return reservation
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat GET put: \(path)"))
+            }
+        }
+
+        client.postHandler = { path, _ in
+            switch path {
+            case "/reservations/quote":
+                return makeQuote(start: reservation.startsAt, end: reservation.endsAt)
+            default:
+                throw APIError.notFound(APIErrorContext(message: "Nepoznat POST put: \(path)"))
+            }
+        }
+
+        let viewModel = ReservationBookingViewModel(
+            result: result,
+            initialStartsAt: reservation.startsAt,
+            initialEndsAt: reservation.endsAt
+        )
+
+        await viewModel.loadIfNeeded(
+            reservationService: reservationService,
+            locationService: locationService,
+            vehicleService: vehicleService,
+            paymentService: paymentService
+        )
+
+        #expect(viewModel.onlinePaymentsAvailable == false)
+        #expect(viewModel.availablePaymentModes == [.payOnArrival])
+        #expect(viewModel.selectedPaymentMode == .payOnArrival)
+        #expect(viewModel.paymentMethods.isEmpty)
+        #expect(viewModel.paymentCapabilityText.contains("Online placanje trenutno nije dostupno"))
     }
 
     @Test("booking flow zadrzava isti reservation idempotency key kroz retry")
@@ -483,6 +596,8 @@ struct ReservationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
             case "/payments/methods":
                 return [paymentMethod]
             case "/reservations/\(reservation.id)":
@@ -578,6 +693,8 @@ struct ReservationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
             case "/payments/methods":
                 return [paymentMethod]
             default:
@@ -660,6 +777,8 @@ struct ReservationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [vehicle]
+            case "/payments/capabilities":
+                return makePaymentCapabilities()
             case "/payments/methods":
                 return [paymentMethod]
             default:

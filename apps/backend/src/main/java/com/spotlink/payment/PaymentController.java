@@ -20,6 +20,11 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
+    @GetMapping({"/payments/capabilities", "/v1/payments/capabilities"})
+    PaymentDtos.PaymentCapabilitiesDto capabilities() {
+        return paymentService.capabilities();
+    }
+
     @GetMapping({"/payments/methods", "/v1/payments/methods"})
     List<PaymentDtos.PaymentMethodDto> methods() {
         return paymentService.methods();
@@ -34,5 +39,10 @@ public class PaymentController {
     @PostMapping({"/payments/intents/{paymentIntentId}/confirm", "/v1/payments/intents/{paymentIntentId}/confirm"})
     PaymentDtos.PaymentProviderResult confirm(@PathVariable UUID paymentIntentId) {
         return paymentService.confirm(paymentIntentId);
+    }
+
+    @PostMapping({"/payments/intents/{paymentIntentId}/cancel", "/v1/payments/intents/{paymentIntentId}/cancel"})
+    PaymentDtos.PaymentProviderResult cancel(@PathVariable UUID paymentIntentId) {
+        return paymentService.cancel(paymentIntentId);
     }
 }

@@ -1,11 +1,33 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
-import { CreatePaymentIntentRequest, PaymentIntent, PaymentProviderResult } from './payment.models';
+import {
+  CreatePaymentIntentRequest,
+  PaymentCapabilities,
+  PaymentIntent,
+  PaymentProviderResult,
+} from './payment.models';
 import { PaymentProviderAdapter } from './payment-provider.adapter';
 
 @Injectable({ providedIn: 'root' })
 export class MockPaymentAdapter extends PaymentProviderAdapter {
+  override capabilities(): Observable<PaymentCapabilities> {
+    return of({
+      onlinePaymentsEnabled: true,
+      activeProvider: 'MOCK',
+      mockProvider: true,
+      mockPaymentMethodsAllowed: true,
+      operations: {
+        authorize: true,
+        capture: true,
+        cancel: true,
+        refund: true,
+        webhook: false,
+        reconciliation: false,
+      },
+    });
+  }
+
   override createIntent(payload: CreatePaymentIntentRequest): Observable<PaymentIntent> {
     return of({
       id: `mock_pi_${payload.idempotencyKey}`,

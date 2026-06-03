@@ -90,13 +90,16 @@ public class AuthService {
     @Transactional
     public void requestPasswordReset(AuthDtos.PasswordResetRequest request) {
         users.findByEmailIgnoreCase(request.email()).ifPresent(user -> {
+            if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
+                return;
+            }
             String token = "sl_reset_" + UUID.randomUUID();
             PasswordResetToken resetToken = new PasswordResetToken();
             resetToken.setUserId(user.getId());
             resetToken.setTokenHash(hashToken(token));
             resetToken.setExpiresAt(Instant.now(clock).plus(30, ChronoUnit.MINUTES));
             resetTokens.save(resetToken);
-            log.info("Password reset token generated for userId={} tokenPrefix={}", user.getId(), token.substring(0, 12));
+            log.info("Password reset token generated for userId={}", user.getId());
         });
     }
 
@@ -109,6 +112,10 @@ public class AuthService {
         }
         User user = users.findById(token.getUserId())
                 .orElseThrow(() -> new NotFoundException("User not found."));
+        if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
+            token.setConsumedAt(Instant.now(clock));
+            throw new NotFoundException("Password reset token was not found or has already been used.");
+        }
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         token.setConsumedAt(Instant.now(clock));
     }

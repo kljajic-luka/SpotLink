@@ -37,6 +37,23 @@ public struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: session.state.isAuthenticated)
+        .alert(
+            "Sesija zavrsena",
+            isPresented: Binding(
+                get: { session.signOutNotice != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        session.clearSignOutNotice()
+                    }
+                }
+            )
+        ) {
+            Button("U redu") {
+                session.clearSignOutNotice()
+            }
+        } message: {
+            Text(session.signOutNotice ?? "")
+        }
     }
 
     private var shouldUseDebugAutoLogin: Bool {

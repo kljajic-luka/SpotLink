@@ -8,8 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spotlink.payment.PaymentAttempt;
+import com.spotlink.payment.PaymentAttemptRepository;
+import com.spotlink.payment.PaymentProviderEventRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -32,6 +36,12 @@ class PaymentFoundationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private PaymentAttemptRepository paymentAttempts;
+
+    @Autowired
+    private PaymentProviderEventRepository paymentProviderEvents;
 
     @Test
     void paymentIntentFlowMatchesFrontendContract() throws Exception {
@@ -64,6 +74,18 @@ class PaymentFoundationTest {
         String reservationId = objectMapper.readTree(reservationResult.getResponse().getContentAsString())
                 .get("id")
                 .asText();
+
+        mockMvc.perform(get("/payments/capabilities").session(customerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onlinePaymentsEnabled").value(true))
+                .andExpect(jsonPath("$.activeProvider").value("MOCK"))
+                .andExpect(jsonPath("$.mockProvider").value(true))
+                .andExpect(jsonPath("$.mockPaymentMethodsAllowed").value(true))
+                .andExpect(jsonPath("$.operations.authorize").value(true))
+                .andExpect(jsonPath("$.operations.cancel").value(true))
+                .andExpect(jsonPath("$.operations.refund").value(true))
+                .andExpect(jsonPath("$.operations.webhook").value(false))
+                .andExpect(jsonPath("$.operations.reconciliation").value(false));
 
         mockMvc.perform(get("/payments/methods").session(customerSession))
                 .andExpect(status().isOk())
@@ -106,6 +128,12 @@ class PaymentFoundationTest {
 
         JsonNode secondIntent = objectMapper.readTree(replayedIntent.getResponse().getContentAsString());
         Assertions.assertThat(secondIntent.get("id").asText()).isEqualTo(firstIntent.get("id").asText());
+        List<PaymentAttempt> attempts = paymentAttempts.findByReservationIdOrderByCreatedAtDesc(UUID.fromString(reservationId));
+        Assertions.assertThat(attempts).hasSize(1);
+        Assertions.assertThat(paymentProviderEvents.findByPaymentAttemptIdOrderByCreatedAtDesc(attempts.get(0).getId()))
+                .hasSize(1)
+                .extracting("eventType")
+                .containsExactly("AUTHORIZE_AUTHORIZED");
 
         mockMvc.perform(get("/reservations/%s".formatted(reservationId)).session(customerSession))
                 .andExpect(status().isOk())
@@ -120,6 +148,57 @@ class PaymentFoundationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("AUTHORIZED"))
                 .andExpect(jsonPath("$.paymentIntentId").value(firstIntent.get("id").asText()));
+    }
+
+    @Test
+    void cancellingRequiresActionIntentIsIdempotentAndRecordsProviderEventOnce() throws Exception {
+        MockHttpSession operatorSession = registerOperator();
+        UUID resourceId = createParkingResource(operatorSession);
+        MockHttpSession customerSession = registerCustomer();
+        String reservationId = createOnlineReservation(customerSession, resourceId);
+
+        String paymentIdempotencyKey = "sl_pay_" + UUID.randomUUID();
+        MvcResult createdIntent = mockMvc.perform(post("/payments/intents")
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reservationId": "%s",
+                                  "paymentMethodId": "pm_card_sca_required",
+                                  "idempotencyKey": "%s"
+                                }
+                                """.formatted(reservationId, paymentIdempotencyKey)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("REQUIRES_ACTION"))
+                .andReturn();
+
+        JsonNode intent = objectMapper.readTree(createdIntent.getResponse().getContentAsString());
+        String intentId = intent.get("id").asText();
+
+        mockMvc.perform(post("/payments/intents/%s/cancel".formatted(intentId))
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.paymentIntentId").value(intentId));
+
+        mockMvc.perform(post("/payments/intents/%s/cancel".formatted(intentId))
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        List<PaymentAttempt> attempts = paymentAttempts.findByReservationIdOrderByCreatedAtDesc(UUID.fromString(reservationId));
+        Assertions.assertThat(attempts).hasSize(1);
+        Assertions.assertThat(paymentProviderEvents.findByPaymentAttemptIdOrderByCreatedAtDesc(attempts.get(0).getId()))
+                .hasSize(2)
+                .extracting("eventType")
+                .containsExactly("CANCEL_CANCELLED", "AUTHORIZE_REQUIRES_ACTION");
     }
 
     private MockHttpSession registerOperator() throws Exception {
@@ -161,6 +240,30 @@ class PaymentFoundationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
+    private String createOnlineReservation(MockHttpSession customerSession, UUID resourceId) throws Exception {
+        Instant startsAt = alignedFutureStart(3);
+        Instant endsAt = startsAt.plus(2, ChronoUnit.HOURS);
+        MvcResult reservationResult = mockMvc.perform(post("/reservations")
+                        .with(csrf())
+                        .session(customerSession)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": "%s",
+                                  "paymentMode": "ONLINE",
+                                  "startsAt": "%s",
+                                  "endsAt": "%s",
+                                  "idempotencyKey": "%s"
+                                }
+                                """.formatted(resourceId, startsAt, endsAt, "sl_rez_" + UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
+                .andReturn();
+        return objectMapper.readTree(reservationResult.getResponse().getContentAsString())
+                .get("id")
+                .asText();
     }
 
     private UUID createParkingResource(MockHttpSession operatorSession) throws Exception {

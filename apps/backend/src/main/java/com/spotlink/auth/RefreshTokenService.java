@@ -1,6 +1,7 @@
 package com.spotlink.auth;
 
 import com.spotlink.core.AppProperties;
+import com.spotlink.user.RegistrationStatus;
 import com.spotlink.user.User;
 import com.spotlink.user.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -42,6 +43,9 @@ public class RefreshTokenService {
 
     @Transactional
     public IssuedRefreshToken issue(User user, String deviceId, String userAgent) {
+        if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
+            throw new BadCredentialsException("Refresh token user is not active.");
+        }
         Instant issuedAt = Instant.now(clock);
         Instant expiresAt = issuedAt.plus(appProperties.getJwt().getRefreshTokenTtlDays(), ChronoUnit.DAYS);
         String rawToken = generateToken();
@@ -80,6 +84,10 @@ public class RefreshTokenService {
 
         User user = users.findById(existing.getUserId())
                 .orElseThrow(() -> new BadCredentialsException("Refresh token user was not found."));
+        if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
+            revokeAllForUser(existing.getUserId(), now);
+            throw new BadCredentialsException("Refresh token user is not active.");
+        }
         IssuedRefreshToken replacement = issue(user, deviceId, userAgent);
         existing.setRevokedAt(now);
         existing.setReplacedByTokenId(replacement.entity().getId());

@@ -9,6 +9,10 @@ const config: SpotLinkAppConfig = {
   appName: 'SpotLink test',
   baseApiUrl: 'https://api.test.spotlink.local',
   supportEmail: 'support@test.spotlink.local',
+  supportUrl: 'https://help.test.spotlink.local/support',
+  privacyPolicyUrl: 'https://help.test.spotlink.local/privacy',
+  termsUrl: 'https://help.test.spotlink.local/terms',
+  accountDeletionUrl: 'https://help.test.spotlink.local/account-deletion',
   defaultLocale: 'sr-RS',
 };
 
@@ -112,6 +116,22 @@ describe('AdminService', () => {
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ reason: 'risk hold' });
     req.flush({ targetId: 'op-001', affectedPools: 4, reason: 'risk hold' });
+
+    service.processAccountDeletion('support-001').subscribe((response) => {
+      expect(response.status).toBe('PROCESSED');
+    });
+    req = httpMock.expectOne(
+      'https://api.test.spotlink.local/admin/support-cases/support-001/process-account-deletion',
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({
+      ticketId: 'support-001',
+      userId: 'user-001',
+      status: 'PROCESSED',
+      blockers: [],
+      processedAt: '2026-04-26T10:15:00Z',
+    });
   });
 
   it('loads admin inspection feeds', () => {

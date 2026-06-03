@@ -28,6 +28,12 @@ public final class NotificationDtos {
     ) {
     }
 
+    public record UnregisterDeviceTokenRequest(
+            @NotBlank @Size(max = 500) String deviceToken,
+            @NotNull DevicePlatform platform
+    ) {
+    }
+
     public record UnreadNotificationCount(long count) {
     }
 }

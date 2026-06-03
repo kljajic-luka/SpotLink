@@ -9,6 +9,10 @@ const config: SpotLinkAppConfig = {
   appName: 'SpotLink test',
   baseApiUrl: 'https://api.test.spotlink.local',
   supportEmail: 'support@test.spotlink.local',
+  supportUrl: 'https://help.test.spotlink.local/support',
+  privacyPolicyUrl: 'https://help.test.spotlink.local/privacy',
+  termsUrl: 'https://help.test.spotlink.local/terms',
+  accountDeletionUrl: 'https://help.test.spotlink.local/account-deletion',
   defaultLocale: 'sr-RS',
 };
 

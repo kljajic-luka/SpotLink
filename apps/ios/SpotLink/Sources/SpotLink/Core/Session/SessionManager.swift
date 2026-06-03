@@ -51,8 +51,10 @@ enum SessionStorageKey {
 public final class SessionManager: ObservableObject, TokenProvider {
 
     public static let shared = SessionManager()
+    public static let remoteUnauthorizedNotice = "Sesija je zavrsena. Ako je zahtev za brisanje naloga obradjen, nalog vise nije aktivan."
 
     @Published public private(set) var state: SessionState = .loading
+    @Published public private(set) var signOutNotice: String?
 
     private let keychain: KeychainStorage
     private let preferences: PreferenceStorage
@@ -150,9 +152,19 @@ public final class SessionManager: ObservableObject, TokenProvider {
     }
 
     /// Odjava – brise token i postavlja unauthenticated state.
-    public func signOut() {
+    public func signOut(notice: String? = nil) {
         clearSession()
+        signOutNotice = notice
         state = .unauthenticated
+    }
+
+    public func handleRemoteUnauthorized() {
+        guard state.isAuthenticated else { return }
+        signOut(notice: Self.remoteUnauthorizedNotice)
+    }
+
+    public func clearSignOutNotice() {
+        signOutNotice = nil
     }
 
     // MARK: - Private
@@ -168,8 +180,7 @@ public final class SessionManager: ObservableObject, TokenProvider {
     private func refreshableAccessToken() async -> String? {
         guard let info = state.sessionInfo else { return nil }
         if info.isRefreshExpired {
-            clearSession()
-            state = .unauthenticated
+            signOut()
             return nil
         }
         guard info.isExpiringSoon else { return info.accessToken }
@@ -191,16 +202,14 @@ public final class SessionManager: ObservableObject, TokenProvider {
             request.httpBody = try encoder.encode(RefreshTokenRequest(refreshToken: refreshToken))
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                clearSession()
-                state = .unauthenticated
+                signOut(notice: Self.remoteUnauthorizedNotice)
                 return nil
             }
             let tokenResponse = try decoder.decode(MobileTokenResponse.self, from: data)
             establish(tokenResponse)
             return tokenResponse.accessToken
         } catch {
-            clearSession()
-            state = .unauthenticated
+            signOut(notice: Self.remoteUnauthorizedNotice)
             return nil
         }
     }

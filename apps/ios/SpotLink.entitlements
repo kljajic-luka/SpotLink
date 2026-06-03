@@ -5,9 +5,7 @@
 
 	<!--
 	  SpotLink.entitlements
-	  Datum: 2026-04-22
-	  Status: PLACEHOLDER – mogucnosti su zakomentarisane dok
-	  ne budu konfigurisane u Apple Developer portalu.
+	  Status: intentionally empty until Apple Developer capabilities are ready.
 
 	  Pre aktiviranja bilo koje entitlement-a potrebno je:
 	  1. Registrovati Bundle ID u Apple Developer portalu

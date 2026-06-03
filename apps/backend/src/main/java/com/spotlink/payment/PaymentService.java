@@ -25,6 +25,7 @@ public class PaymentService {
     private final ReservationRepository reservations;
     private final ReservationService reservationService;
     private final PaymentProvider paymentProvider;
+    private final PaymentAuthority paymentAuthority;
     private final CurrentUserService currentUser;
     private final Clock clock;
 
@@ -35,6 +36,7 @@ public class PaymentService {
             ReservationRepository reservations,
             ReservationService reservationService,
             PaymentProvider paymentProvider,
+            PaymentAuthority paymentAuthority,
             CurrentUserService currentUser,
             Clock clock) {
         this.intents = intents;
@@ -43,11 +45,19 @@ public class PaymentService {
         this.reservations = reservations;
         this.reservationService = reservationService;
         this.paymentProvider = paymentProvider;
+        this.paymentAuthority = paymentAuthority;
         this.currentUser = currentUser;
         this.clock = clock;
     }
 
+    public PaymentDtos.PaymentCapabilitiesDto capabilities() {
+        return paymentAuthority.capabilities();
+    }
+
     public List<PaymentDtos.PaymentMethodDto> methods() {
+        if (!paymentAuthority.mockPaymentMethodsAllowed()) {
+            return List.of();
+        }
         return List.of(
                 new PaymentDtos.PaymentMethodDto("pm_card_visa", "Visa", "4242", 12, 2032, true),
                 new PaymentDtos.PaymentMethodDto("pm_card_sca_required", "Visa", "3155", 11, 2032, false));
@@ -74,6 +84,10 @@ public class PaymentService {
             reservationService.confirmAfterPayment(intent.getReservationId(), userId, paymentProvider.name(), intent.getProviderReference());
             return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), "Already confirmed");
         }
+        if (intent.getStatus() == PaymentStatus.CANCELLED) {
+            return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), "Already cancelled");
+        }
+        paymentAuthority.requireOnlinePaymentsEnabled();
         PaymentProvider.ProviderResult result = paymentProvider.authorize(new PaymentProvider.ProviderRequest(
                 intent.getId().toString(),
                 intent.getAmountCents(),
@@ -82,13 +96,42 @@ public class PaymentService {
                 intent.getIdempotencyKey()));
         applyProviderResult(intent, result);
         PaymentAttempt attempt = syncPaymentAttempt(intent, userId, result);
-        recordProviderEvent(attempt, result, Instant.now(clock));
+        recordProviderEvent(attempt, "AUTHORIZE", result, Instant.now(clock));
         if (intent.getStatus() == PaymentStatus.AUTHORIZED) {
             reservationService.confirmAfterPayment(intent.getReservationId(), userId, paymentProvider.name(), result.providerReference());
         }
         if (intent.getStatus() == PaymentStatus.FAILED) {
             reservationService.recordPaymentFailure(intent.getReservationId(), userId, paymentProvider.name(), result.message());
         }
+        return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), result.message());
+    }
+
+    @Transactional
+    public PaymentDtos.PaymentProviderResult cancel(UUID paymentIntentId) {
+        UUID userId = currentUser.userId();
+        PaymentIntent intent = intents.findById(paymentIntentId)
+                .orElseThrow(() -> new NotFoundException("Payment intent was not found."));
+        if (!intent.getCustomerId().equals(userId)) {
+            throw new AccessDeniedException("Payment intent does not belong to the current user.");
+        }
+        if (intent.getStatus() == PaymentStatus.CANCELLED) {
+            return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), "Already cancelled");
+        }
+        if (intent.getStatus() == PaymentStatus.AUTHORIZED
+                || intent.getStatus() == PaymentStatus.CAPTURED
+                || intent.getStatus() == PaymentStatus.REFUNDED) {
+            throw new ConflictException("PAYMENT_CANCEL_NOT_ALLOWED", "Payment intent can no longer be cancelled.");
+        }
+        paymentAuthority.requireOnlinePaymentsEnabled();
+        PaymentProvider.ProviderResult result = paymentProvider.cancel(new PaymentProvider.ProviderRequest(
+                intent.getId().toString(),
+                intent.getAmountCents(),
+                intent.getCurrency(),
+                null,
+                intent.getIdempotencyKey()));
+        applyProviderResult(intent, result);
+        PaymentAttempt attempt = syncPaymentAttempt(intent, userId, result);
+        recordProviderEvent(attempt, "CANCEL", result, Instant.now(clock));
         return new PaymentDtos.PaymentProviderResult(intent.getStatus(), intent.getId(), intent.getRedirectUrl(), result.message());
     }
 
@@ -123,6 +166,7 @@ public class PaymentService {
         if (reservation.getStatus() != ReservationStatus.PENDING_PAYMENT) {
             throw new ConflictException("PAYMENT_NOT_ALLOWED", "Payment is not allowed for this reservation.");
         }
+        paymentAuthority.requireOnlinePaymentsEnabled();
 
         PaymentIntent intent = new PaymentIntent();
         intent.setReservationId(reservation.getId());
@@ -142,7 +186,7 @@ public class PaymentService {
                 request.idempotencyKey()));
         applyProviderResult(saved, result);
         PaymentAttempt attempt = syncPaymentAttempt(saved, userId, result);
-        recordProviderEvent(attempt, result, now);
+        recordProviderEvent(attempt, "AUTHORIZE", result, now);
         if (saved.getStatus() == PaymentStatus.AUTHORIZED) {
             reservationService.confirmAfterPayment(reservation.getId(), userId, paymentProvider.name(), result.providerReference());
         }
@@ -176,14 +220,18 @@ public class PaymentService {
         return paymentAttempts.save(attempt);
     }
 
-    private void recordProviderEvent(PaymentAttempt attempt, PaymentProvider.ProviderResult result, Instant now) {
+    private void recordProviderEvent(PaymentAttempt attempt, String operation, PaymentProvider.ProviderResult result, Instant now) {
+        String externalEventId = result.providerReference() == null
+                ? attempt.getId() + ":" + operation + ":" + result.status().name()
+                : result.providerReference();
+        if (paymentProviderEvents.existsByProviderAndExternalEventId(paymentProvider.name(), externalEventId)) {
+            return;
+        }
         PaymentProviderEvent event = new PaymentProviderEvent();
         event.setPaymentAttemptId(attempt.getId());
         event.setProvider(paymentProvider.name());
-        event.setExternalEventId(result.providerReference() == null
-                ? attempt.getId() + ":" + result.status().name()
-                : result.providerReference());
-        event.setEventType("AUTHORIZE_" + result.status().name());
+        event.setExternalEventId(externalEventId);
+        event.setEventType(operation + "_" + result.status().name());
         event.setStatus(PaymentProviderEventStatus.PROCESSED);
         event.setProcessedAt(now);
         paymentProviderEvents.save(event);

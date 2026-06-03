@@ -16,6 +16,27 @@ export interface PaymentMethod {
   default: boolean;
 }
 
+export interface PaymentOperationCapabilities {
+  authorize: boolean;
+  capture: boolean;
+  cancel: boolean;
+  refund: boolean;
+  webhook: boolean;
+  reconciliation: boolean;
+}
+
+export interface PaymentCapabilities {
+  onlinePaymentsEnabled: boolean;
+  activeProvider: string;
+  mockProvider: boolean;
+  mockPaymentMethodsAllowed: boolean;
+  operations: PaymentOperationCapabilities;
+}
+
+export function canUseOnlinePayments(capabilities: PaymentCapabilities | null | undefined): boolean {
+  return capabilities?.onlinePaymentsEnabled === true && capabilities.operations.authorize;
+}
+
 export interface PaymentIntent {
   id: string;
   reservationId: string;

@@ -14,6 +14,7 @@ apps/ios/
 │   ├── project.pbxproj
 │   └── xcshareddata/xcschemes/
 │       ├── SpotLinkApp.xcscheme
+│       ├── SpotLinkStaging.xcscheme
 │       └── SpotLinkLocalDevice.xcscheme
 │
 ├── SpotLink/                        # Swift Package (biblioteka + test support)
@@ -24,10 +25,11 @@ apps/ios/
 │
 ├── Resources/                       # App target resursi
 │   ├── Assets.xcassets/             # AppIcon, AccentColor, Background
-│   ├── Info.plist                   # Metadata aplikacije
-│   └── PrivacyInfo.xcprivacy        # Manifest privatnosti (videti napomenu)
+│   ├── Info.plist                   # Metadata i legal/support config kljucevi
+│   └── PrivacyInfo.xcprivacy        # Manifest privatnosti
 │
-├── SpotLink.entitlements            # Mogucnosti (push, deep link – placeholder)
+├── ExportOptions/                   # App Store Connect export templates
+├── SpotLink.entitlements            # Intentionally empty until Apple capabilities are provisioned
 ├── SpotLinkTests/                   # Xcode unit test target (XCTest)
 │   └── LaunchTests.swift
 └── SpotLinkUITests/                 # Xcode UI test target (XCUITest)
@@ -75,6 +77,20 @@ xcodebuild build \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   CODE_SIGNING_ALLOWED=NO
+
+# Unsigned Staging build validation, bez Apple signing kredencijala
+xcodebuild build \
+  -project apps/ios/SpotLink.xcodeproj \
+  -scheme SpotLinkStaging \
+  -configuration Staging \
+  -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO
+
+# Signed archive/export config validation, bez Apple signing kredencijala
+make validate-ios-signed-config
+
+# Privacy manifest / entitlements / Info.plist lint
+make validate-ios-privacy-config
 ```
 
 ---
@@ -84,9 +100,10 @@ xcodebuild build \
 | Shema | Namena |
 |-------|--------|
 | `SpotLinkApp` | Kanonska CI/test/build shema za app target. Ne postavlja `SPOTLINK_ENV` ili local-device override. |
+| `SpotLinkStaging` | Interna staging shema. Koristi `Staging` build konfiguraciju, `SPOTLINK_ENV=staging` i bundle ID `com.spotlink.app.staging`. |
 | `SpotLinkLocalDevice` | Dev-only shema za pokretanje na fizickom uredjaju prema backend-u na Mac-u. |
 
-`SpotLinkApp` je jedina shema koju treba koristiti u CI i release-gate komandama. Swift Package proizvod ostaje `SpotLink`.
+`SpotLinkApp` ostaje kanonska shema za CI Xcode testove i Release unsigned build. `SpotLinkStaging` se koristi za Staging build, archive i export putanju. Swift Package proizvod ostaje `SpotLink`.
 
 ## Konfiguracija okruzenja
 
@@ -94,6 +111,7 @@ xcodebuild build \
 |--------------|--------------|---------|
 | Debug        | local        | http://localhost:8080/api |
 | Debug device | localDevice  | http://192.168.1.151:8080/api |
+| Staging      | staging      | https://api-staging.spotlink.app/api |
 | Release      | production   | https://api.spotlink.app/api |
 
 Za override u Debug build-u: postaviti `SPOTLINK_ENV` env varijablu u Xcode scheme argumentima.
@@ -118,6 +136,53 @@ i proveriti sa iPhone Safari-jem da `http://<MAC_IP>:8080/api/health` vraca `UP`
 - Ako token nije dostupan, aplikacija koristi `MapKit` fallback bez rupe u shell-u.
 - Produkcioni token treba obezbediti kroz lokalni xcconfig ili CI secret, ne hardkodirati ga direktno u repozitorijum.
 
+### Staging backend readiness
+
+`SpotLinkStaging` pokazuje na `https://api-staging.spotlink.app/api`. Pre internal TestFlight staging builda, backend deploy mora proci:
+
+```bash
+curl -fsS https://api-staging.spotlink.app/api/health
+curl -fsS https://api-staging.spotlink.app/api/actuator/health/liveness
+curl -fsS https://api-staging.spotlink.app/api/actuator/health/readiness
+```
+
+`/actuator/health/readiness` je DB-backed readiness provera. Ako staging baza, JWT secret, CORS ili cookie konfiguracija nisu ispravni, backend treba da padne na startu umesto da iOS build pokazuje lazno spreman staging.
+
+### Placanja
+
+iOS ne pretpostavlja da su online placanja dostupna. `ReservationBookingViewModel` prvo cita backend capabilities:
+
+```text
+GET /payments/capabilities
+```
+
+Ako backend vrati `onlinePaymentsEnabled=false`, aplikacija uklanja `.online` iz dostupnih rezima placanja i prelazi na placanje po dolasku ako ga partner resurs podrzava. `GET /payments/methods` se zove samo kada backend kaze da online autorizacija moze da se koristi.
+
+Trenutno stanje:
+
+- Dev/test/staging mogu koristiti mock provider samo kada je backend eksplicitno konfigurisan za to.
+- Produkcija ne sme prikazivati mock kartice niti mock payment capability.
+- iOS ima servisne metode za capabilities, create/confirm i cancel intent, ali nema real PSP SDK, Apple Pay, SCA deep-link povratak ili settlement UI.
+
+Za real PSP jos su potrebni izbor provajdera, credentials u secret store-u, webhook signature verifikacija, SCA/deep-link povratak, capture/refund reconciliation i izvestaji za poravnanje.
+
+### Push obavestenja
+
+Trenutni iOS sloj je spreman za lifecycle APNs tokena, ali ne salje prava APNs obavestenja:
+
+- `PushNotificationManager` cuva poslednji APNs token lokalno dovoljno da ga moze odjaviti posle restarta aplikacije.
+- Token se uploaduje kada APNs vrati token, posle uspesne prijave i posle restore-a autentifikovane sesije.
+- Odjava pokusava backend unregister pre lokalnog brisanja sesije; lokalna odjava se ipak zavrsava ako unregister/revoke poziv ne uspe.
+- Uspesan unregister brise lokalno zapamcen token state.
+- Backend unregister je ownership-safe: missing/foreign token ne otkriva vlasnistvo.
+
+Pre pravog APNs rada jos uvek je potrebno:
+
+- Omoguciti Push Notifications capability za staging/release bundle ID-jeve u Apple Developer portalu.
+- Ukljuciti odgovarajuci entitlement u Xcode projektu bez lomljenja unsigned gate-a.
+- Obezbediti APNs key/certificate kroz provider secret store, ne kroz repo.
+- Zameniti backend mock notification provider pravim APNs providerom.
+
 ---
 
 ## Bundle metadata
@@ -125,23 +190,91 @@ i proveriti sa iPhone Safari-jem da `http://<MAC_IP>:8080/api/health` vraca `UP`
 | Polje | Vrednost |
 |-------|---------|
 | Bundle ID | com.spotlink.app |
+| Staging Bundle ID | com.spotlink.app.staging |
 | Display Name | SpotLink |
 | Min iOS | 17.0 |
 | Ciljni uredjaji | iPhone + iPad |
 | Verzija | 1.0.0 (build 1) |
 
+## Signed Internal TestFlight archive/export
+
+Signed archive/export putanja je pripremljena, ali nije deo `make release-gate` i ne moze proci bez Apple kredencijala. Repozitorijum ne sadrzi signing secrets, provisioning profile fajlove, App Store Connect kljuceve ili personalni `DEVELOPMENT_TEAM`.
+
+Potrebno je lokalno/human-controlled podesavanje:
+
+- Apple Developer team ID za SpotLink.
+- `Apple Distribution` sertifikat sa private key u login keychain-u.
+- App ID i App Store Connect app record za `com.spotlink.app.staging`.
+- App ID i App Store Connect app record za `com.spotlink.app`.
+- App Store Connect provisioning profile instaliran lokalno za svaki bundle ID.
+- Mapbox downloads token u `~/.netrc` ako Xcode mora da resolve-uje Mapbox binary dependency.
+
+Repo validacija bez kredencijala:
+
+```bash
+make validate-ios-signed-config
+```
+
+Staging signed archive/export za internal TestFlight pripremu:
+
+```bash
+SPOTLINK_APPLE_TEAM_ID=<TEAM_ID> \
+SPOTLINK_STAGING_PROFILE_SPECIFIER="<App Store profile for com.spotlink.app.staging>" \
+make export-ios-staging-testflight
+```
+
+Release signed archive/export:
+
+```bash
+SPOTLINK_APPLE_TEAM_ID=<TEAM_ID> \
+SPOTLINK_RELEASE_PROFILE_SPECIFIER="<App Store profile for com.spotlink.app>" \
+make export-ios-release-testflight
+```
+
+Output lokacije su:
+
+```text
+build/ios/archives/SpotLinkStaging.xcarchive
+build/ios/archives/SpotLinkRelease.xcarchive
+build/ios/exports/staging/
+build/ios/exports/release/
+```
+
+`export-ios-*-testflight` proizvodi signed IPA za human-controlled upload kroz Xcode Organizer, Transporter ili App Store Connect tooling. Ovaj repo jos uvek ne radi automatski upload na TestFlight.
+
+## Release gate i staging provera
+
+Root `make release-gate` pokrece backend, frontend, SwiftPM, Xcode simulator testove preko `SpotLinkApp`, unsigned Release build i unsigned Staging build. Za izolovanu staging proveru:
+
+```bash
+make build-ios-staging-unsigned
+```
+
+Obe provere su unsigned (`CODE_SIGNING_ALLOWED=NO`). Signed archive/export je odvojena human-controlled putanja opisana iznad.
+
 ---
 
 ## Privatnost i entitlements
 
-- **PrivacyInfo.xcprivacy**: placeholder, deklarise UserDefaults pristup (CA92.1). Mora se finalizovati pre App Store slanja.
-- **SpotLink.entitlements**: zakomentarisane mogucnosti (APNs, Associated Domains, Apple Pay). Aktivirati tek nakon konfiguracije u Apple Developer portalu.
+- **PrivacyInfo.xcprivacy**: deklarise `NSPrivacyTracking=false`, app-owned UserDefaults required-reason API usage (`CA92.1`), and current SpotLink-collected data classes for account/contact, location/search, vehicle/license plate, reservation/payment-attempt metadata, support/account deletion tickets, analytics, APNs token lifecycle, and diagnostics/request IDs.
+- **Info.plist legal/support keys**: `SPOTLINK_PRIVACY_POLICY_URL`, `SPOTLINK_TERMS_URL`, `SPOTLINK_SUPPORT_URL`, `SPOTLINK_SUPPORT_EMAIL`, and `SPOTLINK_ACCOUNT_DELETION_URL` are resolved from build settings or runtime env overrides. Defaults point at owner-owned `spotlink.app` destinations and must serve real policy/support content before signed TestFlight/App Review.
+- **SpotLink.entitlements**: intentionally empty. APNs, Associated Domains, and Apple Pay remain disabled until the Apple Developer portal, provisioning profiles, APNs/merchant credentials, and product/legal review are ready.
+
+Validacija:
+
+```bash
+make validate-ios-privacy-config
+```
+
+Registration links to Terms and Privacy Policy. Profile exposes Privacy Policy, Terms, support URL/email, account-deletion information, and the destructive account deletion request action. Backend support admins can process approved account-deletion tickets through the admin API; the iOS app keeps the request flow and signs out with Serbian messaging if the backend later rejects the session because the account is no longer active. Legal/privacy owner retention policy and final public process wording remain operational/legal work.
 
 ---
 
 ## Poznata ogranicenja
 
 - `swift test` koristi Swift Testing izlaz koji prvo prikazuje prazan XCTest summary, pa zatim stvarni Swift Testing run summary.
-- `DEVELOPMENT_TEAM` je prazno – potrebno podesiti pre TestFlight slanja.
-- Week 1 release gate validira samo unsigned Release build (`CODE_SIGNING_ALLOWED=NO`); signed archive i TestFlight upload su human-controlled koraci za kasnije.
-- App icon je placeholder (nema stvarne slike).
+- `Staging` i `Release` konfiguracije ne postavljaju tim za potpisivanje u projektu; signed Makefile targeti ga primaju kroz `SPOTLINK_APPLE_TEAM_ID`.
+- Release gate validira unsigned Release i Staging buildove (`CODE_SIGNING_ALLOWED=NO`); signed archive/export zahteva Apple Developer sertifikat i provisioning profile.
+- Online payment UI se vodi backend capabilities odgovorom, ali real PSP provider/credentials/SCA/capture/refund/webhook/reconciliation nisu implementirani.
+- Push token lifecycle je spreman, ali real APNs provider, APNs credentials i push entitlement jos nisu implementirani.
+- Legal/support linkovi su tehnicki povezani, ali stvarni Privacy Policy, Terms, support stranice i App Store Connect privacy answers ostaju owner/legal odgovornost.

@@ -23,6 +23,25 @@ public final class PaymentDtos {
     ) {
     }
 
+    public record PaymentCapabilitiesDto(
+            boolean onlinePaymentsEnabled,
+            String activeProvider,
+            boolean mockProvider,
+            boolean mockPaymentMethodsAllowed,
+            PaymentOperationCapabilitiesDto operations
+    ) {
+    }
+
+    public record PaymentOperationCapabilitiesDto(
+            boolean authorize,
+            boolean capture,
+            boolean cancel,
+            boolean refund,
+            boolean webhook,
+            boolean reconciliation
+    ) {
+    }
+
     public record PaymentIntentDto(
             UUID id,
             UUID reservationId,

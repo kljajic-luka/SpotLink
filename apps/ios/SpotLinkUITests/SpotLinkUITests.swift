@@ -14,7 +14,8 @@ final class SpotLinkUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
+        let bundleIdentifier = ProcessInfo.processInfo.environment["SPOTLINK_UITEST_APP_BUNDLE_IDENTIFIER"] ?? "com.spotlink.app"
+        app = XCUIApplication(bundleIdentifier: bundleIdentifier)
         app.launchArguments = ["--uitesting"]
         // Postavljamo local okruzenje za UI testove
         app.launchEnvironment["SPOTLINK_ENV"] = "local"

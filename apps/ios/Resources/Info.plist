@@ -29,6 +29,18 @@
 	<key>SPOTLINK_ENV</key>
 	<string>$(SPOTLINK_ENV)</string>
 
+	<!-- Legal/support URLs – resavaju se iz build settings ili runtime env override-a. -->
+	<key>SPOTLINK_ACCOUNT_DELETION_URL</key>
+	<string>$(SPOTLINK_ACCOUNT_DELETION_URL)</string>
+	<key>SPOTLINK_PRIVACY_POLICY_URL</key>
+	<string>$(SPOTLINK_PRIVACY_POLICY_URL)</string>
+	<key>SPOTLINK_SUPPORT_EMAIL</key>
+	<string>$(SPOTLINK_SUPPORT_EMAIL)</string>
+	<key>SPOTLINK_SUPPORT_URL</key>
+	<string>$(SPOTLINK_SUPPORT_URL)</string>
+	<key>SPOTLINK_TERMS_URL</key>
+	<string>$(SPOTLINK_TERMS_URL)</string>
+
 	<!-- Debug URL za testiranje na fizickom iPhone-u preko backend-a na Mac-u. -->
 	<key>SPOTLINK_LOCAL_DEVICE_API_BASE_URL</key>
 	<string>$(SPOTLINK_LOCAL_DEVICE_API_BASE_URL)</string>

@@ -31,6 +31,29 @@ public enum PaymentStatus: String, Decodable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - Payment Capabilities
+
+public struct PaymentCapabilities: Decodable, Equatable, Sendable {
+    public let onlinePaymentsEnabled: Bool
+    public let activeProvider: String
+    public let mockProvider: Bool
+    public let mockPaymentMethodsAllowed: Bool
+    public let operations: PaymentOperationCapabilities
+
+    public var canAuthorizeOnlinePayment: Bool {
+        onlinePaymentsEnabled && operations.authorize
+    }
+}
+
+public struct PaymentOperationCapabilities: Decodable, Equatable, Sendable {
+    public let authorize: Bool
+    public let capture: Bool
+    public let cancel: Bool
+    public let refund: Bool
+    public let webhook: Bool
+    public let reconciliation: Bool
+}
+
 // MARK: - Payment Intent
 
 public struct PaymentIntent: Decodable, Identifiable, Sendable {

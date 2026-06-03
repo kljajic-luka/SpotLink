@@ -45,6 +45,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     long countByCustomerIdAndStatus(UUID customerId, ReservationStatus status);
 
+    long countByCustomerIdAndStatusInAndEndsAtAfter(
+            UUID customerId,
+            Collection<ReservationStatus> statuses,
+            Instant endsAt);
+
     long countByOperatorIdAndStatusIn(UUID operatorId, Collection<ReservationStatus> statuses);
 
     long countByStatusIn(Collection<ReservationStatus> statuses);

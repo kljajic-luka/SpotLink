@@ -59,6 +59,22 @@ export interface PauseOperationResult {
   reason?: string;
 }
 
+export type AccountDeletionFulfillmentStatus = 'PROCESSED' | 'ALREADY_PROCESSED' | 'BLOCKED';
+
+export interface AccountDeletionBlocker {
+  code: string;
+  message: string;
+  count: number;
+}
+
+export interface AccountDeletionFulfillmentResponse {
+  ticketId: string;
+  userId: string;
+  status: AccountDeletionFulfillmentStatus;
+  blockers: AccountDeletionBlocker[];
+  processedAt?: string;
+}
+
 export interface AdminBookingsPage extends ApiPage<Reservation> {}
 
 export interface AdminBookingDetail extends BookingDetail {}

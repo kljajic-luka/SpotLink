@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SpotLinkCore
 
@@ -19,6 +20,32 @@ struct SessionStateTests {
         let state = SessionState.unauthenticated
         #expect(!state.isAuthenticated)
         #expect(state.sessionInfo == nil)
+    }
+
+    @Test("Remote unauthorized odjavljuje aktivnu sesiju i postavlja poruku")
+    @MainActor
+    func remoteUnauthorizedSignsOutWithNotice() {
+        let session = makeSession()
+        session.establish(.testValue())
+
+        session.handleRemoteUnauthorized()
+
+        #expect(!session.state.isAuthenticated)
+        #expect(session.signOutNotice == SessionManager.remoteUnauthorizedNotice)
+
+        session.clearSignOutNotice()
+        #expect(session.signOutNotice == nil)
+    }
+
+    @MainActor
+    private func makeSession() -> SessionManager {
+        let suiteName = "spotlink.session.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return SessionManager(
+            keychain: KeychainStorage(service: suiteName),
+            preferences: PreferenceStorage(prefix: "tests.", defaults: defaults)
+        )
     }
 }
 
@@ -118,3 +145,30 @@ struct UserRoleTests {
     }
 }
 
+private extension MobileTokenResponse {
+    static func testValue() -> MobileTokenResponse {
+        MobileTokenResponse(
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            expiresIn: 900,
+            expiresInSeconds: 900,
+            refreshExpiresInSeconds: 2_592_000,
+            issuedAt: Date(timeIntervalSince1970: 0),
+            expiresAt: Date(timeIntervalSinceNow: 900),
+            refreshExpiresAt: Date(timeIntervalSinceNow: 2_592_000),
+            tokenType: "Bearer",
+            user: UserProfile(
+                id: "user-1",
+                email: "user@spotlink.test",
+                firstName: "Test",
+                lastName: "User",
+                phone: nil,
+                avatarUrl: nil,
+                bio: nil,
+                roles: [.customer],
+                operatorId: nil,
+                registrationStatus: "ACTIVE",
+                createdAt: nil)
+        )
+    }
+}

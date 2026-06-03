@@ -2,8 +2,10 @@ package com.spotlink.support;
 
 import com.spotlink.core.ApiPage;
 import com.spotlink.core.NotFoundException;
+import com.spotlink.admin.AuditService;
 import com.spotlink.security.CurrentUserService;
 import com.spotlink.user.User;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
@@ -13,14 +15,27 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SupportService {
 
+    public static final String ACCOUNT_DELETION_SUBJECT = "Account deletion request";
+
+    private static final List<SupportTicketStatus> UNRESOLVED_STATUSES = List.of(
+            SupportTicketStatus.OPEN,
+            SupportTicketStatus.WAITING_ON_CUSTOMER,
+            SupportTicketStatus.WAITING_ON_OPERATOR);
+
     private final SupportTicketRepository tickets;
     private final SupportMessageRepository messages;
     private final CurrentUserService currentUser;
+    private final AuditService auditService;
 
-    public SupportService(SupportTicketRepository tickets, SupportMessageRepository messages, CurrentUserService currentUser) {
+    public SupportService(
+            SupportTicketRepository tickets,
+            SupportMessageRepository messages,
+            CurrentUserService currentUser,
+            AuditService auditService) {
         this.tickets = tickets;
         this.messages = messages;
         this.currentUser = currentUser;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -50,6 +65,18 @@ public class SupportService {
         return toDto(saved);
     }
 
+    @Transactional
+    public SupportDtos.SupportTicketDto requestAccountDeletion() {
+        User user = currentUser.user();
+        return tickets.findFirstByRequesterUserIdAndCategoryAndSubjectAndStatusInOrderByUpdatedAtDesc(
+                        user.getId(),
+                        SupportTicketCategory.ACCOUNT,
+                        ACCOUNT_DELETION_SUBJECT,
+                        UNRESOLVED_STATUSES)
+                .map(this::toDto)
+                .orElseGet(() -> toDto(createAccountDeletionTicket(user)));
+    }
+
     @Transactional(readOnly = true)
     public java.util.List<SupportDtos.SupportMessageDto> messages(UUID ticketId) {
         SupportTicket ticket = ticketForCurrentUser(ticketId);
@@ -69,6 +96,28 @@ public class SupportService {
         message.setBody(request.body());
         ticket.setStatus(SupportTicketStatus.WAITING_ON_OPERATOR);
         return toDto(messages.save(message));
+    }
+
+    private SupportTicket createAccountDeletionTicket(User user) {
+        SupportTicket ticket = new SupportTicket();
+        ticket.setRequesterUserId(user.getId());
+        ticket.setCategory(SupportTicketCategory.ACCOUNT);
+        ticket.setSubject(ACCOUNT_DELETION_SUBJECT);
+        SupportTicket saved = tickets.save(ticket);
+
+        SupportMessage message = new SupportMessage();
+        message.setTicketId(saved.getId());
+        message.setSenderUserId(user.getId());
+        message.setSenderName(user.getFirstName() + " " + user.getLastName());
+        message.setBody("Korisnik je zatrazio brisanje naloga. Podrska treba da pregleda zahtev pre bilo kakvog brisanja ili anonimizacije.");
+        messages.save(message);
+        auditService.record(
+                user.getId(),
+                "ACCOUNT_DELETION_REQUESTED",
+                "support_ticket",
+                saved.getId().toString(),
+                null);
+        return saved;
     }
 
     private SupportTicket ticketForCurrentUser(UUID ticketId) {

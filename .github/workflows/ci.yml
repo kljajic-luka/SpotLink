@@ -51,6 +51,9 @@ jobs:
           DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
           DATABASE_DRIVER: ${{ secrets.DATABASE_DRIVER }}
 
+      - name: Backend runtime config guard
+        run: make validate-backend-runtime-config
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest
@@ -90,6 +93,9 @@ jobs:
       - name: Pokretanje Swift testova
         run: swift test --package-path apps/ios/SpotLink
 
+      - name: iOS privacy/legal plist validation
+        run: make validate-ios-privacy-config
+
       - name: Izbor dostupnog iOS simulatora
         id: ios-simulator
         run: |
@@ -117,3 +123,15 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Xcode unsigned Staging build (generic iOS)
+        run: |
+          xcodebuild build \
+            -project apps/ios/SpotLink.xcodeproj \
+            -scheme SpotLinkStaging \
+            -configuration Staging \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Signed archive/export config validation (no Apple credentials)
+        run: make validate-ios-signed-config

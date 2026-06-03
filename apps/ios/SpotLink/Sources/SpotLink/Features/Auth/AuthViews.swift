@@ -236,6 +236,7 @@ public struct RegisterView: View {
 
 private struct RegisterFormView: View {
     @ObservedObject var viewModel: RegisterViewModel
+    private let legalConfiguration = LegalConfiguration.current()
 
     var body: some View {
         VStack(spacing: SpotLinkDesign.Spacing.md) {
@@ -258,8 +259,21 @@ private struct RegisterFormView: View {
                     .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
                     .accessibilityLabel("Nova lozinka, minimum 8 karaktera")
             }
-            Toggle("Prihvatam uslove koriscenja", isOn: $viewModel.acceptsTerms)
-                .font(SpotLinkDesign.Typography.footnote)
+            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                Toggle("Prihvatam uslove koriscenja i politiku privatnosti", isOn: $viewModel.acceptsTerms)
+                    .font(SpotLinkDesign.Typography.footnote)
+
+                HStack(spacing: SpotLinkDesign.Spacing.xs) {
+                    Link("Uslovi koriscenja", destination: legalConfiguration.termsURL)
+                    Text("|")
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    Link("Politika privatnosti", destination: legalConfiguration.privacyPolicyURL)
+                }
+                .font(SpotLinkDesign.Typography.caption)
+                .foregroundStyle(SpotLinkDesign.Colors.tint)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Uslovi koriscenja i Politika privatnosti")
+            }
         }
     }
 

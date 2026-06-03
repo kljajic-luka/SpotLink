@@ -5,6 +5,8 @@ import com.spotlink.payment.PaymentDtos;
 import com.spotlink.reservation.ReservationDtos;
 import com.spotlink.reservation.ReservationStatus;
 import com.spotlink.support.SupportDtos;
+import com.spotlink.user.AccountDeletionDtos;
+import com.spotlink.user.AccountDeletionFulfillmentService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,9 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
     private final AdminService adminService;
+    private final AccountDeletionFulfillmentService accountDeletionFulfillmentService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(
+            AdminService adminService,
+            AccountDeletionFulfillmentService accountDeletionFulfillmentService) {
         this.adminService = adminService;
+        this.accountDeletionFulfillmentService = accountDeletionFulfillmentService;
     }
 
     @GetMapping({"/admin/dashboard/summary", "/v1/admin/dashboard/summary"})
@@ -116,5 +122,13 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
         return adminService.supportCases(page, size);
+    }
+
+    @PostMapping({
+            "/admin/support-cases/{ticketId}/process-account-deletion",
+            "/v1/admin/support-cases/{ticketId}/process-account-deletion"
+    })
+    AccountDeletionDtos.AccountDeletionFulfillmentResponse processAccountDeletion(@PathVariable UUID ticketId) {
+        return accountDeletionFulfillmentService.processSupportTicket(ticketId);
     }
 }

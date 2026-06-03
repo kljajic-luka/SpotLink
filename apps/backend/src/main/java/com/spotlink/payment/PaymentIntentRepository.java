@@ -13,6 +13,8 @@ public interface PaymentIntentRepository extends JpaRepository<PaymentIntent, UU
 
     long countByStatus(PaymentStatus status);
 
+    long countByCustomerIdAndStatusIn(UUID customerId, Collection<PaymentStatus> statuses);
+
     @Query("select coalesce(sum(p.amountCents), 0) from PaymentIntent p where p.status in :statuses")
     long grossVolumeForStatuses(@Param("statuses") Collection<PaymentStatus> statuses);
 }

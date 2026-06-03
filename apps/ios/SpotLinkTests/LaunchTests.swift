@@ -11,10 +11,11 @@ final class LaunchTests: XCTestCase {
 
     // MARK: SessionManager
 
-    func testSessionManagerSharedInstanceExists() {
+    func testSessionManagerSharedInstanceExists() async {
         // SessionManager.shared mora biti dostupan bez rusenja
-        let manager = SessionManager.shared
-        XCTAssertNotNil(manager, "SessionManager.shared ne sme biti nil")
+        await MainActor.run {
+            XCTAssertNotNil(SessionManager.shared, "SessionManager.shared ne sme biti nil")
+        }
     }
 
     func testSessionManagerInitialStateIsLoading() async {

@@ -11,6 +11,7 @@ public class AppProperties {
     private final Cookie cookie = new Cookie();
     private final Jwt jwt = new Jwt();
     private final MockPayment mockPayment = new MockPayment();
+    private final Payment payment = new Payment();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
     private int bookingSlotMinutes = 15;
@@ -33,6 +34,10 @@ public class AppProperties {
 
     public MockPayment getMockPayment() {
         return mockPayment;
+    }
+
+    public Payment getPayment() {
+        return payment;
     }
 
     public String getDefaultCurrency() {
@@ -162,6 +167,27 @@ public class AppProperties {
         }
     }
 
+    public static class Payment {
+        private String provider = "mock";
+        private boolean onlineEnabled = true;
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+
+        public boolean isOnlineEnabled() {
+            return onlineEnabled;
+        }
+
+        public void setOnlineEnabled(boolean onlineEnabled) {
+            this.onlineEnabled = onlineEnabled;
+        }
+    }
+
     /**
      * JWT konfiguracija za mobilni bearer token auth.
      * Secret je sirovi UTF-8 string od najmanje 32 bajta (256 bita).
@@ -170,6 +196,7 @@ public class AppProperties {
      */
     public static class Jwt {
         public static final String DEFAULT_DEV_SECRET = "c3BvdGxpbmstZGV2LXNlY3JldC1rZXktbXVzdC1iZS1hdC1sZWFzdC0yNTYtYml0cy1sb25n";
+        public static final String EXAMPLE_PLACEHOLDER_SECRET = "change-me-to-a-secure-random-32-byte-secret-string";
 
         // 512-bitni dev secret – zameniti environment varijablom na produkciji
         private String secret = DEFAULT_DEV_SECRET;

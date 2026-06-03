@@ -22,6 +22,7 @@ public final class ReservationBookingViewModel: ObservableObject {
 
     @Published public private(set) var vehicles: [VehicleProfile] = []
     @Published public private(set) var paymentMethods: [PaymentMethod] = []
+    @Published public private(set) var paymentCapabilities: PaymentCapabilities?
     @Published public private(set) var quote: ReservationQuote?
     @Published public private(set) var confirmationContext: ReservationConfirmationContext?
     @Published public private(set) var pendingOnlineReservation: Reservation?
@@ -61,15 +62,38 @@ public final class ReservationBookingViewModel: ObservableObject {
         return resource.fitRule != nil
     }
 
+    public var onlinePaymentsAvailable: Bool {
+        paymentCapabilities?.canAuthorizeOnlinePayment == true
+    }
+
     public var availablePaymentModes: [PaymentMode] {
-        selectedResource?.availablePaymentModes ?? [.online]
+        selectedResourcePaymentModes.filter { mode in
+            mode != .online || onlinePaymentsAvailable
+        }
     }
 
     public var paymentCapabilityText: String {
+        if selectedResourcePaymentModes.contains(.online), !onlinePaymentsAvailable {
+            if selectedResourcePaymentModes.contains(.payOnArrival) {
+                return "Online placanje trenutno nije dostupno. Izaberite placanje na dolasku."
+            }
+            return "Online placanje trenutno nije dostupno za ovo mesto."
+        }
+        if let paymentCapabilities, paymentCapabilities.mockProvider {
+            return "Online placanje je dostupno u test rezimu preko \(paymentCapabilities.activeProvider)."
+        }
         if availablePaymentModes.count == 1, let mode = availablePaymentModes.first {
             return "Ovaj resurs podrzava samo: \(mode.displayName)."
         }
+        if availablePaymentModes.isEmpty {
+            return "Za ovo mesto trenutno nema dostupnog nacina placanja."
+        }
         return "Ovaj resurs podrzava: \(availablePaymentModes.map(\.displayName).joined(separator: ", "))."
+    }
+
+    public var paymentModesSummary: String {
+        let summary = availablePaymentModes.map(\.displayName).joined(separator: ", ")
+        return summary.isEmpty ? "Nedostupno" : summary
     }
 
     public func loadIfNeeded(
@@ -92,6 +116,7 @@ public final class ReservationBookingViewModel: ObservableObject {
                 reconcileSelectedPaymentMode()
             }
 
+            await loadPaymentCapabilities(paymentService: paymentService)
             vehicles = try await vehicleService.listMyVehicles()
             await loadPaymentMethods(paymentService: paymentService)
 
@@ -116,6 +141,11 @@ public final class ReservationBookingViewModel: ObservableObject {
     public func paymentModeChanged() {
         errorMessage = nil
         pendingOnlineReservation = nil
+        if selectedPaymentMode.requiresOnlinePayment && !onlinePaymentsAvailable {
+            selectedPaymentMode = preferredPaymentMode(for: selectedResource)
+            errorMessage = "Online placanje trenutno nije dostupno."
+            return
+        }
         reconcileSelectedPaymentMode()
         if selectedPaymentMode.requiresOnlinePayment && selectedPaymentMethodId == nil {
             selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
@@ -189,6 +219,10 @@ public final class ReservationBookingViewModel: ObservableObject {
         }
 
         if selectedPaymentMode.requiresOnlinePayment {
+            guard onlinePaymentsAvailable else {
+                errorMessage = "Online placanje trenutno nije dostupno."
+                return
+            }
             guard selectedPaymentMethodId != nil else {
                 errorMessage = "Izaberite nacin placanja."
                 return
@@ -308,6 +342,11 @@ public final class ReservationBookingViewModel: ObservableObject {
     }
 
     private func loadPaymentMethods(paymentService: PaymentService) async {
+        guard onlinePaymentsAvailable else {
+            paymentMethods = []
+            selectedPaymentMethodId = nil
+            return
+        }
         do {
             paymentMethods = try await paymentService.listPaymentMethods()
             selectedPaymentMethodId = paymentMethods.first(where: { $0.isDefault })?.id ?? paymentMethods.first?.id
@@ -325,6 +364,22 @@ public final class ReservationBookingViewModel: ObservableObject {
                 errorMessage = "Nacini placanja trenutno nisu dostupni."
             }
         }
+    }
+
+    private func loadPaymentCapabilities(paymentService: PaymentService) async {
+        do {
+            paymentCapabilities = try await paymentService.capabilities()
+        } catch let error as APIError {
+            paymentCapabilities = nil
+            paymentMethods = []
+            selectedPaymentMethodId = nil
+            SpotLinkLogger.warn("reservation_payment_capabilities_load_failed code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+        } catch {
+            paymentCapabilities = nil
+            paymentMethods = []
+            selectedPaymentMethodId = nil
+        }
+        reconcileSelectedPaymentMode()
     }
 
     private func completeReservation(
@@ -362,7 +417,22 @@ public final class ReservationBookingViewModel: ObservableObject {
         guard !availablePaymentModes.contains(selectedPaymentMode) else {
             return
         }
-        selectedPaymentMode = Self.preferredPaymentMode(for: selectedResource)
+        selectedPaymentMode = preferredPaymentMode(for: selectedResource)
+    }
+
+    private var selectedResourcePaymentModes: [PaymentMode] {
+        selectedResource?.availablePaymentModes ?? [.online]
+    }
+
+    private func preferredPaymentMode(for resource: ParkingResource?) -> PaymentMode {
+        let modes = resource?.availablePaymentModes ?? [.online]
+        if modes.contains(.payOnArrival) {
+            return .payOnArrival
+        }
+        if onlinePaymentsAvailable, modes.contains(.online) {
+            return .online
+        }
+        return availablePaymentModes.first ?? modes.first ?? .online
     }
 
     private static func preferredPaymentMode(for resource: ParkingResource?) -> PaymentMode {
@@ -500,7 +570,7 @@ public struct ReservationBookingFlowView: View {
                         ReservationFact(title: "Potvrda", value: resource.confirmationMode.displayName, icon: "checkmark.seal"),
                         ReservationFact(title: "Kapacitet", value: resource.capacitySummary, icon: "car.2"),
                         ReservationFact(title: "Pristup", value: viewModel.result.location.accessType.displayName, icon: viewModel.result.location.accessType.systemIcon),
-                        ReservationFact(title: "Placanje", value: resource.availablePaymentModes.map(\.displayName).joined(separator: ", "), icon: "wallet.pass")
+                        ReservationFact(title: "Placanje", value: viewModel.paymentModesSummary, icon: "wallet.pass")
                     ])
                 }
             }
@@ -552,16 +622,22 @@ public struct ReservationBookingFlowView: View {
             Text("Placanje")
                 .font(SpotLinkDesign.Typography.headline)
 
-            Picker("Rezim placanja", selection: $viewModel.selectedPaymentMode) {
-                ForEach(viewModel.availablePaymentModes, id: \.self) { mode in
-                    Text(mode.displayName)
-                        .tag(mode)
+            if viewModel.availablePaymentModes.isEmpty {
+                Text("Nema dostupnog nacina placanja za ovo mesto.")
+                    .font(SpotLinkDesign.Typography.callout)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            } else {
+                Picker("Rezim placanja", selection: $viewModel.selectedPaymentMode) {
+                    ForEach(viewModel.availablePaymentModes, id: \.self) { mode in
+                        Text(mode.displayName)
+                            .tag(mode)
+                    }
                 }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityLabel("Rezim placanja")
-            .onChange(of: viewModel.selectedPaymentMode) { _, _ in
-                viewModel.paymentModeChanged()
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Rezim placanja")
+                .onChange(of: viewModel.selectedPaymentMode) { _, _ in
+                    viewModel.paymentModeChanged()
+                }
             }
 
             ReservationInstructionBlock(

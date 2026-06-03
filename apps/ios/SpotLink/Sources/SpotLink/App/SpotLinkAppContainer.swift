@@ -33,8 +33,12 @@ public final class SpotLinkAppContainer: ObservableObject {
         self.locationManager = locationManager
         self.pushManager = pushManager
 
-        self.apiClient = APIClient(baseURL: environment.apiBaseURL, tokenProvider: session)
-        self.authService = AuthService(apiClient: apiClient, session: session)
+        self.apiClient = APIClient(
+            baseURL: environment.apiBaseURL,
+            tokenProvider: session,
+            unauthorizedHandler: { [weak session] in
+                await session?.handleRemoteUnauthorized()
+            })
         self.locationService = LocationService(apiClient: apiClient)
         self.reservationService = ReservationService(apiClient: apiClient)
         self.vehicleService = VehicleService(apiClient: apiClient)
@@ -42,6 +46,7 @@ public final class SpotLinkAppContainer: ObservableObject {
         self.supportService = SupportService(apiClient: apiClient)
         self.profileService = ProfileService(apiClient: apiClient)
         self.notificationService = NotificationService(apiClient: apiClient)
+        self.authService = AuthService(apiClient: apiClient, session: session, pushLifecycle: pushManager)
         self.searchViewModel = SearchMapViewModel(locationService: locationService, locationManager: locationManager)
         self.mapProvider = MapRuntimeConfiguration.configureMapProvider()
 

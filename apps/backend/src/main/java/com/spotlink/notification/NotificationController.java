@@ -44,4 +44,10 @@ public class NotificationController {
     void registerDevice(@Valid @RequestBody NotificationDtos.RegisterDeviceTokenRequest request) {
         notificationService.registerDevice(request);
     }
+
+    @PostMapping({"/notifications/device-tokens/unregister", "/v1/notifications/device-tokens/unregister"})
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void unregisterDevice(@Valid @RequestBody NotificationDtos.UnregisterDeviceTokenRequest request) {
+        notificationService.unregisterDevice(request);
+    }
 }

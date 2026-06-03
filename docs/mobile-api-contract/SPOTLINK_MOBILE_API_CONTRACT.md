@@ -976,7 +976,7 @@ Mobile retry: best-effort only. Do not block UX.
 
 The following are not currently implemented and should not be called by iOS:
 
-- Account deletion request/status endpoint.
+- Account deletion status/export endpoint. The request endpoint exists and is used by iOS.
 - Payment intent get/cancel endpoints.
 - Device token delete/deactivate endpoint.
 - Support ticket detail endpoint.

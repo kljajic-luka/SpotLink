@@ -39,8 +39,10 @@ public class JwtService {
         if (keyBytes.length < 32) {
             throw new IllegalStateException("JWT secret mora biti najmanje 32 bajta");
         }
-        if (isProduction(environment) && AppProperties.Jwt.DEFAULT_DEV_SECRET.equals(secret)) {
-            throw new IllegalStateException("JWT_SECRET must be configured for production profiles.");
+        if (isHardenedRuntime(environment)
+                && (AppProperties.Jwt.DEFAULT_DEV_SECRET.equals(secret)
+                || AppProperties.Jwt.EXAMPLE_PLACEHOLDER_SECRET.equals(secret))) {
+            throw new IllegalStateException("JWT_SECRET must be configured for staging/production profiles.");
         }
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
@@ -141,10 +143,10 @@ public class JwtService {
         return false;
     }
 
-    private boolean isProduction(Environment environment) {
+    private boolean isHardenedRuntime(Environment environment) {
         for (String profile : environment.getActiveProfiles()) {
             String normalized = profile.toLowerCase();
-            if ("prod".equals(normalized) || "production".equals(normalized)) {
+            if ("staging".equals(normalized) || "prod".equals(normalized) || "production".equals(normalized)) {
                 return true;
             }
         }

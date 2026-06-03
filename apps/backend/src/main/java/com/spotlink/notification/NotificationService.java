@@ -3,6 +3,7 @@ package com.spotlink.notification;
 import com.spotlink.core.ApiPage;
 import com.spotlink.core.NotFoundException;
 import com.spotlink.security.CurrentUserService;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
@@ -58,6 +59,19 @@ public class NotificationService {
         token.setPlatform(request.platform());
         token.setActive(true);
         deviceTokens.save(token);
+    }
+
+    @Transactional
+    public void unregisterDevice(NotificationDtos.UnregisterDeviceTokenRequest request) {
+        deviceTokens.findByDeviceTokenAndUserIdAndPlatform(
+                request.deviceToken(),
+                currentUser.userId(),
+                request.platform()).ifPresent(token -> token.setActive(false));
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeviceToken> activeDeviceTokens(UUID userId, DevicePlatform platform) {
+        return deviceTokens.findByUserIdAndPlatformAndActiveTrue(userId, platform);
     }
 
     @Transactional

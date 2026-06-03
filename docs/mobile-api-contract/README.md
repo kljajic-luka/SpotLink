@@ -58,7 +58,7 @@ Backend agents should:
 - The backend preserves existing `/api/...` routes and now also exposes `/api/v1/...` aliases for the mobile-critical API surface.
 - `/auth/token` now returns access and refresh tokens. Refresh-token rotation and revocation endpoints are implemented.
 - Payment provider behavior is still foundation/mock-grade.
-- APNs provider and device token deactivation are missing.
+- APNs provider delivery is missing; device token register/unregister lifecycle exists.
 - Search is not yet map-grade for viewport/radius/availability ranking.
-- Account deletion/privacy endpoints are missing.
+- Account deletion request and admin-reviewed fulfillment exist; user-visible deletion status/export/privacy-choice endpoints remain future work.
 - The OpenAPI file is a hand-authored draft aligned to current code, not generated from backend annotations.

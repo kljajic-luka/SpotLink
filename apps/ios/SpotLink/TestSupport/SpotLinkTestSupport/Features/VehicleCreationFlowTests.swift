@@ -269,6 +269,21 @@ struct VehicleCreationFlowTests {
             switch path {
             case "/vehicles/me":
                 return [VehicleProfile]()
+            case "/payments/capabilities":
+                return PaymentCapabilities(
+                    onlinePaymentsEnabled: true,
+                    activeProvider: "MOCK",
+                    mockProvider: true,
+                    mockPaymentMethodsAllowed: true,
+                    operations: PaymentOperationCapabilities(
+                        authorize: true,
+                        capture: true,
+                        cancel: true,
+                        refund: true,
+                        webhook: false,
+                        reconciliation: false
+                    )
+                )
             case "/payments/methods":
                 return [PaymentMethod]()
             case "/reservations/\(reservation.id)":

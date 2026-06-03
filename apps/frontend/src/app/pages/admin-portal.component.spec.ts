@@ -17,6 +17,7 @@ describe('AdminPortalComponent', () => {
       'markRefund',
       'pauseLocation',
       'pauseOperator',
+      'processAccountDeletion',
       'listPaymentAttempts',
       'listSupportCases',
       'listAuditEvents',
@@ -30,6 +31,13 @@ describe('AdminPortalComponent', () => {
     adminService.markRefund.and.returnValue(of(bookingDetailFixture.refunds[0]));
     adminService.pauseLocation.and.returnValue(of({ targetId: 'loc-001', affectedPools: 1 }));
     adminService.pauseOperator.and.returnValue(of({ targetId: 'op-001', affectedPools: 2 }));
+    adminService.processAccountDeletion.and.returnValue(of({
+      ticketId: 'support-delete-001',
+      userId: 'user-001',
+      status: 'PROCESSED',
+      blockers: [],
+      processedAt: '2026-04-26T10:15:00Z',
+    }));
 
     TestBed.configureTestingModule({
       imports: [AdminPortalComponent],
@@ -85,6 +93,37 @@ describe('AdminPortalComponent', () => {
 
     expect(component.actionBusy()).toBeNull();
     expect(component.actionError()).toBe('Invalid transition');
+  });
+
+  it('processes account deletion support cases through the admin service', () => {
+    spyOn(window, 'confirm').and.returnValue(true);
+
+    component.processAccountDeletion(accountDeletionSupportCase);
+
+    expect(adminService.processAccountDeletion).toHaveBeenCalledWith('support-delete-001');
+    expect(component.flashMessage()).toContain('Account deletion processed');
+    expect(adminService.listSupportCases).toHaveBeenCalled();
+    expect(adminService.listAuditEvents).toHaveBeenCalled();
+  });
+
+  it('shows blockers when account deletion fulfillment is blocked', () => {
+    adminService.processAccountDeletion.and.returnValue(of({
+      ticketId: 'support-delete-001',
+      userId: 'user-001',
+      status: 'BLOCKED',
+      blockers: [
+        {
+          code: 'ACTIVE_OR_FUTURE_RESERVATIONS',
+          message: 'Resolve active or future reservations before completing account deletion.',
+          count: 1,
+        },
+      ],
+    }));
+    spyOn(window, 'confirm').and.returnValue(true);
+
+    component.processAccountDeletion(accountDeletionSupportCase);
+
+    expect(component.actionError()).toContain('ACTIVE_OR_FUTURE_RESERVATIONS (1)');
   });
 });
 
@@ -174,4 +213,13 @@ const bookingDetailFixture = {
       updatedAt: '2026-04-26T10:03:00Z',
     },
   ],
+};
+
+const accountDeletionSupportCase = {
+  id: 'support-delete-001',
+  category: 'ACCOUNT',
+  status: 'OPEN',
+  subject: 'Account deletion request',
+  createdAt: '2026-04-26T10:02:00Z',
+  updatedAt: '2026-04-26T10:03:00Z',
 };

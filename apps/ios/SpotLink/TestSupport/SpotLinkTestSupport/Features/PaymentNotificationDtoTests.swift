@@ -69,6 +69,33 @@ struct PaymentNotificationDtoTests {
         #expect(method.isDefault)
     }
 
+    @Test("payment capabilities decodes provider authority response")
+    func paymentCapabilitiesDecodesBackendShape() throws {
+        let json = """
+        {
+          "onlinePaymentsEnabled": false,
+          "activeProvider": "UNCONFIGURED",
+          "mockProvider": false,
+          "mockPaymentMethodsAllowed": false,
+          "operations": {
+            "authorize": false,
+            "capture": false,
+            "cancel": false,
+            "refund": false,
+            "webhook": false,
+            "reconciliation": false
+          }
+        }
+        """
+
+        let capabilities = try decoder.decode(PaymentCapabilities.self, from: Data(json.utf8))
+
+        #expect(capabilities.onlinePaymentsEnabled == false)
+        #expect(capabilities.activeProvider == "UNCONFIGURED")
+        #expect(capabilities.canAuthorizeOnlinePayment == false)
+        #expect(capabilities.operations.refund == false)
+    }
+
     @Test("notification decodes backend read field without userId")
     func notificationDecodesBackendShape() throws {
         let json = """
@@ -95,6 +122,16 @@ struct PaymentNotificationDtoTests {
         let data = try JSONEncoder().encode(request)
         let object = try JSONSerialization.jsonObject(with: data) as? [String: String]
 
+        #expect(object?["platform"] == "IOS")
+    }
+
+    @Test("unregister device token request uses backend IOS enum value")
+    func unregisterDeviceTokenUsesBackendEnumValue() throws {
+        let request = UnregisterDeviceTokenRequest(deviceToken: "token")
+        let data = try JSONEncoder().encode(request)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: String]
+
+        #expect(object?["deviceToken"] == "token")
         #expect(object?["platform"] == "IOS")
     }
 }

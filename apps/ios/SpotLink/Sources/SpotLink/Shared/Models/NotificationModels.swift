@@ -35,3 +35,13 @@ public struct RegisterDeviceTokenRequest: Encodable, Sendable {
         self.platform = "IOS"
     }
 }
+
+public struct UnregisterDeviceTokenRequest: Encodable, Sendable {
+    public let deviceToken: String
+    public let platform: String
+
+    public init(deviceToken: String) {
+        self.deviceToken = deviceToken
+        self.platform = "IOS"
+    }
+}
