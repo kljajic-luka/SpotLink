@@ -96,13 +96,44 @@ struct MobileTokenResponseTests {
         }
         """
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONDecoder.spotLinkBackend()
         let response = try decoder.decode(MobileTokenResponse.self, from: Data(json.utf8))
 
         #expect(response.accessToken == "access")
         #expect(response.refreshToken == "refresh")
         #expect(response.refreshExpiresInSeconds == 2_592_000)
+        #expect(response.user.isCustomer)
+    }
+
+    @Test("backend token response decodes fractional-second Instant fields")
+    func fractionalInstantFieldsDecode() throws {
+        let json = """
+        {
+          "accessToken": "access",
+          "refreshToken": "refresh",
+          "tokenType": "Bearer",
+          "expiresIn": 900,
+          "expiresInSeconds": 900,
+          "refreshExpiresInSeconds": 2592000,
+          "issuedAt": "2026-06-04T10:36:16.152500Z",
+          "expiresAt": "2026-06-04T10:51:16.152500Z",
+          "refreshExpiresAt": "2026-07-04T10:36:16.152500Z",
+          "user": {
+            "id": "u1",
+            "email": "marko@example.com",
+            "firstName": "Marko",
+            "lastName": "Markovic",
+            "roles": ["CUSTOMER"]
+          },
+          "roles": ["CUSTOMER"]
+        }
+        """
+
+        let response = try JSONDecoder.spotLinkBackend().decode(MobileTokenResponse.self, from: Data(json.utf8))
+
+        #expect(response.issuedAt != nil)
+        #expect(response.expiresAt != nil)
+        #expect(response.refreshExpiresAt != nil)
         #expect(response.user.isCustomer)
     }
 }

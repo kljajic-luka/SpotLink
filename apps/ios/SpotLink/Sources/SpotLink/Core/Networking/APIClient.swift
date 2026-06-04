@@ -59,9 +59,7 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
         self.encoder.dateEncodingStrategy = .iso8601
         self.encoder.keyEncodingStrategy = .useDefaultKeys
 
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
-        self.decoder.keyDecodingStrategy = .useDefaultKeys
+        self.decoder = .spotLinkBackend()
     }
 
     // MARK: APIClientProtocol

@@ -195,8 +195,7 @@ public final class SessionManager: ObservableObject, TokenProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let encoder = JSONEncoder()
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONDecoder.spotLinkBackend()
 
         do {
             request.httpBody = try encoder.encode(RefreshTokenRequest(refreshToken: refreshToken))
