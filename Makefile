@@ -1,4 +1,4 @@
-.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode build build-backend validate-backend-runtime-config build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate
+.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode build build-backend validate-backend-runtime-config validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
 
 IOS_ARCHIVE_DIR ?= build/ios/archives
 IOS_EXPORT_DIR ?= build/ios/exports
@@ -67,7 +67,11 @@ build-backend: ## Pakuj backend JAR (preskoci testove)
 	mvn -f apps/backend/pom.xml package -DskipTests
 
 validate-backend-runtime-config: ## Pokreni backend staging/prod runtime guard i logging testove
-	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,HealthEndpointTest test
+	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest,RateLimitFilterTest,HealthEndpointTest test
+
+validate-pre-staging-hardening: ## Fokusirani abuse, reset-delivery i privacy-safe logging testovi
+	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest,RateLimitFilterTest test
+	swift test --package-path apps/ios/SpotLink --filter LoggerPrivacyTests
 
 build-backend-image: ## Build provider-neutral backend container image ako je Docker dostupan
 	@if ! command -v docker >/dev/null 2>&1; then \
@@ -219,6 +223,10 @@ release-gate: ## Pokreni backend, frontend, SwiftPM, Xcode testove i unsigned iO
 	$(MAKE) test-ios-xcode
 	$(MAKE) build-ios-release-unsigned
 	$(MAKE) build-ios-staging-unsigned
+
+pre-staging-gate: ## Release gate plus fokusirani pre-staging hardening checkovi
+	$(MAKE) release-gate
+	$(MAKE) validate-pre-staging-hardening
 
 # ── podesavanje ───────────────────────────────────────────────────────────────
 

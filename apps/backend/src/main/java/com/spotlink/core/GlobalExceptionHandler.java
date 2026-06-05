@@ -27,6 +27,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private final OperationalMetrics metrics;
+
+    public GlobalExceptionHandler(OperationalMetrics metrics) {
+        this.metrics = metrics;
+    }
+
     @ExceptionHandler(NotFoundException.class)
     ResponseEntity<ApiErrorResponse> handleNotFound(NotFoundException ex, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), null, request);
@@ -44,6 +50,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
     ResponseEntity<ApiErrorResponse> handleAuthentication(Exception ex, HttpServletRequest request) {
+        metrics.increment("spotlink.auth.failure", "operation", authOperation(request));
         return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Invalid email or password", null, request);
     }
 
@@ -115,5 +122,19 @@ public class GlobalExceptionHandler {
                 details,
                 request.getRequestURI());
         return ResponseEntity.status(status).body(body);
+    }
+
+    private String authOperation(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path.endsWith("/auth/login") || path.endsWith("/v1/auth/login")) {
+            return "login";
+        }
+        if (path.endsWith("/auth/token") || path.endsWith("/v1/auth/token")) {
+            return "mobile_token";
+        }
+        if (path.contains("/auth/token/refresh")) {
+            return "mobile_token_refresh";
+        }
+        return "other";
     }
 }

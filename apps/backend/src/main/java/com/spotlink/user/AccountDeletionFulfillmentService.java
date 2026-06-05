@@ -8,6 +8,7 @@ import com.spotlink.auth.PasswordResetTokenRepository;
 import com.spotlink.auth.RefreshTokenService;
 import com.spotlink.core.IdempotencyRecordRepository;
 import com.spotlink.core.NotFoundException;
+import com.spotlink.core.OperationalMetrics;
 import com.spotlink.notification.DeviceToken;
 import com.spotlink.notification.DeviceTokenRepository;
 import com.spotlink.notification.NotificationRepository;
@@ -75,6 +76,7 @@ public class AccountDeletionFulfillmentService {
     private final IdempotencyRecordRepository idempotencyRecords;
     private final CurrentUserService currentUser;
     private final AuditService auditService;
+    private final OperationalMetrics metrics;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -96,6 +98,7 @@ public class AccountDeletionFulfillmentService {
             IdempotencyRecordRepository idempotencyRecords,
             CurrentUserService currentUser,
             AuditService auditService,
+            OperationalMetrics metrics,
             PasswordEncoder passwordEncoder,
             ObjectMapper objectMapper,
             Clock clock) {
@@ -115,6 +118,7 @@ public class AccountDeletionFulfillmentService {
         this.idempotencyRecords = idempotencyRecords;
         this.currentUser = currentUser;
         this.auditService = auditService;
+        this.metrics = metrics;
         this.passwordEncoder = passwordEncoder;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -132,6 +136,7 @@ public class AccountDeletionFulfillmentService {
             if (ticket.getStatus() != SupportTicketStatus.RESOLVED) {
                 ticket.setStatus(SupportTicketStatus.RESOLVED);
             }
+            metrics.increment("spotlink.account_deletion.fulfillment", "outcome", "already_processed");
             return response(
                     ticket,
                     user.getId(),
@@ -142,6 +147,7 @@ public class AccountDeletionFulfillmentService {
 
         List<AccountDeletionDtos.AccountDeletionBlocker> blockers = blockersFor(user.getId(), now);
         if (!blockers.isEmpty()) {
+            metrics.increment("spotlink.account_deletion.fulfillment", "outcome", "blocked");
             auditService.record(
                     actorUserId,
                     "ACCOUNT_DELETION_BLOCKED",
@@ -175,6 +181,7 @@ public class AccountDeletionFulfillmentService {
                 "support_ticket",
                 ticket.getId().toString(),
                 metadata(Map.of("requesterUserId", user.getId())));
+        metrics.increment("spotlink.account_deletion.fulfillment", "outcome", "processed");
 
         return response(
                 ticket,

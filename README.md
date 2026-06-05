@@ -122,10 +122,17 @@ Useful focused checks:
 
 ```bash
 make validate-backend-runtime-config
+make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
 make build-ios-staging-unsigned
 make build-backend-image
+```
+
+For the local pre-staging hardening bar, run:
+
+```bash
+make pre-staging-gate
 ```
 
 Signed archive/export is intentionally outside the release gate and fails clearly without Apple credentials:
@@ -166,6 +173,7 @@ Makefile           Local development, validation, build, archive/export, release
 | Document | Purpose |
 | --- | --- |
 | [docs/PORTFOLIO_OVERVIEW.md](docs/PORTFOLIO_OVERVIEW.md) | Short product and engineering brief for reviewers |
+| [docs/pre-staging-readiness.md](docs/pre-staging-readiness.md) | Abuse throttling, reset delivery, observability, and local pre-staging gate |
 | [docs/app-store-privacy-readiness.md](docs/app-store-privacy-readiness.md) | App Store privacy engineering checklist and remaining legal-owner work |
 | [apps/ios/README.md](apps/ios/README.md) | iOS schemes, staging config, signed export path, privacy/APNs/payment notes |
 | [docs/mobile-api-contract/SPOTLINK_MOBILE_API_CONTRACT.md](docs/mobile-api-contract/SPOTLINK_MOBILE_API_CONTRACT.md) | Mobile-facing API contract |

@@ -94,6 +94,16 @@ class RuntimeSafetyGuardTest {
     }
 
     @Test
+    void stagingRejectsPasswordResetDeliveryWithoutProductionReadyProvider() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues("spotlink.password-reset.delivery-enabled=true")
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "PASSWORD_RESET_DELIVERY_ENABLED=true requires a production-ready MailProvider"));
+    }
+
+    @Test
     void stagingAllowsHardenedConfigWithExplicitMockPayment() {
         contextRunner
                 .withPropertyValues(validStagingProperties())
@@ -116,7 +126,8 @@ class RuntimeSafetyGuardTest {
                 "spring.datasource.driver-class-name=org.postgresql.Driver",
                 "spotlink.jwt.secret=" + STRONG_SECRET,
                 "spotlink.cors.allowed-origins=https://staging.spotlink.app",
-                "spotlink.cookie.secure=true"
+                "spotlink.cookie.secure=true",
+                "spotlink.password-reset.delivery-enabled=false"
         };
     }
 
@@ -130,7 +141,8 @@ class RuntimeSafetyGuardTest {
                 "spotlink.jwt.secret=" + STRONG_SECRET,
                 "spotlink.cors.allowed-origins=https://spotlink.app",
                 "spotlink.cookie.secure=true",
-                "spotlink.mock-payment.enabled=false"
+                "spotlink.mock-payment.enabled=false",
+                "spotlink.password-reset.delivery-enabled=false"
         };
     }
 

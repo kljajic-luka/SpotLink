@@ -52,8 +52,10 @@ class AuthServiceLoggingTest {
                                 """.formatted(email)))
                 .andExpect(status().isNoContent());
 
-        assertThat(output).contains("Password reset token generated for userId=");
+        assertThat(output).contains("Password reset delivery queued for userId=");
+        assertThat(output).contains("Mail delivery captured provider=safe-log recipientHash=");
         assertThat(output).doesNotContain("tokenPrefix");
         assertThat(output).doesNotContain("sl_reset_");
+        assertThat(output).doesNotContain(email);
     }
 }

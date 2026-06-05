@@ -3,7 +3,9 @@ package com.spotlink.core;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import com.spotlink.notification.MailProvider;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
@@ -20,10 +22,15 @@ public class RuntimeSafetyGuard implements InitializingBean {
 
     private final AppProperties appProperties;
     private final Environment environment;
+    private final ObjectProvider<MailProvider> mailProvider;
 
-    public RuntimeSafetyGuard(AppProperties appProperties, Environment environment) {
+    public RuntimeSafetyGuard(
+            AppProperties appProperties,
+            Environment environment,
+            ObjectProvider<MailProvider> mailProvider) {
         this.appProperties = appProperties;
         this.environment = environment;
+        this.mailProvider = mailProvider;
     }
 
     @Override
@@ -36,6 +43,7 @@ public class RuntimeSafetyGuard implements InitializingBean {
         requireExplicitCors();
         requireSecureCookies();
         requireMockPaymentPolicy();
+        requirePasswordResetDeliveryPolicy();
     }
 
     private void requireExternalDatabase() {
@@ -113,6 +121,16 @@ public class RuntimeSafetyGuard implements InitializingBean {
                 && hasAnyActiveProfile(Set.of("staging"))
                 && !hasExplicitMockPaymentSetting()) {
             fail("MOCK_PAYMENT_ENABLED must be explicitly set for staging when mock payments are used.");
+        }
+    }
+
+    private void requirePasswordResetDeliveryPolicy() {
+        if (!appProperties.getPasswordReset().isDeliveryEnabled()) {
+            return;
+        }
+        MailProvider provider = mailProvider.getIfAvailable();
+        if (provider == null || !provider.productionReady()) {
+            fail("PASSWORD_RESET_DELIVERY_ENABLED=true requires a production-ready MailProvider for staging/production profiles.");
         }
     }
 

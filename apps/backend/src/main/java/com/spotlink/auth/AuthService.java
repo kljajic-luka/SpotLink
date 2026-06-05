@@ -2,6 +2,9 @@ package com.spotlink.auth;
 
 import com.spotlink.core.ConflictException;
 import com.spotlink.core.NotFoundException;
+import com.spotlink.core.AppProperties;
+import com.spotlink.core.OperationalMetrics;
+import com.spotlink.notification.MailProvider;
 import com.spotlink.operator.OperatorAccount;
 import com.spotlink.operator.OperatorAccountRepository;
 import com.spotlink.partner.PartnerService;
@@ -12,6 +15,7 @@ import com.spotlink.user.UserPreferencesRepository;
 import com.spotlink.user.UserRepository;
 import com.spotlink.user.UserRole;
 import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -39,6 +43,9 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final PartnerService partnerService;
     private final Clock clock;
+    private final AppProperties.PasswordReset passwordResetProperties;
+    private final MailProvider mailProvider;
+    private final OperationalMetrics metrics;
 
     public AuthService(
             UserRepository users,
@@ -47,7 +54,10 @@ public class AuthService {
             PasswordResetTokenRepository resetTokens,
             PasswordEncoder passwordEncoder,
             PartnerService partnerService,
-            Clock clock) {
+            Clock clock,
+            AppProperties appProperties,
+            MailProvider mailProvider,
+            OperationalMetrics metrics) {
         this.users = users;
         this.preferences = preferences;
         this.operators = operators;
@@ -55,6 +65,9 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.partnerService = partnerService;
         this.clock = clock;
+        this.passwordResetProperties = appProperties.getPasswordReset();
+        this.mailProvider = mailProvider;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -89,18 +102,38 @@ public class AuthService {
 
     @Transactional
     public void requestPasswordReset(AuthDtos.PasswordResetRequest request) {
-        users.findByEmailIgnoreCase(request.email()).ifPresent(user -> {
-            if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
-                return;
-            }
-            String token = "sl_reset_" + UUID.randomUUID();
-            PasswordResetToken resetToken = new PasswordResetToken();
-            resetToken.setUserId(user.getId());
-            resetToken.setTokenHash(hashToken(token));
-            resetToken.setExpiresAt(Instant.now(clock).plus(30, ChronoUnit.MINUTES));
-            resetTokens.save(resetToken);
-            log.info("Password reset token generated for userId={}", user.getId());
-        });
+        Optional<User> candidate = users.findByEmailIgnoreCase(request.email());
+        if (candidate.isEmpty()) {
+            metrics.increment("spotlink.auth.password_reset.request", "outcome", "no_account");
+            return;
+        }
+
+        User user = candidate.get();
+        if (user.getRegistrationStatus() != RegistrationStatus.ACTIVE) {
+            metrics.increment("spotlink.auth.password_reset.request", "outcome", "inactive_account");
+            return;
+        }
+
+        if (!passwordResetProperties.isDeliveryEnabled()) {
+            metrics.increment("spotlink.auth.password_reset.request", "outcome", "delivery_disabled");
+            log.info("Password reset request accepted but delivery is disabled for userId={}", user.getId());
+            return;
+        }
+
+        String token = "sl_reset_" + UUID.randomUUID();
+        PasswordResetToken resetToken = new PasswordResetToken();
+        resetToken.setUserId(user.getId());
+        resetToken.setTokenHash(hashToken(token));
+        resetToken.setExpiresAt(Instant.now(clock).plus(
+                Math.max(1, passwordResetProperties.getTokenTtlMinutes()),
+                ChronoUnit.MINUTES));
+        resetTokens.save(resetToken);
+        mailProvider.send(user.getEmail(), "SpotLink password reset", passwordResetBody(token));
+        metrics.increment(
+                "spotlink.auth.password_reset.request",
+                "outcome", "queued",
+                "provider", mailProvider.name());
+        log.info("Password reset delivery queued for userId={} provider={}", user.getId(), mailProvider.name());
     }
 
     @Transactional
@@ -150,5 +183,20 @@ public class AuthService {
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 is not available.", ex);
         }
+    }
+
+    private String passwordResetBody(String token) {
+        String resetUrl = Optional.ofNullable(passwordResetProperties.getResetUrl())
+                .filter(value -> !value.isBlank())
+                .orElse("http://localhost:4200/reset-password");
+        String delimiter = resetUrl.contains("?") ? "&" : "?";
+        String url = resetUrl + delimiter + "token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+        return """
+                Reset your SpotLink password using this link:
+
+                %s
+
+                If you did not request this reset, ignore this email.
+                """.formatted(url);
     }
 }

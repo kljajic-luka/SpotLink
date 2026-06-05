@@ -41,4 +41,23 @@ final class SpotLinkUITests: XCTestCase {
         let appExists = app.otherElements.firstMatch.waitForExistence(timeout: 5)
         XCTAssertTrue(appExists, "Aplikacija treba prikazati sadrzaj posle pokretanja")
     }
+
+    func testRegistrationShowsLegalLinksAndDisabledSubmitInitially() throws {
+        app.launch()
+
+        let registerLink = app.buttons["Registrujte se"]
+        XCTAssertTrue(registerLink.waitForExistence(timeout: 5), "Login flow treba prikazati registracioni link")
+        registerLink.tap()
+
+        XCTAssertTrue(app.staticTexts["Registracija"].waitForExistence(timeout: 5), "Registracioni ekran treba biti prikazan")
+        XCTAssertTrue(existsOnScreen("Uslovi koriscenja"), "Registracija treba prikazati link ka uslovima")
+        XCTAssertTrue(existsOnScreen("Politika privatnosti"), "Registracija treba prikazati link ka politici privatnosti")
+        XCTAssertFalse(app.buttons["Registruj se"].isEnabled, "Prazna registraciona forma ne sme biti submitovana")
+    }
+
+    private func existsOnScreen(_ label: String) -> Bool {
+        app.links[label].exists
+        || app.buttons[label].exists
+        || app.staticTexts[label].exists
+    }
 }

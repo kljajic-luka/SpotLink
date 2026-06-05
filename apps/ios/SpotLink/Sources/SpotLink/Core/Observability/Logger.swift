@@ -35,9 +35,29 @@ public enum SpotLinkLogger {
         log(.error, message(), file: file, line: line)
     }
 
+    public static func redactedForLog(_ message: String) -> String {
+        var redacted = message
+        let replacements: [(String, String)] = [
+            (#"(Bearer\s+)[A-Za-z0-9._~+/=-]+"#, "$1[REDACTED]"),
+            (#"sl_reset_[A-Za-z0-9-]+"#, "sl_reset_[REDACTED]"),
+            (#"(?i)((?:accessToken|refreshToken|token|authorization)=)[^&\s]+"#, "$1[REDACTED]"),
+            ("(?i)(\"(?:accessToken|refreshToken|token|authorization)\"\\s*:\\s*\")[^\"]+(\")", "$1[REDACTED]$2")
+        ]
+
+        for (pattern, replacement) in replacements {
+            redacted = redacted.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: .regularExpression
+            )
+        }
+        return redacted
+    }
+
     private static func log(_ level: Level, _ message: String, file: String, line: Int) {
         guard level >= minimumLevel else { return }
         let filename = URL(fileURLWithPath: file).lastPathComponent
+        let safeMessage = redactedForLog(message)
         let prefix: String
         switch level {
         case .debug: prefix = "🔍 DEBUG"
@@ -45,6 +65,6 @@ public enum SpotLinkLogger {
         case .warn:  prefix = "⚠️ WARN "
         case .error: prefix = "❌ ERROR"
         }
-        print("[\(prefix)] \(filename):\(line) → \(message)")
+        print("[\(prefix)] \(filename):\(line) → \(safeMessage)")
     }
 }

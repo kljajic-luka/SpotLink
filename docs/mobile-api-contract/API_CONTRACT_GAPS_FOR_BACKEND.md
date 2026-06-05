@@ -114,11 +114,11 @@ The gaps below now track remaining hardening work.
 
 - Area: Rate limiting and abuse prevention
 - Priority: P1
-- Current behavior: No visible rate limiting on auth, reset, search/geocode, reservation, payment, support, or analytics.
-- Desired mobile behavior: Rate limits with `429`, `Retry-After`, and stable error code.
+- Current behavior: Auth login, mobile token, registration, password reset, and analytics ingestion have configurable local rate limits with `429`, `Retry-After`, and `RATE_LIMITED`. Search/geocode, reservation, payment, support, account lockout, device-risk scoring, and provider/WAF limits remain future hardening.
+- Desired mobile behavior: Rate limits with `429`, `Retry-After`, stable error code, and broader abuse policy coverage.
 - Backend files likely affected: security/config filters, controllers, exception handling.
 - iOS impact: Mobile retry policy cannot distinguish throttling from generic failures.
-- Suggested acceptance criteria: Rate-limit tests assert `429`, `Retry-After`, and `RATE_LIMITED` code.
+- Suggested acceptance criteria: Existing focused rate-limit tests stay green; future provider/WAF and account-risk controls have staged rollout tests.
 
 ## MOB-BE-011
 
@@ -154,7 +154,7 @@ The gaps below now track remaining hardening work.
 
 - Area: Analytics privacy and schema validation
 - Priority: P2
-- Current behavior: Analytics endpoint is public and accepts free-form properties map.
+- Current behavior: Analytics endpoint is public, schema validated at the envelope level, and rate-limited, but still accepts a free-form properties map.
 - Desired mobile behavior: Event allowlist, consent state, app/build/platform fields, rate limiting, and PII stripping.
 - Backend files likely affected: analytics module, security/rate limit config.
 - iOS impact: Analytics should remain disabled for external users until privacy behavior is clear.

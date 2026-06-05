@@ -19,12 +19,12 @@ Severity labels:
 | --- | --- | --- | --- |
 | Critical | Mock payment cannot ship as production payment path. | Backend has `MockPaymentProvider` and `spotlink.mock-payment.enabled` defaults to true. | Release builds and production backend must use a real PSP or disable paid reservations. Add config guard. |
 | High | Production mobile auth model is not finalized. | Backend is cookie/session and XSRF oriented. | Decide hardened native cookie session or mobile token model before external TestFlight. |
-| High | Password reset delivery is foundation-only. | Reset token is generated and token prefix is logged; no email provider integration observed. | Add secure email delivery, remove token material from logs, rate limit reset requests. |
-| High | Rate limiting and abuse prevention are not visible. | Auth, analytics, support, geocode, and reservation endpoints do not show rate-limit controls. | Add API rate limits, account lockout, IP/device throttles, and analytics abuse controls. |
+| High | Password reset delivery is provider-shaped but not externally deliverable. | Backend uses `MailProvider`; local `safe-log` logs only recipient hash and staging/prod must disable delivery or provide a production-ready provider. | Select/configure a real email provider, sender domain, and delivery credentials before external staging. |
+| High | Rate limiting is present for key public abuse surfaces, but broader abuse controls remain. | Auth login, mobile token, registration, password reset, and analytics ingestion return `RATE_LIMITED` with `Retry-After` when throttled. | Add account lockout, device-risk controls, and provider/WAF-level throttles for wider staging/production exposure. |
 | High | APNs delivery and token lifecycle are incomplete. | Device token registration exists, but provider is mock and unregister endpoint is missing. | Implement APNs, token deactivation, privacy-safe payloads, and preference enforcement. |
 | Medium | API versioning is missing. | Endpoints are unversioned under `/api`. | Add `/api/v1` or version header before mobile clients stabilize. |
 | Medium | Location and license plate data require explicit privacy handling. | Vehicle and location models include license plate, coordinates, address, and reservation data. | Classify PII, limit logs/caches, update privacy policy and privacy manifest. |
-| Medium | Analytics endpoint is public and consent model is undefined. | `/analytics/events` is public and CSRF-exempt. | Add consent controls, rate limiting, schema validation, and PII stripping. |
+| Medium | Analytics endpoint is public and consent model is undefined. | `/analytics/events` is public, CSRF-exempt, schema-validated, and rate-limited. | Add consent controls and PII stripping before broad external use. |
 | Low | Certificate pinning should be a staged decision. | TLS is assumed but pinning is not specified. | Use ATS and strong TLS first; consider pinning only with an operational rotation plan. |
 
 ## Auth Model Recommendations
@@ -364,4 +364,3 @@ Required:
 - Data retention and deletion process documented.
 - OpenAPI contract versioned.
 - No sensitive data in logs, analytics, crash breadcrumbs, or push payloads.
-

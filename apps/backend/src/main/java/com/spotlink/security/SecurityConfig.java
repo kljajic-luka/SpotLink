@@ -39,13 +39,15 @@ public class SecurityConfig {
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final JwtService jwtService;
+    private final RateLimitFilter rateLimitFilter;
     private final UserRepository userRepository;
 
     public SecurityConfig(AppProperties appProperties, ObjectMapper objectMapper,
-            JwtService jwtService, UserRepository userRepository) {
+            JwtService jwtService, RateLimitFilter rateLimitFilter, UserRepository userRepository) {
         this.appProperties = appProperties;
         this.objectMapper = objectMapper;
         this.jwtService = jwtService;
+        this.rateLimitFilter = rateLimitFilter;
         this.userRepository = userRepository;
     }
 
@@ -105,6 +107,7 @@ public class SecurityConfig {
                                 "default-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"))
                         .referrerPolicy(Customizer.withDefaults()))
                 .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -130,7 +133,7 @@ public class SecurityConfig {
                 "X-Idempotency-Key",
                 "X-Request-Id",
                 "X-Correlation-Id"));
-        config.setExposedHeaders(List.of("X-Request-Id", "X-Idempotency-Key"));
+        config.setExposedHeaders(List.of("X-Request-Id", "X-Idempotency-Key", "Retry-After"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

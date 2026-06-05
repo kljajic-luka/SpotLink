@@ -1,5 +1,6 @@
 package com.spotlink.core;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -10,8 +11,11 @@ public class AppProperties {
     private final Cors cors = new Cors();
     private final Cookie cookie = new Cookie();
     private final Jwt jwt = new Jwt();
+    private final Mail mail = new Mail();
     private final MockPayment mockPayment = new MockPayment();
     private final Payment payment = new Payment();
+    private final PasswordReset passwordReset = new PasswordReset();
+    private final RateLimit rateLimit = new RateLimit();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
     private int bookingSlotMinutes = 15;
@@ -32,12 +36,24 @@ public class AppProperties {
         return jwt;
     }
 
+    public Mail getMail() {
+        return mail;
+    }
+
     public MockPayment getMockPayment() {
         return mockPayment;
     }
 
     public Payment getPayment() {
         return payment;
+    }
+
+    public PasswordReset getPasswordReset() {
+        return passwordReset;
+    }
+
+    public RateLimit getRateLimit() {
+        return rateLimit;
     }
 
     public String getDefaultCurrency() {
@@ -185,6 +201,129 @@ public class AppProperties {
 
         public void setOnlineEnabled(boolean onlineEnabled) {
             this.onlineEnabled = onlineEnabled;
+        }
+    }
+
+    public static class PasswordReset {
+        private boolean deliveryEnabled = true;
+        private String resetUrl = "http://localhost:4200/reset-password";
+        private int tokenTtlMinutes = 30;
+
+        public boolean isDeliveryEnabled() {
+            return deliveryEnabled;
+        }
+
+        public void setDeliveryEnabled(boolean deliveryEnabled) {
+            this.deliveryEnabled = deliveryEnabled;
+        }
+
+        public String getResetUrl() {
+            return resetUrl;
+        }
+
+        public void setResetUrl(String resetUrl) {
+            this.resetUrl = resetUrl;
+        }
+
+        public int getTokenTtlMinutes() {
+            return tokenTtlMinutes;
+        }
+
+        public void setTokenTtlMinutes(int tokenTtlMinutes) {
+            this.tokenTtlMinutes = tokenTtlMinutes;
+        }
+    }
+
+    public static class Mail {
+        private String provider = "safe-log";
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+    }
+
+    public static class RateLimit {
+        private boolean enabled = true;
+        private final Rule login = new Rule(10, Duration.ofMinutes(1));
+        private final Rule mobileToken = new Rule(10, Duration.ofMinutes(1));
+        private final Rule registration = new Rule(5, Duration.ofMinutes(1));
+        private final Rule passwordResetRequest = new Rule(5, Duration.ofMinutes(1));
+        private final Rule passwordResetComplete = new Rule(10, Duration.ofMinutes(1));
+        private final Rule analytics = new Rule(60, Duration.ofMinutes(1));
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Rule getLogin() {
+            return login;
+        }
+
+        public Rule getMobileToken() {
+            return mobileToken;
+        }
+
+        public Rule getRegistration() {
+            return registration;
+        }
+
+        public Rule getPasswordResetRequest() {
+            return passwordResetRequest;
+        }
+
+        public Rule getPasswordResetComplete() {
+            return passwordResetComplete;
+        }
+
+        public Rule getAnalytics() {
+            return analytics;
+        }
+
+        public static class Rule {
+            private boolean enabled = true;
+            private int permits;
+            private Duration window;
+
+            public Rule() {
+                this(10, Duration.ofMinutes(1));
+            }
+
+            public Rule(int permits, Duration window) {
+                this.permits = permits;
+                this.window = window;
+            }
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public int getPermits() {
+                return permits;
+            }
+
+            public void setPermits(int permits) {
+                this.permits = permits;
+            }
+
+            public Duration getWindow() {
+                return window;
+            }
+
+            public void setWindow(Duration window) {
+                this.window = window;
+            }
         }
     }
 

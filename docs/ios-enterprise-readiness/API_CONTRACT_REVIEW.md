@@ -55,8 +55,8 @@ Recommended changes:
 - Decide production mobile auth model: hardened cookie sessions for native clients or mobile access/refresh tokens.
 - Prefer OIDC/OAuth with PKCE or backend-issued short-lived access token plus rotating refresh token.
 - Add refresh/session rotation endpoint if token model is adopted.
-- Add email verification, account lockout, rate limiting, and suspicious login controls.
-- Stop relying on log output for password reset delivery. Add email provider integration and never log reset token material.
+- Add email verification, account lockout, and suspicious login controls. Public auth/password-reset/analytics rate limits now exist as local backend guardrails.
+- Replace the local `safe-log` password reset mail provider with a real email provider before external staging; reset token material must remain out of logs.
 - Add explicit session revocation behavior on logout.
 - Return consistent auth error codes for expired, revoked, suspended, and invalid credentials.
 - Consider device/session listing for support and user self-service later.
@@ -532,4 +532,3 @@ Recommended changes:
 - Add token deactivation endpoint.
 - Add notification payload schema with deep-link target and privacy constraints.
 - Add backend-side preference enforcement.
-

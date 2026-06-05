@@ -2,6 +2,7 @@ package com.spotlink.payment;
 
 import com.spotlink.core.AppProperties;
 import com.spotlink.core.ConflictException;
+import com.spotlink.core.OperationalMetrics;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -18,14 +19,17 @@ public class PaymentAuthority {
     private final AppProperties appProperties;
     private final PaymentProvider paymentProvider;
     private final Environment environment;
+    private final OperationalMetrics metrics;
 
     public PaymentAuthority(
             AppProperties appProperties,
             PaymentProvider paymentProvider,
-            Environment environment) {
+            Environment environment,
+            OperationalMetrics metrics) {
         this.appProperties = appProperties;
         this.paymentProvider = paymentProvider;
         this.environment = environment;
+        this.metrics = metrics;
     }
 
     public PaymentDtos.PaymentCapabilitiesDto capabilities() {
@@ -63,6 +67,9 @@ public class PaymentAuthority {
 
     public void requireOnlinePaymentsEnabled() {
         if (!onlinePaymentsEnabled()) {
+            metrics.increment(
+                    "spotlink.payment.authority.disabled",
+                    "provider", activeProviderName(false));
             throw new ConflictException(
                     "ONLINE_PAYMENTS_DISABLED",
                     "Online payments are disabled because no configured payment provider is available.");
