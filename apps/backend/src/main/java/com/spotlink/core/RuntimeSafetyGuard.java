@@ -19,6 +19,8 @@ public class RuntimeSafetyGuard implements InitializingBean {
     private static final Set<String> PRODUCTION_PROFILES = Set.of("prod", "production");
     private static final String MOCK_PAYMENT_PROPERTY = "spotlink.mock-payment.enabled";
     private static final String MOCK_PAYMENT_ENV = "MOCK_PAYMENT_ENABLED";
+    private static final String PUSH_DELIVERY_PROPERTY = "spotlink.push.delivery-enabled";
+    private static final String PUSH_DELIVERY_ENV = "PUSH_DELIVERY_ENABLED";
 
     private final AppProperties appProperties;
     private final Environment environment;
@@ -44,6 +46,7 @@ public class RuntimeSafetyGuard implements InitializingBean {
         requireSecureCookies();
         requireMockPaymentPolicy();
         requirePasswordResetDeliveryPolicy();
+        requirePushDeliveryPolicy();
     }
 
     private void requireExternalDatabase() {
@@ -134,7 +137,47 @@ public class RuntimeSafetyGuard implements InitializingBean {
         }
     }
 
+    private void requirePushDeliveryPolicy() {
+        if (!hasExplicitPushDeliverySetting()) {
+            fail("PUSH_DELIVERY_ENABLED must be explicitly set for staging/production profiles.");
+        }
+        if (!appProperties.getPush().isDeliveryEnabled()) {
+            return;
+        }
+
+        String provider = normalized(appProperties.getPush().getProvider());
+        if (!Set.of("apns", "safe-log", "none").contains(provider)) {
+            fail("PUSH_PROVIDER must be one of none, safe-log, or apns.");
+        }
+        if (!"apns".equals(provider)) {
+            fail("PUSH_DELIVERY_ENABLED=true requires PUSH_PROVIDER=apns for staging/production profiles.");
+        }
+
+        AppProperties.Apns apns = appProperties.getPush().getApns();
+        String apnsEnvironment = normalized(apns.getEnvironment());
+        if (!Set.of("sandbox", "production").contains(apnsEnvironment)) {
+            fail("APNS_ENVIRONMENT must be sandbox or production.");
+        }
+        if ("sandbox".equals(apnsEnvironment) && hasAnyActiveProfile(PRODUCTION_PROFILES)) {
+            fail("APNS_ENVIRONMENT=sandbox is not allowed for production profiles.");
+        }
+        requireText(apns.getBundleId(), "APNS_BUNDLE_ID is required when PUSH_PROVIDER=apns.");
+        requireText(apns.getTeamId(), "APNS_TEAM_ID is required when PUSH_PROVIDER=apns.");
+        requireText(apns.getKeyId(), "APNS_KEY_ID is required when PUSH_PROVIDER=apns.");
+        if (!StringUtils.hasText(apns.getPrivateKey()) && !StringUtils.hasText(apns.getPrivateKeyPath())) {
+            fail("APNS_PRIVATE_KEY or APNS_PRIVATE_KEY_PATH is required when PUSH_PROVIDER=apns.");
+        }
+    }
+
     private boolean hasExplicitMockPaymentSetting() {
+        return hasExplicitSetting(MOCK_PAYMENT_PROPERTY, MOCK_PAYMENT_ENV);
+    }
+
+    private boolean hasExplicitPushDeliverySetting() {
+        return hasExplicitSetting(PUSH_DELIVERY_PROPERTY, PUSH_DELIVERY_ENV);
+    }
+
+    private boolean hasExplicitSetting(String propertyName, String environmentName) {
         if (environment instanceof ConfigurableEnvironment configurableEnvironment) {
             for (PropertySource<?> source : configurableEnvironment.getPropertySources()) {
                 String sourceName = source.getName().toLowerCase(Locale.ROOT);
@@ -142,14 +185,14 @@ public class RuntimeSafetyGuard implements InitializingBean {
                         || sourceName.contains("application-test.properties")) {
                     continue;
                 }
-                if (source.containsProperty(MOCK_PAYMENT_PROPERTY) || source.containsProperty(MOCK_PAYMENT_ENV)) {
+                if (source.containsProperty(propertyName) || source.containsProperty(environmentName)) {
                     return true;
                 }
             }
         }
-        return System.getenv().containsKey(MOCK_PAYMENT_ENV)
-                || System.getProperty(MOCK_PAYMENT_ENV) != null
-                || System.getProperty(MOCK_PAYMENT_PROPERTY) != null;
+        return System.getenv().containsKey(environmentName)
+                || System.getProperty(environmentName) != null
+                || System.getProperty(propertyName) != null;
     }
 
     private boolean hasAnyActiveProfile(Set<String> profileNames) {
@@ -163,6 +206,16 @@ public class RuntimeSafetyGuard implements InitializingBean {
 
     private String property(String name) {
         return environment.getProperty(name, "");
+    }
+
+    private String normalized(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private void requireText(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            fail(message);
+        }
     }
 
     private void fail(String message) {

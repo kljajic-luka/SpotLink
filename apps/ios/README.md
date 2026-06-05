@@ -168,20 +168,22 @@ Za real PSP jos su potrebni izbor provajdera, credentials u secret store-u, webh
 
 ### Push obavestenja
 
-Trenutni iOS sloj je spreman za lifecycle APNs tokena, ali ne salje prava APNs obavestenja:
+Trenutni iOS sloj je spreman za lifecycle APNs tokena, a backend ima APNs-ready delivery scaffold. Aplikacija i dalje ne salje prava APNs obavestenja dok Apple capability, provisioning i credentials ne budu obezbedjeni:
 
 - `PushNotificationManager` cuva poslednji APNs token lokalno dovoljno da ga moze odjaviti posle restarta aplikacije.
 - Token se uploaduje kada APNs vrati token, posle uspesne prijave i posle restore-a autentifikovane sesije.
 - Odjava pokusava backend unregister pre lokalnog brisanja sesije; lokalna odjava se ipak zavrsava ako unregister/revoke poziv ne uspe.
 - Uspesan unregister brise lokalno zapamcen token state.
 - Backend unregister je ownership-safe: missing/foreign token ne otkriva vlasnistvo.
+- Backend delivery radi posle commit-a notifikacije, preskace inactive tokene, deaktivira APNs tokene koje provider prijavi kao trajno nevazece i meri attempted/succeeded/failed/invalid-token/disabled ishode.
+- Backend logovi smeju imati samo stabilan hash tokena, ne raw APNs token, bearer token, APNs key material ili payload body.
 
 Pre pravog APNs rada jos uvek je potrebno:
 
 - Omoguciti Push Notifications capability za staging/release bundle ID-jeve u Apple Developer portalu.
 - Ukljuciti odgovarajuci entitlement u Xcode projektu bez lomljenja unsigned gate-a.
-- Obezbediti APNs key/certificate kroz provider secret store, ne kroz repo.
-- Zameniti backend mock notification provider pravim APNs providerom.
+- Obezbediti APNs key/certificate kroz provider secret store, ne kroz repo, i podesiti `PUSH_DELIVERY_ENABLED=true`, `PUSH_PROVIDER=apns`, `APNS_ENVIRONMENT`, `APNS_BUNDLE_ID`, `APNS_TEAM_ID`, `APNS_KEY_ID` i APNs private key vrednost/path u runtime okruzenju.
+- Izvrsiti fizicki device smoke test za sandbox/production delivery; simulator i unsigned gate ne dokazuju APNs isporuku.
 
 ---
 
@@ -276,5 +278,5 @@ Registration links to Terms and Privacy Policy. Profile exposes Privacy Policy, 
 - `Staging` i `Release` konfiguracije ne postavljaju tim za potpisivanje u projektu; signed Makefile targeti ga primaju kroz `SPOTLINK_APPLE_TEAM_ID`.
 - Release gate validira unsigned Release i Staging buildove (`CODE_SIGNING_ALLOWED=NO`); signed archive/export zahteva Apple Developer sertifikat i provisioning profile.
 - Online payment UI se vodi backend capabilities odgovorom, ali real PSP provider/credentials/SCA/capture/refund/webhook/reconciliation nisu implementirani.
-- Push token lifecycle je spreman, ali real APNs provider, APNs credentials i push entitlement jos nisu implementirani.
+- Push token lifecycle i backend APNs delivery scaffold su spremni, ali APNs credentials, push entitlement i fizicka isporuka jos nisu implementirani/verifikovani.
 - Legal/support linkovi su tehnicki povezani, ali stvarni Privacy Policy, Terms, support stranice i App Store Connect privacy answers ostaju owner/legal odgovornost.

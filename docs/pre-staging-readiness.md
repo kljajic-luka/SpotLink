@@ -1,6 +1,6 @@
 # Pre-Staging Readiness Gate
 
-SpotLink's pre-staging gate is a local hardening layer on top of the normal release gate. It does not deploy infrastructure, send real email, enable APNs, enable a PSP, or perform Apple signing.
+SpotLink's pre-staging gate is a local hardening layer on top of the normal release gate. It does not deploy infrastructure, send real email, enable APNs entitlements, contact APNs, enable a PSP, or perform Apple signing.
 
 ## Command
 
@@ -12,6 +12,7 @@ This target runs:
 
 - `make release-gate`
 - focused mobile API contract checks against backend-generated OpenAPI routes and Swift fixture decoding
+- focused push delivery readiness checks for provider configuration, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -19,6 +20,12 @@ The contract check is also runnable on its own:
 
 ```bash
 make validate-mobile-api-contract
+```
+
+The push delivery check is also runnable on its own:
+
+```bash
+make validate-push-delivery-readiness
 ```
 
 ## Backend Protections
@@ -64,9 +71,27 @@ The backend records low-cardinality counters for:
 - rate-limit blocks
 - password reset request outcomes
 - payment authority disabled decisions
+- push delivery attempted/succeeded/failed/invalid-token/disabled outcomes
 - account deletion fulfillment outcomes
 
 Metric tags avoid user identifiers, email, phone, device tokens, reset tokens, bearer tokens, license plates, and request payload data.
+
+## Push Delivery Readiness
+
+Backend push delivery is provider-shaped but credential-free by default:
+
+- `PUSH_DELIVERY_ENABLED=false` and `PUSH_PROVIDER=none` are the safe staging/production examples.
+- `PUSH_PROVIDER=safe-log` is available only for local/internal validation and logs provider name plus stable token hashes, never raw tokens or payload bodies.
+- `PUSH_PROVIDER=apns` creates a Pushy-backed APNs adapter and requires bundle ID, team ID, key ID, and APNs private key material from the runtime secret store.
+- Notification persistence publishes delivery work after transaction commit, so APNs/provider failures do not roll back the saved in-app notification.
+- Delivery is attempted only for active iOS device tokens.
+- APNs permanent token failures deactivate the stored device token; transient failures are counted and logged without raw token or payload data.
+
+Staging/production runtime guards require an explicit push policy. If delivery is enabled in a hardened profile, the only accepted provider is `apns`; production rejects `APNS_ENVIRONMENT=sandbox`.
+
+This is not physical-device APNs verification. Apple Developer capabilities, provisioning, APNs credentials, app entitlements, and real delivery smoke tests remain external.
+
+The backend uses the proven Pushy Java APNs client for the adapter rather than hand-rolling HTTP/2 token authentication and APNs response parsing. Automated tests do not make live APNs network calls.
 
 ## iOS Privacy-Safe Logging
 
@@ -85,5 +110,5 @@ The iOS UI test suite includes a deterministic unauthenticated registration chec
 - Real email provider, sender domain, and delivery credentials
 - Apple signing/TestFlight upload credentials
 - PSP selection, credentials, webhook verification, and reconciliation
-- APNs provider credentials and entitlement enablement
+- APNs provider credentials, entitlement enablement, physical-device delivery validation, and notification preference policy
 - Owner-approved legal/privacy pages and App Store Connect answers

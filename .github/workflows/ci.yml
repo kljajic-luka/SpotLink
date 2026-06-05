@@ -57,6 +57,9 @@ jobs:
       - name: Mobile API contract backend validation
         run: mvn -B -f apps/backend/pom.xml -Dtest=MobileApiContractTest test
 
+      - name: Push delivery readiness validation
+        run: make validate-push-delivery-readiness
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest

@@ -356,10 +356,10 @@ Required:
 - Deep link routing from notification payloads.
 - Privacy-safe payload design.
 
-Backend gaps to close:
+Backend gaps to close before real APNs rollout:
 
-- APNs provider implementation.
-- Device token unregister/deactivate endpoint.
+- Configure APNs provider credentials outside the repo and smoke-test delivery.
+- Keep device token unregister/deactivate endpoint coverage green.
 - Token environment metadata: sandbox vs production.
 - Bundle ID/team ID metadata if backend needs it.
 - Notification preference enforcement server-side.

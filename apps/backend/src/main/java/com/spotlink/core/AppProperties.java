@@ -15,6 +15,7 @@ public class AppProperties {
     private final MockPayment mockPayment = new MockPayment();
     private final Payment payment = new Payment();
     private final PasswordReset passwordReset = new PasswordReset();
+    private final Push push = new Push();
     private final RateLimit rateLimit = new RateLimit();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
@@ -50,6 +51,10 @@ public class AppProperties {
 
     public PasswordReset getPasswordReset() {
         return passwordReset;
+    }
+
+    public Push getPush() {
+        return push;
     }
 
     public RateLimit getRateLimit() {
@@ -243,6 +248,98 @@ public class AppProperties {
 
         public void setProvider(String provider) {
             this.provider = provider;
+        }
+    }
+
+    public static class Push {
+        private boolean deliveryEnabled;
+        private String provider = "none";
+        private final Apns apns = new Apns();
+
+        public boolean isDeliveryEnabled() {
+            return deliveryEnabled;
+        }
+
+        public void setDeliveryEnabled(boolean deliveryEnabled) {
+            this.deliveryEnabled = deliveryEnabled;
+        }
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+
+        public Apns getApns() {
+            return apns;
+        }
+    }
+
+    public static class Apns {
+        private String environment = "sandbox";
+        private String bundleId = "";
+        private String teamId = "";
+        private String keyId = "";
+        private String privateKey = "";
+        private String privateKeyPath = "";
+        private int requestTimeoutSeconds = 10;
+
+        public String getEnvironment() {
+            return environment;
+        }
+
+        public void setEnvironment(String environment) {
+            this.environment = environment;
+        }
+
+        public String getBundleId() {
+            return bundleId;
+        }
+
+        public void setBundleId(String bundleId) {
+            this.bundleId = bundleId;
+        }
+
+        public String getTeamId() {
+            return teamId;
+        }
+
+        public void setTeamId(String teamId) {
+            this.teamId = teamId;
+        }
+
+        public String getKeyId() {
+            return keyId;
+        }
+
+        public void setKeyId(String keyId) {
+            this.keyId = keyId;
+        }
+
+        public String getPrivateKey() {
+            return privateKey;
+        }
+
+        public void setPrivateKey(String privateKey) {
+            this.privateKey = privateKey;
+        }
+
+        public String getPrivateKeyPath() {
+            return privateKeyPath;
+        }
+
+        public void setPrivateKeyPath(String privateKeyPath) {
+            this.privateKeyPath = privateKeyPath;
+        }
+
+        public int getRequestTimeoutSeconds() {
+            return requestTimeoutSeconds;
+        }
+
+        public void setRequestTimeoutSeconds(int requestTimeoutSeconds) {
+            this.requestTimeoutSeconds = requestTimeoutSeconds;
         }
     }
 

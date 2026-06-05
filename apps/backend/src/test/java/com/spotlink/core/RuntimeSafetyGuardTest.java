@@ -104,6 +104,61 @@ class RuntimeSafetyGuardTest {
     }
 
     @Test
+    void stagingRequiresExplicitPushDeliveryPolicy() {
+        contextRunner
+                .withPropertyValues(append(validStagingPropertiesWithoutPushDelivery(), "spotlink.mock-payment.enabled=true"))
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "PUSH_DELIVERY_ENABLED must be explicitly set"));
+    }
+
+    @Test
+    void stagingRejectsEnabledPushWithoutApnsProvider() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues(
+                        "spotlink.push.delivery-enabled=true",
+                        "spotlink.push.provider=safe-log")
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "PUSH_DELIVERY_ENABLED=true requires PUSH_PROVIDER=apns"));
+    }
+
+    @Test
+    void stagingRejectsIncompleteApnsConfigWhenPushEnabled() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues(
+                        "spotlink.push.delivery-enabled=true",
+                        "spotlink.push.provider=apns",
+                        "spotlink.push.apns.environment=sandbox")
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "APNS_BUNDLE_ID is required"));
+    }
+
+    @Test
+    void productionRejectsSandboxApnsEnvironment() {
+        contextRunner
+                .withPropertyValues(validProductionProperties())
+                .withPropertyValues(completeApnsProperties("sandbox"))
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "APNS_ENVIRONMENT=sandbox is not allowed"));
+    }
+
+    @Test
+    void stagingAllowsCompleteApnsConfigWhenPushEnabled() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues(completeApnsProperties("sandbox"))
+                .run(context -> {
+                    assertThat(context.getStartupFailure()).isNull();
+                    assertThat(context).hasSingleBean(RuntimeSafetyGuard.class);
+                });
+    }
+
+    @Test
     void stagingAllowsHardenedConfigWithExplicitMockPayment() {
         contextRunner
                 .withPropertyValues(validStagingProperties())
@@ -117,7 +172,7 @@ class RuntimeSafetyGuardTest {
         return append(validStagingPropertiesWithoutMockPayment(), "spotlink.mock-payment.enabled=true");
     }
 
-    private String[] validStagingPropertiesWithoutMockPayment() {
+    private String[] validStagingPropertiesWithoutPushDelivery() {
         return new String[] {
                 "spring.profiles.active=staging",
                 "spring.datasource.url=jdbc:postgresql://staging-db:5432/spotlink",
@@ -131,6 +186,10 @@ class RuntimeSafetyGuardTest {
         };
     }
 
+    private String[] validStagingPropertiesWithoutMockPayment() {
+        return append(validStagingPropertiesWithoutPushDelivery(), "spotlink.push.delivery-enabled=false");
+    }
+
     private String[] validProductionProperties() {
         return new String[] {
                 "spring.profiles.active=production",
@@ -142,7 +201,20 @@ class RuntimeSafetyGuardTest {
                 "spotlink.cors.allowed-origins=https://spotlink.app",
                 "spotlink.cookie.secure=true",
                 "spotlink.mock-payment.enabled=false",
-                "spotlink.password-reset.delivery-enabled=false"
+                "spotlink.password-reset.delivery-enabled=false",
+                "spotlink.push.delivery-enabled=false"
+        };
+    }
+
+    private String[] completeApnsProperties(String apnsEnvironment) {
+        return new String[] {
+                "spotlink.push.delivery-enabled=true",
+                "spotlink.push.provider=apns",
+                "spotlink.push.apns.environment=" + apnsEnvironment,
+                "spotlink.push.apns.bundle-id=com.spotlink.app.staging",
+                "spotlink.push.apns.team-id=TEAMID1234",
+                "spotlink.push.apns.key-id=KEYID12345",
+                "spotlink.push.apns.private-key-path=/run/secrets/apns/apns-auth-key-placeholder"
         };
     }
 

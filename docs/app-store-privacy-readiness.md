@@ -10,7 +10,7 @@ This is an engineering checklist for App Store privacy metadata and Internal Tes
 - App-owned UserDefaults access with required reason `CA92.1`.
 - Data types sent to SpotLink backend systems for app functionality, analytics, support, notification lifecycle, and diagnostics.
 
-No APNs entitlement, Apple Pay entitlement, Associated Domains entitlement, tracking entitlement, or third-party crash/APNs SDK claim is enabled in this slice.
+No APNs entitlement, Apple Pay entitlement, Associated Domains entitlement, tracking entitlement, or third-party crash SDK claim is enabled in this slice. Backend APNs provider code is scaffolded but disabled by default and not physically verified without Apple credentials/provisioning.
 
 Validate plist syntax:
 
@@ -31,7 +31,7 @@ The current app/backend/frontend surfaces process the following data classes:
 | Payments | provider intent/attempt IDs, amount/currency/status, mock method metadata in allowed non-production modes | payment authority and future PSP reconciliation; raw card details are not collected or stored |
 | Support/account deletion | ticket subject/category/message/status and deletion-request tickets | support intake and human-reviewed account deletion workflow |
 | Analytics | app/screen/login/reservation/payment/support events, session ID, event properties | internal product/operational analytics |
-| Notifications | APNs device token, platform, active/deactivated state | token lifecycle only; real APNs delivery is not implemented |
+| Notifications | APNs device token, platform, active/deactivated state | token lifecycle and backend delivery readiness; real APNs delivery is not enabled or physically verified |
 | Diagnostics | request IDs, API error references, operational logs | debugging, abuse investigation, support correlation |
 
 ## App Store Connect Privacy Checklist
@@ -48,7 +48,7 @@ Before signed TestFlight or App Review, the owner should confirm App Store Conne
 - Tracking: currently no cross-app tracking and no tracking domains.
 - Payment info: do not mark raw card collection unless a future PSP integration changes the data flow.
 
-If real PSP, APNs provider, crash reporting, attribution, marketing, or third-party analytics SDKs are added later, update both the manifest and App Store Connect answers before upload.
+If real PSP, APNs entitlement/credentials, crash reporting, attribution, marketing, or third-party analytics SDKs are enabled later, update both the manifest and App Store Connect answers before upload.
 
 ## Legal And Support URLs
 
@@ -79,4 +79,4 @@ Requests create or return an unresolved support ticket in category `ACCOUNT` wit
 - Apple Developer signing, provisioning, App Store Connect app records, and human-controlled TestFlight upload.
 - Real staging deployment and production-like domain/runtime monitoring.
 - Real PSP provider, credentials, SCA/deep-link return, webhook signature verification, capture/refund reconciliation, and settlement reporting.
-- Real APNs provider, APNs key/certificate, Push Notifications entitlement, privacy-reviewed payloads, and notification preference enforcement.
+- APNs credentials, Push Notifications entitlement, physical-device delivery validation, privacy-reviewed payloads, and notification preference enforcement.

@@ -4,7 +4,7 @@ Date: 2026-04-22
 
 ## QA Goal
 
-SpotLink iOS should not reach external TestFlight until core customer flows are reliable under real mobile conditions: slow networks, session expiry, denied permissions, payment uncertainty, push token changes, and reservation race conditions.
+SpotLink iOS should not reach external TestFlight until core customer flows are reliable under real mobile conditions: slow networks, session expiry, denied permissions, payment uncertainty, push token changes, APNs provider failures, and reservation race conditions.
 
 This strategy covers backend, iOS, API contract, manual QA, and CI gates. The native SwiftUI app now has a deterministic simulator QA path, but real staging, physical-device APNs, Apple signing, PSP, and owner-approved legal content remain outside the automated simulator gate.
 
@@ -13,6 +13,7 @@ This strategy covers backend, iOS, API contract, manual QA, and CI gates. The na
 `make pre-staging-gate` is the local proof bar before staging deployment work resumes. It runs the full release gate, then focused pre-staging hardening checks. For iOS, this currently proves:
 
 - SwiftPM unit/model tests pass, including API decoding, payment capabilities, reservation idempotency retry behavior, offline search, slow-search loading state, unauthorized session sign-out, push-token lifecycle, and privacy-safe logging.
+- Backend push readiness tests prove provider selection/runtime guards, post-commit delivery semantics, invalid-token deactivation, inactive-token skipping, metrics, and APNs token redaction without live APNs calls.
 - Xcode `SpotLinkApp` unit tests and UI tests run against the app target instead of a web or mocked binary.
 - UI tests launch with `--uitesting` and reset local session artifacts to avoid stale simulator Keychain state.
 - Authenticated UI tests use the explicit `--spotlink-uitest-authenticated` DEBUG-only fixture. This seeds a local customer session and skips remote logout only for that fixture, keeping normal Debug, Staging, and Release behavior unchanged.

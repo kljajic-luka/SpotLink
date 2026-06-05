@@ -24,7 +24,7 @@ These screenshots are captured from the real native SwiftUI app running on iPhon
 - CI uses the canonical `SpotLinkApp` scheme and keeps `SpotLinkStaging` as a separate unsigned staging build path.
 - Backend staging/production startup fails fast on H2/default DB settings, placeholder JWT secrets, wildcard/local CORS, insecure cookies, and production mock payment exposure.
 - Payment behavior is authority-driven: clients ask the backend what provider and operations are allowed before showing online-payment actions.
-- Push token lifecycle is production-shaped for register/reactivate/unregister without raw-token logging, while APNs delivery remains intentionally unimplemented.
+- Push token lifecycle is production-shaped for register/reactivate/unregister, and backend APNs delivery is provider-shaped with safe disabled defaults, runtime guards, metrics, and token redaction.
 - Account deletion has request intake plus admin-reviewed fulfillment/anonymization that preserves reservation/payment/audit history.
 - iOS includes privacy manifest, legal/support URL wiring, signed archive/export scaffolding, real app icon asset, and separate Staging bundle ID.
 - The repo has a backend Dockerfile and staging/prod env examples, but does not invent cloud infrastructure before provider/DNS/secrets decisions exist.
@@ -40,7 +40,7 @@ These screenshots are captured from the real native SwiftUI app running on iPhon
 | Signed iOS path | Scaffolded only | Archive/export targets require human-owned Apple credentials and provisioning |
 | Backend deployment | Provider-neutral readiness | Docker/env/runtime guards exist; real staging provider is not chosen in repo |
 | Payments | Provider-ready contracts | Real PSP is not integrated; production mock payment is rejected |
-| Push notifications | Token lifecycle ready | Real APNs provider, credentials, and entitlement are not enabled |
+| Push notifications | Delivery readiness scaffolded | APNs provider adapter/config/metrics exist; Apple credentials, entitlement, and physical-device delivery are not enabled |
 | Privacy/legal | Engineering scaffolding | Owner-approved policy pages and App Store Connect answers are still required |
 
 ## Architecture
@@ -56,7 +56,7 @@ flowchart LR
     API --> Reservations["Quotes, Holds<br/>Reservations"]
     API --> Payments["Payment Authority<br/>Mock/non-production guardrails"]
     API --> Support["Support Tickets<br/>Deletion Requests"]
-    API --> Notifications["Device Tokens<br/>Mock delivery"]
+    API --> Notifications["Device Tokens<br/>APNs-ready delivery boundary"]
     API --> Audit["Audit, Analytics<br/>Request IDs"]
     API --> DB[("PostgreSQL for staging/prod<br/>H2 only in local dev/test")]
 ```
@@ -77,7 +77,7 @@ flowchart LR
 - Admin/support workflows: booking search/detail, payment attempts, manual refund marker, support cases, account deletion fulfillment, audit events.
 - Mobile auth/session lifecycle: bearer-token login, refresh/revoke contracts, session-aware SwiftUI shell, logout cleanup hooks.
 - Payment safety: capabilities endpoint, provider-ready authorize/capture/cancel/refund/webhook/reconciliation contracts, production guard against mock methods.
-- Push readiness: authenticated token register/reactivate/unregister endpoints and iOS token persistence/cleanup without APNs credentials.
+- Push readiness: authenticated token register/reactivate/unregister endpoints, iOS token persistence/cleanup, backend APNs provider boundary, privacy-safe payloads/logs, and delivery metrics without committed APNs credentials.
 - Account deletion readiness: user request endpoint, duplicate prevention, admin idempotent processing, PII anonymization, auth/device-token revocation, blockers for active/future reservations and unresolved payment states.
 - Privacy/compliance scaffolding: iOS `PrivacyInfo.xcprivacy`, legal/support URL config, account deletion documentation, conservative App Store checklist.
 - Release engineering: deterministic local gate, CI parity, staging scheme/config, unsigned Release/Staging build validation, signed TestFlight export scaffolding.
@@ -123,6 +123,7 @@ Useful focused checks:
 ```bash
 make validate-backend-runtime-config
 make validate-mobile-api-contract
+make validate-push-delivery-readiness
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
@@ -131,6 +132,8 @@ make build-backend-image
 ```
 
 `make validate-mobile-api-contract` is also part of the pre-staging gate. It checks generated backend OpenAPI route coverage for mobile-critical endpoints and decodes checked-in mobile JSON fixtures through the actual Swift models.
+
+`make validate-push-delivery-readiness` is also part of the pre-staging gate. It proves provider selection/runtime guards, post-commit notification delivery semantics, invalid-token deactivation, inactive-token skipping, metrics, and log redaction without contacting APNs.
 
 For the local pre-staging hardening bar, run:
 
@@ -148,7 +151,7 @@ make export-ios-staging-testflight
 
 ## Configuration And Safety
 
-Staging/production backend profiles must use PostgreSQL, explicit HTTPS CORS origins, secure cookies, and a real 32+ byte JWT secret. Production must keep mock payments disabled and should keep online payments off until a real PSP provider is implemented.
+Staging/production backend profiles must use PostgreSQL, explicit HTTPS CORS origins, secure cookies, and a real 32+ byte JWT secret. Production must keep mock payments disabled and should keep online payments off until a real PSP provider is implemented. Push delivery must also be explicitly disabled or fully configured; production rejects sandbox APNs.
 
 Placeholder-only runtime examples:
 
@@ -189,7 +192,7 @@ Makefile           Local development, validation, build, archive/export, release
 - Real staging infrastructure: cloud provider/project, DNS/TLS for `api-staging.spotlink.app`, PostgreSQL instance, secret storage, deploy/rollback owners.
 - Apple signing/TestFlight: Apple Developer team, distribution certificate, provisioning profiles, App Store Connect app records, human-controlled upload.
 - Real PSP: provider selection, credentials, webhook signature verification, SCA/deep-link return, capture/refund reconciliation, settlement reporting.
-- Real APNs: Push Notifications entitlement, APNs key/certificate, provider implementation, payload/privacy review, notification preferences.
+- Real APNs: Push Notifications entitlement, APNs key/certificate in the deployment secret store, Apple Developer bundle/topic alignment, physical-device sandbox/production delivery validation, payload/privacy review, notification preferences.
 - Legal/privacy ownership: published Terms, Privacy Policy, support/account-deletion pages, App Store Connect privacy answers approved by the responsible owner.
 
 ## Source Control Standards

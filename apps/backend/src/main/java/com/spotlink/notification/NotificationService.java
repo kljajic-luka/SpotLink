@@ -5,6 +5,7 @@ import com.spotlink.core.NotFoundException;
 import com.spotlink.security.CurrentUserService;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -15,17 +16,17 @@ public class NotificationService {
 
     private final NotificationRepository notifications;
     private final DeviceTokenRepository deviceTokens;
-    private final NotificationProvider provider;
+    private final ApplicationEventPublisher events;
     private final CurrentUserService currentUser;
 
     public NotificationService(
             NotificationRepository notifications,
             DeviceTokenRepository deviceTokens,
-            NotificationProvider provider,
+            ApplicationEventPublisher events,
             CurrentUserService currentUser) {
         this.notifications = notifications;
         this.deviceTokens = deviceTokens;
-        this.provider = provider;
+        this.events = events;
         this.currentUser = currentUser;
     }
 
@@ -83,7 +84,7 @@ public class NotificationService {
         notification.setBody(body);
         notification.setRelatedEntityId(relatedEntityId);
         Notification saved = notifications.save(notification);
-        provider.deliver(saved);
+        events.publishEvent(new NotificationCreatedEvent(saved.getId()));
         return saved;
     }
 

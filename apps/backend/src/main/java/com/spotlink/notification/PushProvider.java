@@ -2,5 +2,13 @@ package com.spotlink.notification;
 
 public interface PushProvider {
 
-    void push(DeviceToken token, String title, String body);
+    PushDeliveryResult deliver(DeviceToken token, PushNotificationPayload payload);
+
+    default boolean productionReady() {
+        return false;
+    }
+
+    default String name() {
+        return getClass().getSimpleName();
+    }
 }

@@ -84,11 +84,11 @@ The gaps below now track remaining hardening work.
 
 - Area: APNs device token lifecycle
 - Priority: P1
-- Current behavior: Device token register/reactivate/unregister lifecycle exists and raw token logging is avoided. APNs environment, bundle metadata, and APNs provider implementation are still absent.
-- Desired mobile behavior: Register, update, deactivate, track sandbox/production, enforce preferences, and deliver via APNs.
-- Backend files likely affected: notification module, database migration, provider implementation.
-- iOS impact: Logout/reinstall/token-rotation cleanup is shaped, but real delivery and physical-device APNs validation remain blocked.
-- Suggested acceptance criteria: Existing token lifecycle tests stay green and APNs provider can be smoke-tested in staging once credentials/entitlements exist.
+- Current behavior: Device token register/reactivate/unregister lifecycle exists, raw token logging is avoided, and backend APNs-ready provider/config/metrics scaffolding exists without committed credentials.
+- Desired mobile behavior: Register, update, deactivate, track sandbox/production, enforce preferences, and deliver via APNs on physical devices.
+- Backend files likely affected: notification module, provider implementation, notification preference policy.
+- iOS impact: Logout/reinstall/token-rotation cleanup and backend delivery boundaries are shaped, but real delivery and physical-device APNs validation remain blocked.
+- Suggested acceptance criteria: Existing token lifecycle and push readiness tests stay green, Apple entitlements/credentials are configured outside the repo, and APNs can be smoke-tested in staging once a real backend runtime exists.
 
 ## MOB-BE-008
 

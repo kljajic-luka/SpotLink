@@ -103,7 +103,7 @@ Backend agents should:
 - The backend preserves existing `/api/...` routes and now also exposes `/api/v1/...` aliases for the mobile-critical API surface.
 - `/auth/token` returns access and refresh tokens. Refresh-token rotation and revocation endpoints are implemented.
 - Payment provider behavior is still mock/non-production grade; no real PSP is integrated.
-- APNs provider delivery is missing; device token register/unregister lifecycle exists.
+- APNs provider delivery is scaffolded and credential-free tests cover provider selection, delivery boundaries, invalid-token handling, metrics, and redaction. Real APNs credentials, entitlement, and physical-device delivery validation remain external.
 - Search is not yet map-grade for viewport/radius/availability ranking.
 - Account deletion request and admin-reviewed fulfillment exist; user-visible deletion status/export/privacy-choice endpoints remain future work.
 - Request-only fixtures are not decoded through Swift response models because the app's request DTOs are intentionally `Encodable` only; request encoding is covered by focused Swift service/model tests.
