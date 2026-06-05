@@ -66,6 +66,7 @@ public struct SearchMapView: View {
             .ignoresSafeArea(edges: .bottom)
         }
         .hideNavigationBar()
+        .accessibilityIdentifier("search.screen")
         .alert(
             "Lokacija je onemogucena",
             isPresented: $viewModel.locationPermissionDenied
@@ -683,4 +684,3 @@ private extension GeoCoordinates {
             abs(longitude - other.longitude) < tolerance
     }
 }
-

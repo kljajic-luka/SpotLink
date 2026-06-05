@@ -6,7 +6,25 @@ Date: 2026-04-22
 
 SpotLink iOS should not reach external TestFlight until core customer flows are reliable under real mobile conditions: slow networks, session expiry, denied permissions, payment uncertainty, push token changes, and reservation race conditions.
 
-This strategy covers backend, iOS, API contract, manual QA, and CI gates. It assumes the iOS implementation may be created or changed concurrently and was not visible during this audit.
+This strategy covers backend, iOS, API contract, manual QA, and CI gates. The native SwiftUI app now has a deterministic simulator QA path, but real staging, physical-device APNs, Apple signing, PSP, and owner-approved legal content remain outside the automated simulator gate.
+
+## Current iOS Pre-Staging Gate
+
+`make pre-staging-gate` is the local proof bar before staging deployment work resumes. It runs the full release gate, then focused pre-staging hardening checks. For iOS, this currently proves:
+
+- SwiftPM unit/model tests pass, including API decoding, payment capabilities, reservation idempotency retry behavior, offline search, slow-search loading state, unauthorized session sign-out, push-token lifecycle, and privacy-safe logging.
+- Xcode `SpotLinkApp` unit tests and UI tests run against the app target instead of a web or mocked binary.
+- UI tests launch with `--uitesting` and reset local session artifacts to avoid stale simulator Keychain state.
+- Authenticated UI tests use the explicit `--spotlink-uitest-authenticated` DEBUG-only fixture. This seeds a local customer session and skips remote logout only for that fixture, keeping normal Debug, Staging, and Release behavior unchanged.
+- Simulator UI coverage reaches signed-out login, registration legal links and disabled submit state, authenticated search shell, profile privacy/support/account-deletion surfaces, confirmation for destructive deletion request, and logout back to auth.
+
+Command:
+
+```bash
+env PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin make pre-staging-gate
+```
+
+This gate is not a substitute for physical-device QA, signed TestFlight install validation, real APNs token delivery, real PSP authorization, or deployed staging smoke tests.
 
 ## Backend Tests That Must Exist
 
@@ -132,6 +150,18 @@ Command:
 xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
+Current automated simulator coverage includes:
+
+- Signed-out launch to the login screen.
+- Registration legal links and disabled submit state before required fields/terms.
+- Deterministic authenticated session restore through the DEBUG-only UI fixture.
+- Search shell reachable after authenticated launch.
+- Profile legal/support/account-deletion surfaces reachable.
+- Account deletion request requires confirmation before sending.
+- Logout returns to the auth state without depending on a live backend.
+
+The deterministic fixture must remain test-only. It is enabled only by UI-test launch arguments/environment and must not be used to demonstrate real backend login success.
+
 ## Smoke Tests
 
 Run on every release candidate:
@@ -236,6 +266,8 @@ Acceptance:
 - No false successful payments.
 - User can recover with retry or refresh.
 - Request ID is available for support on server errors.
+
+Current Swift coverage includes search offline, slow search loading, payment-unavailable fallback to pay-on-arrival, reservation idempotency-key reuse after a failed create attempt, and unauthorized session sign-out. Real carrier-network interruption, captive portal, and background/foreground retry behavior still require simulator network conditioning or physical-device QA.
 
 ## Push Notification Tests
 

@@ -74,6 +74,7 @@ public struct MainAppShell: View {
             .accessibilityLabel("Moj profil")
         }
         .tint(SpotLinkDesign.Colors.tint)
+        .accessibilityIdentifier("main.tabView")
     }
 }
 
@@ -156,24 +157,32 @@ struct ProfileOverviewView: View {
                     )
                 }
                 .disabled(isRequestingAccountDeletion)
+                .accessibilityIdentifier("profile.accountDeletion.requestButton")
+                .accessibilityLabel("Zatrazi brisanje naloga")
+                .accessibilityHint("Salje zahtev podrsci. Nalog se ne brise automatski.")
             }
 
             Section("Privatnost i podrska") {
                 Link(destination: legalConfiguration.privacyPolicyURL) {
                     Label("Politika privatnosti", systemImage: "hand.raised")
                 }
+                .accessibilityIdentifier("profile.privacyPolicy.link")
                 Link(destination: legalConfiguration.termsURL) {
                     Label("Uslovi koriscenja", systemImage: "doc.text")
                 }
+                .accessibilityIdentifier("profile.terms.link")
                 Link(destination: legalConfiguration.supportURL) {
                     Label("Centar za podrsku", systemImage: "questionmark.circle")
                 }
+                .accessibilityIdentifier("profile.support.link")
                 Link(destination: legalConfiguration.supportMailURL) {
                     Label(legalConfiguration.supportEmail, systemImage: "envelope")
                 }
+                .accessibilityIdentifier("profile.supportEmail.link")
                 Link(destination: legalConfiguration.accountDeletionURL) {
                     Label("Informacije o brisanju naloga", systemImage: "person.crop.circle.badge.xmark")
                 }
+                .accessibilityIdentifier("profile.accountDeletion.infoLink")
             }
 
             Section {
@@ -184,10 +193,13 @@ struct ProfileOverviewView: View {
                 } label: {
                     Label("Odjava", systemImage: "rectangle.portrait.and.arrow.right")
                 }
+                .accessibilityIdentifier("profile.logout.button")
+                .accessibilityHint("Odjavljuje trenutnu sesiju sa ovog uredjaja.")
             }
         }
         .navigationTitle("Profil")
         .spotlinkListStyle()
+        .accessibilityIdentifier("profile.screen")
         .confirmationDialog(
             "Zatrazi brisanje naloga?",
             isPresented: $showAccountDeletionConfirmation,

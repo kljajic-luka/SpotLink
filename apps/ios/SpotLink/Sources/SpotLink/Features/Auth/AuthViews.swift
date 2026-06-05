@@ -87,6 +87,7 @@ public struct LoginView: View {
                             .background(SpotLinkDesign.Colors.secondaryBG)
                             .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
                             .accessibilityLabel("Email adresa")
+                            .accessibilityIdentifier("auth.login.emailField")
                     }
 
                     VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
@@ -99,6 +100,7 @@ public struct LoginView: View {
                             .background(SpotLinkDesign.Colors.secondaryBG)
                             .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
                             .accessibilityLabel("Lozinka")
+                            .accessibilityIdentifier("auth.login.passwordField")
                     }
 
                     Button("Zaboravili ste lozinku?", action: onForgotPasswordTapped)
@@ -110,6 +112,7 @@ public struct LoginView: View {
                         await viewModel.login(session: session)
                     }
                     .disabled(!viewModel.isFormValid)
+                    .accessibilityIdentifier("auth.login.submitButton")
                 }
                 .padding(SpotLinkDesign.Spacing.md)
                 .spotlinkCard()
@@ -120,6 +123,7 @@ public struct LoginView: View {
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                     Button("Registrujte se", action: onRegisterTapped)
                         .foregroundStyle(SpotLinkDesign.Colors.tint)
+                        .accessibilityIdentifier("auth.login.registerButton")
                 }
                 .font(SpotLinkDesign.Typography.footnote)
 
@@ -129,6 +133,7 @@ public struct LoginView: View {
         }
         .hideNavigationBar()
         .background(SpotLinkDesign.Colors.background)
+        .accessibilityIdentifier("auth.login.screen")
     }
 }
 
@@ -213,6 +218,7 @@ public struct RegisterView: View {
                         await viewModel.register(session: session)
                     }
                     .disabled(!viewModel.isFormValid)
+                    .accessibilityIdentifier("auth.register.submitButton")
                 }
                 .padding(SpotLinkDesign.Spacing.md)
                 .spotlinkCard()
@@ -231,6 +237,7 @@ public struct RegisterView: View {
         }
         .hideNavigationBar()
         .background(SpotLinkDesign.Colors.background)
+        .accessibilityIdentifier("auth.register.screen")
     }
 }
 
@@ -262,17 +269,18 @@ private struct RegisterFormView: View {
             VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
                 Toggle("Prihvatam uslove koriscenja i politiku privatnosti", isOn: $viewModel.acceptsTerms)
                     .font(SpotLinkDesign.Typography.footnote)
+                    .accessibilityIdentifier("auth.register.acceptTermsToggle")
 
                 HStack(spacing: SpotLinkDesign.Spacing.xs) {
                     Link("Uslovi koriscenja", destination: legalConfiguration.termsURL)
+                        .accessibilityIdentifier("auth.register.termsLink")
                     Text("|")
                         .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                     Link("Politika privatnosti", destination: legalConfiguration.privacyPolicyURL)
+                        .accessibilityIdentifier("auth.register.privacyLink")
                 }
                 .font(SpotLinkDesign.Typography.caption)
                 .foregroundStyle(SpotLinkDesign.Colors.tint)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Uslovi koriscenja i Politika privatnosti")
             }
         }
     }
@@ -289,6 +297,7 @@ private struct RegisterFormView: View {
                 .background(SpotLinkDesign.Colors.secondaryBG)
                 .clipShape(RoundedRectangle(cornerRadius: SpotLinkDesign.Radius.sm))
                 .accessibilityLabel(label)
+                .accessibilityIdentifier("auth.register.\(label.lowercased())Field")
         }
     }
 }

@@ -66,6 +66,13 @@ public final class AuthService: ObservableObject {
     // MARK: - Logout
 
     public func logout() async {
+        #if DEBUG
+        if UITestFixtureConfiguration.shouldSkipRemoteLogout {
+            session.signOut()
+            return
+        }
+        #endif
+
         await pushLifecycle?.unregisterKnownDeviceTokenBeforeLogout()
         if let refreshToken = session.currentRefreshToken() {
             do {

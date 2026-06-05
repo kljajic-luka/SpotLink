@@ -112,6 +112,7 @@ struct SearchMapCompactCommandBar: View {
         .searchMapSurface(cornerRadius: 20)
         .accessibilityLabel("Otvori pretragu parkinga")
         .accessibilityHint("Prikazuje polje za lokaciju, termin i akcije pretrage.")
+        .accessibilityIdentifier("search.openControls.button")
     }
 
     private var quickActionButtons: some View {
@@ -293,6 +294,7 @@ struct SearchMapCommandPanel: View {
                 .submitLabel(.search)
 #endif
                 .onSubmit(onSubmitQuery)
+                .accessibilityIdentifier("search.query.field")
 
             if !query.isEmpty {
                 Button {

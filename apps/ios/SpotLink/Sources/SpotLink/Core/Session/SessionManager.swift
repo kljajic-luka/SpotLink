@@ -77,6 +77,19 @@ public final class SessionManager: ObservableObject, TokenProvider {
 
     /// Restauruje sesiju pri pokretanju iz Keychain.
     public func restoreSession() async {
+        #if DEBUG
+        if UITestFixtureConfiguration.shouldResetSessionOnLaunch {
+            clearSession()
+            signOutNotice = nil
+        }
+
+        if UITestFixtureConfiguration.shouldUseAuthenticatedSession {
+            establish(UITestFixtureConfiguration.authenticatedTokenResponse())
+            signOutNotice = nil
+            return
+        }
+        #endif
+
         guard
             let token = keychain.read(forKey: SessionStorageKey.accessToken),
             let refreshToken = keychain.read(forKey: SessionStorageKey.refreshToken),

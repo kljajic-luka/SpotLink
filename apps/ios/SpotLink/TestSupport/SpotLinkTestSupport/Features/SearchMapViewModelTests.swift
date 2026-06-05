@@ -12,8 +12,12 @@ private final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
     var getHandler: ((String, [String: String]?) throws -> Any)?
     var shouldThrowOffline = false
     var shouldThrowError: APIError?
+    var responseDelayNanoseconds: UInt64 = 0
 
     func get<T: Decodable>(_ path: String, query: [String: String]? = nil) async throws -> T {
+        if responseDelayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: responseDelayNanoseconds)
+        }
         if shouldThrowOffline { throw APIError.offline }
         if let err = shouldThrowError { throw err }
         guard let handler = getHandler,
@@ -243,6 +247,30 @@ struct SearchMapViewModelTests {
             // Ispravno
         } else {
             Issue.record("Ocekivano offline, dobijeno \(vm.state)")
+        }
+    }
+
+    @Test("spora pretraga ostaje u loading stanju dok odgovor ne stigne")
+    func sporaPretragaZadrzavaLoadingState() async {
+        let client = MockAPIClient()
+        client.responseDelayNanoseconds = 250_000_000
+        client.getHandler = { _, _ in makeSingleResultPage(makeSearchResult()) }
+
+        let vm = makeViewModel(client: client)
+        vm.searchWithCurrentCenter()
+
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        if case .loading = vm.state {
+            // Ispravno: korisnik vidi stanje ucitavanja dok mreza kasni.
+        } else {
+            Issue.record("Ocekivano loading tokom spore pretrage, dobijeno \(vm.state)")
+        }
+
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        if case .results(let results) = vm.state {
+            #expect(results.count == 1)
+        } else {
+            Issue.record("Ocekivani rezultati posle spore pretrage, dobijeno \(vm.state)")
         }
     }
 
