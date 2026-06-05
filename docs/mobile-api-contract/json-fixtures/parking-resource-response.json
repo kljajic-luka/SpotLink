@@ -19,5 +19,12 @@
   "dailyRateCents": 2800,
   "currency": "USD",
   "instantReserve": true,
-  "active": true
+  "active": true,
+  "capacity": 1,
+  "confirmationMode": "INSTANT",
+  "payOnArrivalEnabled": true,
+  "supportedPaymentModes": [
+    "ONLINE",
+    "PAY_ON_ARRIVAL"
+  ]
 }

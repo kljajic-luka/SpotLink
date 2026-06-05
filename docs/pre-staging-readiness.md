@@ -11,8 +11,15 @@ make pre-staging-gate
 This target runs:
 
 - `make release-gate`
+- focused mobile API contract checks against backend-generated OpenAPI routes and Swift fixture decoding
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
+
+The contract check is also runnable on its own:
+
+```bash
+make validate-mobile-api-contract
+```
 
 ## Backend Protections
 

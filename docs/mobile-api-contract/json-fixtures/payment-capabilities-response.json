@@ -1,0 +1,14 @@
+{
+  "onlinePaymentsEnabled": false,
+  "activeProvider": "UNCONFIGURED",
+  "mockProvider": false,
+  "mockPaymentMethodsAllowed": false,
+  "operations": {
+    "authorize": false,
+    "capture": false,
+    "cancel": false,
+    "refund": false,
+    "webhook": false,
+    "reconciliation": false
+  }
+}

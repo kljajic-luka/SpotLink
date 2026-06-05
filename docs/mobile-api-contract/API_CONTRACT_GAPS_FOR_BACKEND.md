@@ -54,11 +54,11 @@ The gaps below now track remaining hardening work.
 
 - Area: OpenAPI generation from backend
 - Priority: P1
-- Current behavior: Contract is hand-authored and may drift.
+- Current behavior: Generated Springdoc route coverage for mobile-critical endpoints and `/api/v1` aliases is now tested by `MobileApiContractTest`. The hand-authored OpenAPI draft is still not a complete generated schema source of truth.
 - Desired mobile behavior: Backend-generated OpenAPI includes mobile examples, enums, errors, and no-content responses.
 - Backend files likely affected: controller annotations, DTO annotations, springdoc config, tests.
-- iOS impact: DTO drift has already occurred; generated schemas reduce ambiguity.
-- Suggested acceptance criteria: CI exports OpenAPI and validates fixture compatibility.
+- iOS impact: Covered route/fixture drift now fails the pre-staging gate; deeper schema drift can still slip through until generated schemas are exported and compared.
+- Suggested acceptance criteria: CI exports generated OpenAPI, validates fixture compatibility, and either compares the draft or regenerates it from backend annotations.
 
 ## MOB-BE-005
 
@@ -84,20 +84,20 @@ The gaps below now track remaining hardening work.
 
 - Area: APNs device token lifecycle
 - Priority: P1
-- Current behavior: Device token registration exists. No delete/deactivate endpoint, APNs environment, bundle metadata, or APNs provider implementation is present.
+- Current behavior: Device token register/reactivate/unregister lifecycle exists and raw token logging is avoided. APNs environment, bundle metadata, and APNs provider implementation are still absent.
 - Desired mobile behavior: Register, update, deactivate, track sandbox/production, enforce preferences, and deliver via APNs.
 - Backend files likely affected: notification module, database migration, provider implementation.
-- iOS impact: Logout/reinstall/token-rotation behavior is incomplete.
-- Suggested acceptance criteria: Register/deactivate tests pass and APNs provider can be smoke-tested in staging.
+- iOS impact: Logout/reinstall/token-rotation cleanup is shaped, but real delivery and physical-device APNs validation remain blocked.
+- Suggested acceptance criteria: Existing token lifecycle tests stay green and APNs provider can be smoke-tested in staging once credentials/entitlements exist.
 
 ## MOB-BE-008
 
 - Area: Payment intent lifecycle
 - Priority: P0
-- Current behavior: Create and confirm exist. No get, cancel, refresh, webhook reconciliation, refund, capture, or production provider flow.
+- Current behavior: Create, confirm, cancel/void authority, admin refund marker shaping, provider event records, and payment capabilities exist. There is still no real PSP, webhook reconciliation, settlement reporting, or production provider flow.
 - Desired mobile behavior: Intent get/status refresh, cancel/void where applicable, PSP webhook reconciliation, `REQUIRES_ACTION` return handling, production config guard.
 - Backend files likely affected: payment module, config, migrations, tests.
-- iOS impact: Payment uncertainty after app kill, redirect, or timeout cannot be resolved cleanly.
+- iOS impact: The client can hide/disable online payment when the backend lacks a provider, but real payment interruption/reconciliation handling is still blocked by PSP implementation.
 - Suggested acceptance criteria: iOS can refresh payment status after any interruption and production cannot run with mock provider enabled.
 
 ## MOB-BE-009

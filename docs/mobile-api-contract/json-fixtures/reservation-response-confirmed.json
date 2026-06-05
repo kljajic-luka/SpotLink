@@ -9,6 +9,7 @@
   "endsAt": "2026-05-01T20:00:00Z",
   "timezone": "America/Los_Angeles",
   "status": "CONFIRMED",
+  "paymentMode": "ONLINE",
   "totalAmountCents": 1944,
   "currency": "USD",
   "accessInstructionsVisible": true,

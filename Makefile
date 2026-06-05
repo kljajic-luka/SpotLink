@@ -1,4 +1,4 @@
-.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode build build-backend validate-backend-runtime-config validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
+.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode validate-mobile-api-contract build build-backend validate-backend-runtime-config validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
 
 IOS_ARCHIVE_DIR ?= build/ios/archives
 IOS_EXPORT_DIR ?= build/ios/exports
@@ -57,6 +57,10 @@ test-ios-xcode: ## Pokreni Xcode unit/UI testove preko SpotLinkApp sheme
 		CODE_SIGNING_ALLOWED=NO
 
 test: test-backend test-frontend ## Pokreni backend + frontend testove
+
+validate-mobile-api-contract: ## Proveri backend OpenAPI rute i iOS dekodiranje mobilnih fixture-a
+	mvn -f apps/backend/pom.xml -Dtest=MobileApiContractTest test
+	swift test --package-path apps/ios/SpotLink --filter MobileApiFixtureDecodingTests
 
 # ── build ─────────────────────────────────────────────────────────────────────
 
@@ -226,6 +230,7 @@ release-gate: ## Pokreni backend, frontend, SwiftPM, Xcode testove i unsigned iO
 
 pre-staging-gate: ## Release gate plus fokusirani pre-staging hardening checkovi
 	$(MAKE) release-gate
+	$(MAKE) validate-mobile-api-contract
 	$(MAKE) validate-pre-staging-hardening
 
 # ── podesavanje ───────────────────────────────────────────────────────────────

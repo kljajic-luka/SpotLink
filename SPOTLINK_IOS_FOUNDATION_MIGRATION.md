@@ -117,7 +117,7 @@ iOS app → POST /api/auth/token
           
           ← 200 OK:
           {
-            "accessToken": "eyJhbGci...",
+            "accessToken": "sample-access-token",
             "expiresIn": 86400,
             "tokenType": "Bearer",
             "user": { id, email, firstName, lastName, roles, ... }

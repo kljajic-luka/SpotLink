@@ -112,7 +112,7 @@ public final class AuthService: ObservableObject {
 
 // MARK: - Private Helpers
 
-private struct AuthResponseEnvelope: Decodable {
+struct AuthResponseEnvelope: Decodable {
     let authenticated: Bool
     let message: String?
 }

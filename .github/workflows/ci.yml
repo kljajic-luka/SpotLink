@@ -54,6 +54,9 @@ jobs:
       - name: Backend runtime config guard
         run: make validate-backend-runtime-config
 
+      - name: Mobile API contract backend validation
+        run: mvn -B -f apps/backend/pom.xml -Dtest=MobileApiContractTest test
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest
@@ -92,6 +95,9 @@ jobs:
 
       - name: Pokretanje Swift testova
         run: swift test --package-path apps/ios/SpotLink
+
+      - name: Mobile API contract fixture decoding
+        run: swift test --package-path apps/ios/SpotLink --filter MobileApiFixtureDecodingTests
 
       - name: iOS privacy/legal plist validation
         run: make validate-ios-privacy-config

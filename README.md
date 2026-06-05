@@ -122,12 +122,15 @@ Useful focused checks:
 
 ```bash
 make validate-backend-runtime-config
+make validate-mobile-api-contract
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
 make build-ios-staging-unsigned
 make build-backend-image
 ```
+
+`make validate-mobile-api-contract` is also part of the pre-staging gate. It checks generated backend OpenAPI route coverage for mobile-critical endpoints and decodes checked-in mobile JSON fixtures through the actual Swift models.
 
 For the local pre-staging hardening bar, run:
 

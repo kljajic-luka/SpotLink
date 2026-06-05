@@ -1,46 +1,59 @@
 # iOS Contract Test Plan
 
-Date: 2026-04-22
+Date: 2026-06-05
 
 ## Purpose
 
-This plan tells the iOS implementation agent how to turn this contract package into automated tests. The goal is to prevent Swift DTO drift from backend DTOs.
+This plan tracks the automated iOS contract coverage that prevents Swift DTO drift from backend DTOs.
+
+Current focused gate:
+
+```bash
+make validate-mobile-api-contract
+```
+
+The Swift side runs:
+
+```bash
+swift test --package-path apps/ios/SpotLink --filter MobileApiFixtureDecodingTests
+```
 
 ## JSON Fixture Decoding Tests
 
-Create tests that load every file in `docs/mobile-api-contract/json-fixtures`.
+Implemented tests load response fixtures from `docs/mobile-api-contract/json-fixtures` and decode them through the actual app models.
 
-Required decode targets:
+Current decode targets:
 
-- `auth-login-response.json` -> `AuthResponseDTO`
-- `auth-token-response.json` -> `AuthSessionResponseDTO`
-- `auth-refresh-request.json` -> `RefreshTokenRequestDTO`
-- `auth-revoke-request.json` -> `RevokeTokenRequestDTO`
-- `auth-me-response.json` -> `UserProfileDTO`
-- `profile-response.json` -> `UserProfileDetailsDTO`
-- `vehicle-response.json` -> `VehicleProfileDTO`
-- `location-search-response.json` -> `ApiPage<LocationSearchResultDTO>`
-- `parking-location-response.json` -> `ParkingLocationDTO`
-- `parking-resource-response.json` -> `ParkingResourceDTO`
-- `reservation-quote-response.json` -> `ReservationQuoteDTO`
-- `reservation-response-confirmed.json` -> `ReservationDTO`
-- `reservation-response-cancelled.json` -> `ReservationDTO`
-- `payment-intent-response.json` -> `PaymentIntentDTO`
-- `support-ticket-response.json` -> `SupportTicketDTO`
-- `support-message-response.json` -> `SupportMessageDTO`
-- `notification-response.json` -> `NotificationItemDTO`
-- `notification-unread-count-response.json` -> `UnreadNotificationCountDTO`
-- `operator-dashboard-response.json` -> `OperatorDashboardSummaryDTO`
-- `admin-dashboard-response.json` -> `AdminDashboardSummaryDTO`
-- `standard-error-response.json` -> `ApiErrorEnvelope`
-- `validation-error-response.json` -> `ApiErrorEnvelope`
-- `paginated-response-example.json` -> `ApiPage<NotificationItemDTO>`
+- `auth-login-response.json` -> `AuthResponseEnvelope`
+- `auth-token-response.json` -> `MobileTokenResponse`
+- `auth-me-response.json` -> `UserProfile`
+- `profile-response.json` -> `UserProfileDetails`
+- `vehicle-response.json` -> `VehicleProfile`
+- `location-search-response.json` -> `APIPage<LocationSearchResult>`
+- `parking-location-response.json` -> `ParkingLocation`
+- `parking-resource-response.json` -> `ParkingResource`
+- `reservation-quote-response.json` -> `ReservationQuote`
+- `reservation-response-confirmed.json` -> `Reservation`
+- `reservation-response-cancelled.json` -> `Reservation`
+- `payment-capabilities-response.json` -> `PaymentCapabilities`
+- `payment-intent-response.json` -> `PaymentIntent`
+- `support-ticket-response.json` -> `SupportTicket`
+- `support-message-response.json` -> `SupportMessage`
+- `notification-response.json` -> `SpotLinkNotification`
+- `notification-unread-count-response.json` -> `NotificationUnreadCount`
+- `operator-dashboard-response.json` -> `OperatorDashboardSummary`
+- `admin-dashboard-response.json` -> `AdminDashboardSummary`
+- `standard-error-response.json` -> `APIErrorEnvelope`
+- `validation-error-response.json` -> `APIErrorEnvelope`
+- `paginated-response-example.json` -> `APIPage<SpotLinkNotification>`
 
 Done criteria:
 
-- Every fixture decodes.
+- Every listed response fixture decodes.
 - Required fields are non-optional in Swift.
 - Optional backend fields decode when missing or null.
+
+Request-only fixtures are not decoded through Swift response models because app request types are `Encodable` only. Keep request encoding covered by service/model tests and add explicit request-fixture encoding checks if the backend starts enforcing generated examples.
 
 ## API Client Mock Tests
 
@@ -85,7 +98,7 @@ Cases:
 - `204` from password reset completion succeeds.
 - `204` from vehicle delete succeeds.
 - `204` from notification mark-read succeeds.
-- `204` from device token register succeeds.
+- `204` from device token register/unregister succeeds.
 - `202` from analytics ingest succeeds with no body.
 
 Done criteria:
@@ -130,6 +143,7 @@ Cases:
 
 - Quote request encodes `Date` as ISO-8601.
 - Quote response decodes `subtotalCents`, `feesCents`, `discountCents`, and `expiresAt`.
+- Create request includes `paymentMode`.
 - Create response decodes no `idempotencyKey` field because backend does not return one.
 - Conflict response `RESOURCE_UNAVAILABLE` maps to user-actionable unavailable state.
 
@@ -142,6 +156,7 @@ Done criteria:
 Cases:
 
 - Search result decodes nested `location` and `resources`.
+- `ParkingResource` decodes `capacity`, `confirmationMode`, and supported payment modes.
 - `startingPriceCents` decodes as optional.
 - `distanceKm` decodes as optional.
 - Geocode suggestion decodes `id`, `address`, `coordinates`, `accuracyMeters`.
@@ -158,36 +173,41 @@ Cases:
 - Notification item decodes `read`, not `readFlag`.
 - Mark-read uses `POST`, not `DELETE`.
 - Device token registration sends platform `IOS`.
-- `204` token registration succeeds.
+- Device token unregister sends platform `IOS`.
+- `204` token register/unregister succeeds.
 
 Done criteria:
 
-- APNs token registration contract is correct before device testing.
+- APNs token lifecycle contract is correct before device testing.
 
 ## Contract Drift Checks
 
-Recommended:
+Implemented:
 
-- Add CI task that runs backend tests and exports OpenAPI once backend generation is available.
-- Compare exported OpenAPI against `openapi-mobile-v1.yaml` or regenerate this draft.
-- Keep JSON fixtures in sync with backend integration tests.
+- CI runs backend `MobileApiContractTest` and Swift `MobileApiFixtureDecodingTests`.
+- `make pre-staging-gate` runs `make validate-mobile-api-contract`.
+- JSON response fixtures are now part of the SwiftPM contract gate.
+
+Remaining:
+
+- Export generated OpenAPI as an artifact.
+- Compare exported schemas/examples against `openapi-mobile-v1.yaml` or regenerate the draft.
+- Add negative/fuzz contract testing once the staging runtime exists.
 
 ## Recommended Commands
 
-Use exact project paths once Agent 1 finalizes iOS structure:
-
 ```bash
-swift test
+make validate-mobile-api-contract
+swift test --package-path apps/ios/SpotLink
 xcodebuild -project apps/ios/SpotLink.xcodeproj -scheme SpotLinkApp -destination 'platform=iOS Simulator,name=iPhone 16' test
 mvn -f apps/backend/pom.xml test
 ```
 
 ## Done Criteria
 
-- All JSON fixtures parse.
-- All JSON fixtures decode in Swift tests.
+- Listed response fixtures decode in Swift tests.
 - API client mock tests pass.
 - Error handling tests preserve backend `code` and `requestId`.
 - Idempotency tests pass.
 - Backend `mvn test` passes.
-- Any backend DTO change causes a fixture or OpenAPI drift test to fail.
+- Any covered backend route or DTO change causes a fixture or OpenAPI drift test to fail.

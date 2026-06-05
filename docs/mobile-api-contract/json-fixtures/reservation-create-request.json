@@ -6,5 +6,6 @@
   "promoCode": null,
   "quoteId": null,
   "paymentMethodId": "pm_card_visa",
+  "paymentMode": "ONLINE",
   "idempotencyKey": "res:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }

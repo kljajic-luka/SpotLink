@@ -72,9 +72,11 @@ public struct OperatorAccount: Decodable, Identifiable, Sendable {
 
 public struct OperatorDashboardSummary: Decodable, Sendable {
     public let activeLocations: Int
-    public let totalResources: Int
-    public let activeReservations: Int
-    public let totalRevenueLastDayCents: Int?
+    public let activeResources: Int
+    public let reservationsToday: Int
+    public let occupancyRate: Double
+    public let pendingSupportTickets: Int
+    public let grossRevenueCents: Int
     public let currency: String
 }
 
@@ -89,11 +91,11 @@ public struct ResourceHealthItem: Decodable, Sendable {
 // MARK: - Admin
 
 public struct AdminDashboardSummary: Decodable, Sendable {
-    public let totalUsers: Int
-    public let totalOperators: Int
+    public let users: Int
+    public let operators: Int
     public let activeReservations: Int
-    public let totalLocations: Int
-    public let revenueLastDayCents: Int?
+    public let openSupportTickets: Int
+    public let grossMarketplaceVolumeCents: Int
     public let currency: String
 }
 

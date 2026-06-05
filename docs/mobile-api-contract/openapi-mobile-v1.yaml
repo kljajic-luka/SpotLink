@@ -113,7 +113,7 @@ paths:
               examples:
                 token:
                   value:
-                    accessToken: eyJhbGciOiJIUzI1NiJ9.example.signature
+                    accessToken: sample-access-token
                     refreshToken: sl_refresh_example
                     tokenType: Bearer
                     expiresIn: 900

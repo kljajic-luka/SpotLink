@@ -1,5 +1,5 @@
 {
-  "accessToken": "eyJhbGciOiJIUzUxMiJ9.example.signature",
+  "accessToken": "sample-access-token",
   "refreshToken": "sl_refresh_example_current",
   "tokenType": "Bearer",
   "expiresIn": 900,
