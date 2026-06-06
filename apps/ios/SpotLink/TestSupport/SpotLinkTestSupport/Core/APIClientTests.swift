@@ -155,6 +155,87 @@ struct APIClientTests {
         }
     }
 
+    @Test("423 auth lockout mapira jasnu korisnicku poruku")
+    func authLockoutMapsToLockedMessage() async {
+        let path = "auth/token-\(UUID().uuidString)"
+        let url = baseURL.appendingPathComponent(path)
+        await MockHTTPResponseStore.shared.set(
+            MockHTTPResponse(
+                statusCode: 423,
+                headers: ["X-Request-Id": "req-lockout"],
+                body: Data("""
+                        {
+                          "status": 423,
+                          "code": "AUTH_TEMPORARILY_LOCKED",
+                          "message": "Too many failed sign-in attempts. Try again later.",
+                          "requestId": "req-lockout",
+                          "details": {"retryAfterSeconds": "60"},
+                          "timestamp": "2026-06-06T12:00:00Z",
+                          "path": "/auth/token"
+                        }
+                        """.utf8)
+            ),
+            for: url
+        )
+
+        let client = makeClient()
+
+        do {
+            let _: EmptyResponse = try await client.post(path, body: ["noop": "true"])
+            Issue.record("Ocekivana je locked auth greska")
+        } catch let error as APIError {
+            guard case .locked = error else {
+                Issue.record("Ocekivana je APIError.locked, dobijeno: \(String(describing: error))")
+                return
+            }
+            #expect(error.code == "AUTH_TEMPORARILY_LOCKED")
+            #expect(error.requestId == "req-lockout")
+            #expect(error.userFacingMessage == "Nalog je privremeno zakljucan zbog vise neuspesnih pokusaja prijave. Pokusajte ponovo kasnije.")
+            #expect(error.userFacingMessageWithReference.contains("Ref: req-lockout"))
+        } catch {
+            Issue.record("Ocekivan je APIError.locked, dobijeno: \(error)")
+        }
+    }
+
+    @Test("401 invalid credentials ostaje standardna auth greska")
+    func invalidCredentialsRemainUnauthorized() async {
+        let path = "auth/login-\(UUID().uuidString)"
+        let url = baseURL.appendingPathComponent(path)
+        await MockHTTPResponseStore.shared.set(
+            MockHTTPResponse(
+                statusCode: 401,
+                headers: ["X-Request-Id": "req-invalid"],
+                body: Data("""
+                        {
+                          "status": 401,
+                          "code": "UNAUTHORIZED",
+                          "message": "Invalid email or password",
+                          "requestId": "req-invalid",
+                          "timestamp": "2026-06-06T12:00:00Z",
+                          "path": "/auth/login"
+                        }
+                        """.utf8)
+            ),
+            for: url
+        )
+
+        let client = makeClient()
+
+        do {
+            let _: EmptyResponse = try await client.post(path, body: ["noop": "true"])
+            Issue.record("Ocekivana je unauthorized auth greska")
+        } catch let error as APIError {
+            guard case .unauthorized = error else {
+                Issue.record("Ocekivana je APIError.unauthorized, dobijeno: \(String(describing: error))")
+                return
+            }
+            #expect(error.code == "UNAUTHORIZED")
+            #expect(error.userFacingMessage == "Niste prijavljeni. Prijavite se da biste nastavili.")
+        } catch {
+            Issue.record("Ocekivan je APIError.unauthorized, dobijeno: \(error)")
+        }
+    }
+
     private func makeClient() -> APIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]

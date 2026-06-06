@@ -92,6 +92,11 @@ struct MobileApiFixtureDecodingTests {
         let validationError = try decode("validation-error-response", as: APIErrorEnvelope.self)
         #expect(validationError.code == "VALIDATION_ERROR")
         #expect(validationError.details?["email"] != nil)
+
+        let lockoutError = try decode("auth-lockout-error-response", as: APIErrorEnvelope.self)
+        #expect(lockoutError.status == 423)
+        #expect(lockoutError.code == "AUTH_TEMPORARILY_LOCKED")
+        #expect(lockoutError.details?["retryAfterSeconds"] != nil)
     }
 
     private func decode<T: Decodable>(_ fixtureName: String, as type: T.Type) throws -> T {

@@ -43,6 +43,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final RefreshTokenService refreshTokenService;
+    private final AuthLockoutService authLockoutService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
@@ -53,7 +54,8 @@ public class AuthController {
             CsrfTokenRepository csrfTokenRepository,
             JwtService jwtService,
             UserRepository userRepository,
-            RefreshTokenService refreshTokenService) {
+            RefreshTokenService refreshTokenService,
+            AuthLockoutService authLockoutService) {
         this.authenticationManager = authenticationManager;
         this.authService = authService;
         this.currentUser = currentUser;
@@ -63,6 +65,7 @@ public class AuthController {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.refreshTokenService = refreshTokenService;
+        this.authLockoutService = authLockoutService;
     }
 
     @PostMapping({"/auth/login", "/v1/auth/login"})
@@ -70,8 +73,10 @@ public class AuthController {
             @Valid @RequestBody AuthDtos.LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        Authentication authentication = authenticateWithLockout(
+                request.email(),
+                request.password(),
+                AuthLockoutOperation.LOGIN);
         establishSession(authentication, httpRequest, httpResponse);
         User user = currentUser.user();
         return new AuthDtos.AuthResponse(
@@ -153,8 +158,10 @@ public class AuthController {
     AuthDtos.MobileTokenResponse mobileToken(
             @Valid @RequestBody AuthDtos.MobileTokenRequest request,
             HttpServletRequest httpRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        Authentication authentication = authenticateWithLockout(
+                request.email(),
+                request.password(),
+                AuthLockoutOperation.MOBILE_TOKEN);
         SpotLinkPrincipal principal = (SpotLinkPrincipal) authentication.getPrincipal();
         User user = userRepository.findById(principal.getUserId())
                 .orElseThrow(() -> new IllegalStateException("User not found after auth"));
@@ -189,6 +196,19 @@ public class AuthController {
             return;
         }
         throw new BadCredentialsException("Refresh token is required.");
+    }
+
+    private Authentication authenticateWithLockout(String email, String password, AuthLockoutOperation operation) {
+        authLockoutService.ensureNotLocked(email, operation);
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, password));
+            authLockoutService.clearAfterSuccess(email, operation);
+            return authentication;
+        } catch (org.springframework.security.core.AuthenticationException ex) {
+            authLockoutService.recordFailure(email, operation);
+            throw ex;
+        }
     }
 
     private void establishSession(Authentication authentication, HttpServletRequest request, HttpServletResponse response) {

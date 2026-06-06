@@ -144,6 +144,15 @@ Errors return:
 
 iOS should preserve `code` and `requestId` in typed errors.
 
+Auth lockout uses the same envelope:
+
+- HTTP `423`
+- `code`: `AUTH_TEMPORARILY_LOCKED`
+- `message`: generic temporary lockout copy
+- `details.retryAfterSeconds`: stringified safe retry hint
+
+The client should show a non-enumerating locked-account message and keep the request ID available for support.
+
 ## Enums
 
 ### UserRole

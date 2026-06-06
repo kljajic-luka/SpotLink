@@ -114,11 +114,11 @@ The gaps below now track remaining hardening work.
 
 - Area: Rate limiting and abuse prevention
 - Priority: P1
-- Current behavior: Auth login, mobile token, registration, password reset, and analytics ingestion have configurable local rate limits with `429`, `Retry-After`, and `RATE_LIMITED`. Search/geocode, reservation, payment, support, account lockout, device-risk scoring, and provider/WAF limits remain future hardening.
+- Current behavior: Auth login, mobile token, registration, password reset, and analytics ingestion have configurable local rate limits with `429`, `Retry-After`, and `RATE_LIMITED`. Repeated failed web/mobile-token auth attempts can create account-level lockout with HTTP `423` and `AUTH_TEMPORARILY_LOCKED`. Search/geocode, reservation, payment, support, device-risk scoring, and provider/WAF limits remain future hardening.
 - Desired mobile behavior: Rate limits with `429`, `Retry-After`, stable error code, and broader abuse policy coverage.
 - Backend files likely affected: security/config filters, controllers, exception handling.
 - iOS impact: Mobile retry policy cannot distinguish throttling from generic failures.
-- Suggested acceptance criteria: Existing focused rate-limit tests stay green; future provider/WAF and account-risk controls have staged rollout tests.
+- Suggested acceptance criteria: Existing focused rate-limit and auth-lockout tests stay green; future provider/WAF and account-risk controls have staged rollout tests.
 
 ## MOB-BE-011
 

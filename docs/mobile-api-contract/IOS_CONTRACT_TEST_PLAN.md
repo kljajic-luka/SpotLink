@@ -45,6 +45,7 @@ Current decode targets:
 - `admin-dashboard-response.json` -> `AdminDashboardSummary`
 - `standard-error-response.json` -> `APIErrorEnvelope`
 - `validation-error-response.json` -> `APIErrorEnvelope`
+- `auth-lockout-error-response.json` -> `APIErrorEnvelope`
 - `paginated-response-example.json` -> `APIPage<SpotLinkNotification>`
 
 Done criteria:

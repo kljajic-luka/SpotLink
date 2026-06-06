@@ -3,6 +3,7 @@ package com.spotlink.user;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spotlink.admin.AuditService;
+import com.spotlink.auth.AuthLockoutService;
 import com.spotlink.auth.PasswordResetToken;
 import com.spotlink.auth.PasswordResetTokenRepository;
 import com.spotlink.auth.RefreshTokenService;
@@ -71,6 +72,7 @@ public class AccountDeletionFulfillmentService {
     private final PaymentAttemptRepository paymentAttempts;
     private final PasswordResetTokenRepository passwordResetTokens;
     private final RefreshTokenService refreshTokens;
+    private final AuthLockoutService authLockouts;
     private final DeviceTokenRepository deviceTokens;
     private final NotificationRepository notifications;
     private final IdempotencyRecordRepository idempotencyRecords;
@@ -93,6 +95,7 @@ public class AccountDeletionFulfillmentService {
             PaymentAttemptRepository paymentAttempts,
             PasswordResetTokenRepository passwordResetTokens,
             RefreshTokenService refreshTokens,
+            AuthLockoutService authLockouts,
             DeviceTokenRepository deviceTokens,
             NotificationRepository notifications,
             IdempotencyRecordRepository idempotencyRecords,
@@ -113,6 +116,7 @@ public class AccountDeletionFulfillmentService {
         this.paymentAttempts = paymentAttempts;
         this.passwordResetTokens = passwordResetTokens;
         this.refreshTokens = refreshTokens;
+        this.authLockouts = authLockouts;
         this.deviceTokens = deviceTokens;
         this.notifications = notifications;
         this.idempotencyRecords = idempotencyRecords;
@@ -257,6 +261,7 @@ public class AccountDeletionFulfillmentService {
     }
 
     private void revokeAuthArtifacts(UUID userId, Instant now) {
+        users.findById(userId).ifPresent(authLockouts::clearForUser);
         refreshTokens.revokeAllForUser(userId);
         for (PasswordResetToken token : passwordResetTokens.findByUserIdAndConsumedAtIsNull(userId)) {
             token.setConsumedAt(now);

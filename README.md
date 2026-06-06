@@ -128,6 +128,7 @@ make validate-notification-preferences
 make validate-push-delivery-readiness
 make validate-analytics-privacy
 make validate-email-delivery-readiness
+make validate-auth-abuse-readiness
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
@@ -144,6 +145,8 @@ make build-backend-image
 `make validate-analytics-privacy` is also part of the pre-staging gate. It proves first-party analytics event/property allowlists, PII/secret rejection, payload limits, request ID behavior, iOS batch encoding, disabled-by-default consent behavior, and privacy-safe best-effort failures.
 
 `make validate-email-delivery-readiness` is also part of the pre-staging gate. It proves provider-neutral SMTP password reset delivery selection, hardened-profile runtime guards, reset URL construction, enumeration-safe missing-account behavior, and logs that omit raw tokens, email addresses, full reset URLs, subjects, and message bodies.
+
+`make validate-auth-abuse-readiness` is also part of the pre-staging gate. It proves account-level lockout for repeated failed web/mobile-token login attempts, generic non-enumerating auth failures, privacy-safe lockout metrics/logs, and iOS handling for `AUTH_TEMPORARILY_LOCKED`.
 
 For the local pre-staging hardening bar, run:
 
@@ -200,6 +203,7 @@ Makefile           Local development, validation, build, archive/export, release
 ## Remaining External Blockers
 
 - Real staging infrastructure: cloud provider/project, DNS/TLS for `api-staging.spotlink.app`, PostgreSQL instance, secret storage, deploy/rollback owners.
+- External abuse protection: provider/WAF bot filtering, credential-stuffing intelligence, and device-risk controls beyond the app-level rate limits and lockout gate.
 - Apple signing/TestFlight: Apple Developer team, distribution certificate, provisioning profiles, App Store Connect app records, human-controlled upload.
 - Real PSP: provider selection, credentials, webhook signature verification, SCA/deep-link return, capture/refund reconciliation, settlement reporting.
 - Real email delivery: SMTP credentials, sender-domain SPF/DKIM/DMARC setup, bounce handling, and inbox-placement validation.

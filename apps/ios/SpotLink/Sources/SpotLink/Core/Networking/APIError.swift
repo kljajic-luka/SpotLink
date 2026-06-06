@@ -37,6 +37,7 @@ public enum APIError: Error, Sendable {
     case forbidden
     case notFound(APIErrorContext)
     case conflict(APIErrorContext)
+    case locked(APIErrorContext)
     case validation(APIErrorContext)
     case serverError(Int, APIErrorContext)
     case offline
@@ -54,6 +55,8 @@ public enum APIError: Error, Sendable {
             return context.message.isEmpty ? "Trazeni resurs nije pronadjen." : context.message
         case .conflict(let context):
             return context.message.isEmpty ? "Doslo je do konflikta. Pokusajte ponovo." : context.message
+        case .locked:
+            return "Nalog je privremeno zakljucan zbog vise neuspesnih pokusaja prijave. Pokusajte ponovo kasnije."
         case .validation(let context):
             if !context.details.isEmpty {
                 return context.details.values.joined(separator: "\n")
@@ -81,7 +84,7 @@ public enum APIError: Error, Sendable {
         switch self {
         case .unauthorized(let context):
             return context?.code
-        case .notFound(let context), .conflict(let context), .validation(let context):
+        case .notFound(let context), .conflict(let context), .locked(let context), .validation(let context):
             return context.code
         case .serverError(_, let context), .unknown(_, let context):
             return context.code
@@ -94,7 +97,7 @@ public enum APIError: Error, Sendable {
         switch self {
         case .unauthorized(let context):
             return context?.requestId
-        case .notFound(let context), .conflict(let context), .validation(let context):
+        case .notFound(let context), .conflict(let context), .locked(let context), .validation(let context):
             return context.requestId
         case .serverError(_, let context), .unknown(_, let context):
             return context.requestId

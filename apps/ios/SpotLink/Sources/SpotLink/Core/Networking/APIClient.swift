@@ -171,6 +171,8 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
             throw APIError.notFound(context)
         case 409:
             throw APIError.conflict(context)
+        case 423:
+            throw APIError.locked(context)
         case 422:
             throw APIError.validation(context)
         case 500...599:

@@ -1,4 +1,4 @@
-.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode validate-mobile-api-contract build build-backend validate-backend-runtime-config validate-notification-preferences validate-push-delivery-readiness validate-analytics-privacy validate-email-delivery-readiness validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
+.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode validate-mobile-api-contract build build-backend validate-backend-runtime-config validate-notification-preferences validate-push-delivery-readiness validate-analytics-privacy validate-email-delivery-readiness validate-auth-abuse-readiness validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
 
 IOS_ARCHIVE_DIR ?= build/ios/archives
 IOS_EXPORT_DIR ?= build/ios/exports
@@ -85,6 +85,10 @@ validate-analytics-privacy: ## Proveri first-party analytics event allowlist, PI
 
 validate-email-delivery-readiness: ## Proveri SMTP password reset provider, runtime guard i privacy-safe reset logging
 	mvn -f apps/backend/pom.xml -Dtest=MailProviderConfigurationTest,SmtpMailProviderTest,RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest test
+
+validate-auth-abuse-readiness: ## Proveri account-level auth lockout policy, metrike i iOS locked error mapiranje
+	mvn -f apps/backend/pom.xml -Dtest=AuthLockoutReadinessTest test
+	swift test --package-path apps/ios/SpotLink --filter APIClientTests
 
 validate-pre-staging-hardening: ## Fokusirani abuse, reset-delivery i privacy-safe logging testovi
 	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest,RateLimitFilterTest test
@@ -247,6 +251,7 @@ pre-staging-gate: ## Release gate plus fokusirani pre-staging hardening checkovi
 	$(MAKE) validate-push-delivery-readiness
 	$(MAKE) validate-analytics-privacy
 	$(MAKE) validate-email-delivery-readiness
+	$(MAKE) validate-auth-abuse-readiness
 	$(MAKE) validate-pre-staging-hardening
 
 # ── podesavanje ───────────────────────────────────────────────────────────────

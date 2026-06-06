@@ -20,7 +20,7 @@ Severity labels:
 | Critical | Mock payment cannot ship as production payment path. | Backend has `MockPaymentProvider` and `spotlink.mock-payment.enabled` defaults to true. | Release builds and production backend must use a real PSP or disable paid reservations. Add config guard. |
 | High | Production mobile auth model is not finalized. | Backend is cookie/session and XSRF oriented. | Decide hardened native cookie session or mobile token model before external TestFlight. |
 | High | Password reset delivery has SMTP code/config readiness but no external sender setup. | Backend uses `MailProvider`; local `safe-log` is non-production-ready, SMTP is selected with `MAIL_PROVIDER=smtp`, and staging/prod fail fast unless delivery is disabled or SMTP config is complete. Logs include provider name and recipient hash only. | Configure SMTP credentials, sender domain DNS/reputation, bounce handling, and inbox-placement checks before external staging. |
-| High | Rate limiting is present for key public abuse surfaces, but broader abuse controls remain. | Auth login, mobile token, registration, password reset, and analytics ingestion return `RATE_LIMITED` with `Retry-After` when throttled. | Add account lockout, device-risk controls, and provider/WAF-level throttles for wider staging/production exposure. |
+| High | App-level auth abuse controls exist, but provider/WAF controls remain external. | Auth login, mobile token, registration, password reset, and analytics ingestion return `RATE_LIMITED` with `Retry-After` when throttled. Repeated failed web/mobile-token auth attempts create privacy-safe account lockout state keyed by normalized email hash and return `AUTH_TEMPORARILY_LOCKED` without logging credentials. | Add device-risk controls and provider/WAF-level bot/credential-stuffing protections for wider staging/production exposure. |
 | High | APNs physical delivery is not externally verified. | Token lifecycle, APNs-ready provider scaffolding, privacy-safe logging, metrics, and preference enforcement exist, but Apple credentials/entitlements are absent. | Configure Apple-owned APNs credentials/entitlements, run physical-device delivery smoke tests, and approve final payload policy. |
 | Medium | API versioning is missing. | Endpoints are unversioned under `/api`. | Add `/api/v1` or version header before mobile clients stabilize. |
 | Medium | Location and license plate data require explicit privacy handling. | Vehicle and location models include license plate, coordinates, address, and reservation data. | Classify PII, limit logs/caches, update privacy policy and privacy manifest. |
@@ -37,7 +37,7 @@ Recommended production direction:
 - Keep access tokens in memory where feasible.
 - Rotate refresh tokens on use and revoke token families on reuse detection.
 - Support server-side revocation on logout.
-- Support account lockout, email verification, and suspicious login monitoring.
+- Support email verification and suspicious login monitoring.
 
 Acceptable foundation/testing direction:
 
@@ -304,24 +304,25 @@ Required:
 
 ## Rate Limiting and Abuse Prevention
 
-Add rate limits for:
+Implemented app-level controls:
 
-- Login.
-- Registration.
-- Password reset request and completion.
+- Local fixed-window rate limits for login, mobile token, registration, password reset, and analytics ingestion.
+- Account-level lockout for repeated failed web/mobile-token auth attempts with privacy-safe metrics and generic client errors.
+
+Add or extend rate limits for:
+
 - Geocode/search.
 - Reservation quote.
 - Reservation creation.
 - Payment intent creation/confirmation.
 - Support ticket/message creation.
 - Device token registration.
-- Analytics ingestion.
 
-Add abuse controls:
+Add external/advanced abuse controls:
 
-- Account lockout or progressive delay.
 - Device/IP reputation if needed.
 - CAPTCHA only where acceptable for web; avoid degrading native UX unless abuse requires it.
+- Provider/WAF-level bot and credential-stuffing protection.
 - Alerting on repeated payment failures, reservation spam, and support spam.
 
 ## Secure Defaults Before TestFlight

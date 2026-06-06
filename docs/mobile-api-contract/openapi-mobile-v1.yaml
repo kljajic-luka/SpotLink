@@ -1079,6 +1079,8 @@ components:
           examples:
             validation:
               $ref: "#/components/examples/ValidationError"
+            authLockout:
+              $ref: "#/components/examples/AuthLockoutError"
 
   examples:
     UserProfile:
@@ -1103,6 +1105,16 @@ components:
         details:
           email: must be a well-formed email address
         timestamp: "2026-04-22T13:00:00Z"
+        path: /api/auth/token
+    AuthLockoutError:
+      value:
+        status: 423
+        code: AUTH_TEMPORARILY_LOCKED
+        message: Too many failed sign-in attempts. Try again later.
+        requestId: mob-lockout-001
+        details:
+          retryAfterSeconds: "900"
+        timestamp: "2026-06-06T13:00:00Z"
         path: /api/auth/token
 
   schemas:

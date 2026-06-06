@@ -1,8 +1,11 @@
 package com.spotlink.core;
 
+import com.spotlink.auth.AuthLockoutException;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -52,6 +55,17 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleAuthentication(Exception ex, HttpServletRequest request) {
         metrics.increment("spotlink.auth.failure", "operation", authOperation(request));
         return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Invalid email or password", null, request);
+    }
+
+    @ExceptionHandler(AuthLockoutException.class)
+    ResponseEntity<ApiErrorResponse> handleAuthLockout(AuthLockoutException ex, HttpServletRequest request) {
+        metrics.increment("spotlink.auth.failure", "operation", authOperation(request));
+        return error(
+                HttpStatus.LOCKED,
+                AuthLockoutException.CODE,
+                ex.getMessage(),
+                Map.of("retryAfterSeconds", Long.toString(retryAfterSeconds(ex.getLockedUntil()))),
+                request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -136,5 +150,12 @@ public class GlobalExceptionHandler {
             return "mobile_token_refresh";
         }
         return "other";
+    }
+
+    private long retryAfterSeconds(Instant lockedUntil) {
+        if (lockedUntil == null) {
+            return 0;
+        }
+        return Math.max(0, Duration.between(Instant.now(), lockedUntil).toSeconds());
     }
 }

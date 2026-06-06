@@ -15,6 +15,7 @@ This target runs:
 - focused push delivery readiness checks for provider configuration, preference enforcement, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
 - focused first-party analytics privacy checks for event/property allowlists, PII rejection, iOS consent defaults, and backend batch-shape encoding
 - focused SMTP email delivery readiness checks for provider selection, runtime guard behavior, reset URL construction, and privacy-safe reset logging
+- focused account-level auth lockout checks for repeated failed login/mobile-token attempts, generic auth errors, privacy-safe metrics/logs, and iOS locked-error handling
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -48,6 +49,12 @@ The SMTP password reset delivery slice can be run directly:
 make validate-email-delivery-readiness
 ```
 
+The account-level auth abuse slice can be run directly:
+
+```bash
+make validate-auth-abuse-readiness
+```
+
 ## Backend Protections
 
 Public abuse-prone endpoints are protected by a configurable in-process fixed-window rate limiter:
@@ -66,6 +73,19 @@ When a request is throttled, the API returns the normal error envelope with:
 - `Retry-After`
 
 The limiter is keyed by operation plus client network address. It does not parse, log, or return email, password, reset token, bearer token, or analytics payload values.
+
+Repeated failed login attempts are also tracked at the account level for `POST /auth/login`, `/v1/auth/login`, `/auth/token`, and `/v1/auth/token`. The lockout state stores a normalized email hash and user ID when known, never the raw email or password. Successful login clears prior failures, expired windows are cleaned up, and locked accounts receive the standard error envelope with HTTP `423` and `code=AUTH_TEMPORARILY_LOCKED`. Missing-user and wrong-password failures keep the same generic auth response to reduce enumeration risk.
+
+The staging/prod examples keep the app-level lockout enabled by default:
+
+```env
+AUTH_LOCKOUT_ENABLED=true
+AUTH_LOCKOUT_FAILED_ATTEMPT_THRESHOLD=5
+AUTH_LOCKOUT_ROLLING_WINDOW=15m
+AUTH_LOCKOUT_DURATION=15m
+```
+
+This is application-layer abuse hardening. It does not replace provider/WAF bot filtering, credential-stuffing intelligence, device-risk scoring, or external identity-provider protections.
 
 ## Password Reset Delivery
 
@@ -97,6 +117,7 @@ The backend records low-cardinality counters for:
 
 - auth failures
 - rate-limit blocks
+- account lockout failed-attempt, lockout-created, locked-blocked, and cleared-after-success outcomes
 - password reset request outcomes
 - SMTP password reset delivery queue outcomes
 - payment authority disabled decisions
@@ -161,6 +182,7 @@ The iOS UI test suite includes a deterministic unauthenticated registration chec
 ## Remaining External Blockers
 
 - Real staging infrastructure and DNS/TLS
+- Provider/WAF-level bot protection, credential-stuffing detection, and device-risk controls
 - Real SMTP credentials, sender domain DNS/reputation setup, bounce handling, and inbox-placement validation
 - Apple signing/TestFlight upload credentials
 - PSP selection, credentials, webhook verification, and reconciliation

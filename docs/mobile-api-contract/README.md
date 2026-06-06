@@ -26,6 +26,7 @@ Backend coverage currently enforces:
 - generated OpenAPI route coverage for auth/token lifecycle, profile, vehicles, search/location, reservations, payment capabilities/intents/cancel, support, notifications/device token register-unregister, operator/admin summaries, account-deletion admin processing, and public health.
 - standard error envelope fields: `status`, `code`, `message`, `requestId`, `timestamp`, and `path`.
 - `X-Request-Id` acceptance and response propagation.
+- auth lockout error shape for repeated failed web/mobile-token auth attempts: HTTP `423`, `code=AUTH_TEMPORARILY_LOCKED`, and safe retry metadata.
 - representative `204 No Content` endpoints returning an empty body.
 - representative `/api/v1` aliases behaving like their unversioned routes.
 - analytics route coverage plus focused privacy validation through `make validate-analytics-privacy`: allowed event names, property allowlist, PII/secret rejection, payload limits, request IDs, and iOS batch-shape/consent tests.
@@ -51,7 +52,7 @@ iOS fixture coverage currently decodes:
 - `paginated-response-example.json` -> `APIPage<SpotLinkNotification>`
 - `operator-dashboard-response.json` -> `OperatorDashboardSummary`
 - `admin-dashboard-response.json` -> `AdminDashboardSummary`
-- `standard-error-response.json` and `validation-error-response.json` -> `APIErrorEnvelope`
+- `standard-error-response.json`, `validation-error-response.json`, and `auth-lockout-error-response.json` -> `APIErrorEnvelope`
 
 ## Source Files Inspected
 

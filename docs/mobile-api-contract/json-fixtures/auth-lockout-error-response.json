@@ -1,0 +1,11 @@
+{
+  "status": 423,
+  "code": "AUTH_TEMPORARILY_LOCKED",
+  "message": "Too many failed sign-in attempts. Try again later.",
+  "requestId": "sl-lockout-001",
+  "details": {
+    "retryAfterSeconds": "60"
+  },
+  "timestamp": "2026-06-06T12:00:00Z",
+  "path": "/auth/token"
+}

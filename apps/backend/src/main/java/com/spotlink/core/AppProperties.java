@@ -17,6 +17,7 @@ public class AppProperties {
     private final PasswordReset passwordReset = new PasswordReset();
     private final Push push = new Push();
     private final RateLimit rateLimit = new RateLimit();
+    private final AuthLockout authLockout = new AuthLockout();
     private String defaultCurrency = "RSD";
     private int quoteTtlMinutes = 15;
     private int bookingSlotMinutes = 15;
@@ -59,6 +60,10 @@ public class AppProperties {
 
     public RateLimit getRateLimit() {
         return rateLimit;
+    }
+
+    public AuthLockout getAuthLockout() {
+        return authLockout;
     }
 
     public String getDefaultCurrency() {
@@ -519,6 +524,45 @@ public class AppProperties {
             public void setWindow(Duration window) {
                 this.window = window;
             }
+        }
+    }
+
+    public static class AuthLockout {
+        private boolean enabled = true;
+        private int failedAttemptThreshold = 5;
+        private Duration rollingWindow = Duration.ofMinutes(15);
+        private Duration lockoutDuration = Duration.ofMinutes(15);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getFailedAttemptThreshold() {
+            return failedAttemptThreshold;
+        }
+
+        public void setFailedAttemptThreshold(int failedAttemptThreshold) {
+            this.failedAttemptThreshold = failedAttemptThreshold;
+        }
+
+        public Duration getRollingWindow() {
+            return rollingWindow;
+        }
+
+        public void setRollingWindow(Duration rollingWindow) {
+            this.rollingWindow = rollingWindow;
+        }
+
+        public Duration getLockoutDuration() {
+            return lockoutDuration;
+        }
+
+        public void setLockoutDuration(Duration lockoutDuration) {
+            this.lockoutDuration = lockoutDuration;
         }
     }
 

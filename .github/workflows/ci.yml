@@ -66,6 +66,9 @@ jobs:
       - name: Email delivery readiness validation
         run: make validate-email-delivery-readiness
 
+      - name: Auth abuse readiness backend validation
+        run: mvn -B -f apps/backend/pom.xml -Dtest=AuthLockoutReadinessTest test
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest
@@ -110,6 +113,9 @@ jobs:
 
       - name: Analytics privacy iOS validation
         run: swift test --package-path apps/ios/SpotLink --filter AnalyticsTests
+
+      - name: Auth abuse iOS error mapping validation
+        run: swift test --package-path apps/ios/SpotLink --filter APIClientTests
 
       - name: iOS privacy/legal plist validation
         run: make validate-ios-privacy-config
