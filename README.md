@@ -78,6 +78,7 @@ flowchart LR
 - Mobile auth/session lifecycle: bearer-token login, refresh/revoke contracts, session-aware SwiftUI shell, logout cleanup hooks.
 - Payment safety: capabilities endpoint, provider-ready authorize/capture/cancel/refund/webhook/reconciliation contracts, production guard against mock methods.
 - Push readiness: authenticated token register/reactivate/unregister endpoints, iOS token persistence/cleanup, backend APNs provider boundary, server-side preference enforcement, privacy-safe payloads/logs, and delivery metrics without committed APNs credentials.
+- Analytics privacy: first-party event ingestion with backend event/property allowlists, payload limits, PII/secret rejection, iOS consent-disabled defaults, and no third-party analytics SDK, IDFA, ATT prompt, or cross-app tracking.
 - Account deletion readiness: user request endpoint, duplicate prevention, admin idempotent processing, PII anonymization, auth/device-token revocation, blockers for active/future reservations and unresolved payment states.
 - Privacy/compliance scaffolding: iOS `PrivacyInfo.xcprivacy`, legal/support URL config, account deletion documentation, conservative App Store checklist.
 - Release engineering: deterministic local gate, CI parity, staging scheme/config, unsigned Release/Staging build validation, signed TestFlight export scaffolding.
@@ -125,6 +126,7 @@ make validate-backend-runtime-config
 make validate-mobile-api-contract
 make validate-notification-preferences
 make validate-push-delivery-readiness
+make validate-analytics-privacy
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
@@ -137,6 +139,8 @@ make build-backend-image
 `make validate-notification-preferences` is also part of the pre-staging gate through the push readiness target. It proves transactional push delivery respects server-side reservation, payment, and support preference gates without suppressing in-app notification persistence.
 
 `make validate-push-delivery-readiness` is also part of the pre-staging gate. It proves provider selection/runtime guards, post-commit notification delivery semantics, invalid-token deactivation, inactive-token skipping, preference skips, metrics, and log redaction without contacting APNs.
+
+`make validate-analytics-privacy` is also part of the pre-staging gate. It proves first-party analytics event/property allowlists, PII/secret rejection, payload limits, request ID behavior, iOS batch encoding, disabled-by-default consent behavior, and privacy-safe best-effort failures.
 
 For the local pre-staging hardening bar, run:
 

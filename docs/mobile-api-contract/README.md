@@ -28,6 +28,7 @@ Backend coverage currently enforces:
 - `X-Request-Id` acceptance and response propagation.
 - representative `204 No Content` endpoints returning an empty body.
 - representative `/api/v1` aliases behaving like their unversioned routes.
+- analytics route coverage plus focused privacy validation through `make validate-analytics-privacy`: allowed event names, property allowlist, PII/secret rejection, payload limits, request IDs, and iOS batch-shape/consent tests.
 
 iOS fixture coverage currently decodes:
 
@@ -104,6 +105,7 @@ Backend agents should:
 - `/auth/token` returns access and refresh tokens. Refresh-token rotation and revocation endpoints are implemented.
 - Payment provider behavior is still mock/non-production grade; no real PSP is integrated.
 - APNs provider delivery is scaffolded and credential-free tests cover provider selection, preference skips, delivery boundaries, invalid-token handling, metrics, and redaction. Real APNs credentials, entitlement, and physical-device delivery validation remain external.
+- First-party analytics are schema-checked and consent-disabled by default on iOS. The backend rejects unknown events, unsafe properties, PII-like values, and oversized batches; this is engineering scaffolding, not final legal/privacy approval.
 - Search is not yet map-grade for viewport/radius/availability ranking.
 - Account deletion request and admin-reviewed fulfillment exist; user-visible deletion status/export/privacy-choice endpoints remain future work.
 - Request-only fixtures are not decoded through Swift response models because the app's request DTOs are intentionally `Encodable` only; request encoding is covered by focused Swift service/model tests.

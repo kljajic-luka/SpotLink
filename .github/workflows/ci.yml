@@ -60,6 +60,9 @@ jobs:
       - name: Push delivery readiness validation
         run: make validate-push-delivery-readiness
 
+      - name: Analytics privacy backend validation
+        run: mvn -B -f apps/backend/pom.xml -Dtest=AnalyticsPrivacyTest test
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest
@@ -101,6 +104,9 @@ jobs:
 
       - name: Mobile API contract fixture decoding
         run: swift test --package-path apps/ios/SpotLink --filter MobileApiFixtureDecodingTests
+
+      - name: Analytics privacy iOS validation
+        run: swift test --package-path apps/ios/SpotLink --filter AnalyticsTests
 
       - name: iOS privacy/legal plist validation
         run: make validate-ios-privacy-config

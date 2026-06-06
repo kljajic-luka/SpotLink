@@ -108,7 +108,9 @@ class MobileApiContractTest {
             operation("/admin/support-cases", "get"),
             operation("/v1/admin/support-cases", "get"),
             operation("/admin/support-cases/{ticketId}/process-account-deletion", "post"),
-            operation("/v1/admin/support-cases/{ticketId}/process-account-deletion", "post"));
+            operation("/v1/admin/support-cases/{ticketId}/process-account-deletion", "post"),
+            operation("/analytics/events", "post"),
+            operation("/v1/analytics/events", "post"));
 
     @Autowired
     private MockMvc mockMvc;

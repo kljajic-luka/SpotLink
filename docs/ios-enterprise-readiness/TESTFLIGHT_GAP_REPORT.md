@@ -152,18 +152,19 @@ Impact: external TestFlight blocked.
 
 Current state:
 
-- Analytics service exists.
-- Payload does not match backend.
-- Consent/opt-out is not implemented.
+- First-party analytics service exists.
+- iOS sends the backend batch shape when enabled.
+- iOS analytics submission is disabled by default until local consent/policy enables it.
+- Backend enforces event/property allowlists, payload limits, and PII/secret rejection.
+- No third-party analytics SDK, IDFA, cross-app tracking, or ATT prompt is present.
 
 Required:
 
-- Fix API payload.
-- Add analytics consent/preference behavior.
-- Add PII allowlist.
-- Decide ATT posture.
+- Legal/privacy owner must approve public policy wording and App Store Connect analytics answers.
+- Product/legal must decide whether and how to expose user-facing analytics controls before broad external testing.
+- Any future third-party analytics, attribution, tracking domains, or IDFA use must trigger privacy manifest/App Store Connect/ATT re-review.
 
-Impact: analytics should remain disabled for external TestFlight until fixed.
+Impact: analytics is technically hardened for first-party pre-staging use, but legal/policy approval remains required before broad external TestFlight.
 
 ## Account Deletion Readiness
 
@@ -212,7 +213,7 @@ Blockers/gaps:
 4. No APNs entitlement/provider verification.
 5. No production-like payment provider/Apple Pay decision.
 6. No account deletion path.
-7. No analytics consent/privacy controls.
+7. Analytics privacy controls exist, but owner-approved user-facing analytics consent/policy wording is still required.
 8. No API versioning.
 9. No security hardening for JWT refresh/revocation/rate limiting.
 10. No accessibility and Dynamic Type validation.

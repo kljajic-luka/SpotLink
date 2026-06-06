@@ -15,18 +15,25 @@ public class AnalyticsService {
     private static final Logger log = LoggerFactory.getLogger(AnalyticsService.class);
 
     private final AnalyticsEventRepository events;
+    private final AnalyticsPolicy analyticsPolicy;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public AnalyticsService(AnalyticsEventRepository events, ObjectMapper objectMapper, Clock clock) {
+    public AnalyticsService(
+            AnalyticsEventRepository events,
+            AnalyticsPolicy analyticsPolicy,
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.events = events;
+        this.analyticsPolicy = analyticsPolicy;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     @Transactional
     public void ingest(AnalyticsDtos.AnalyticsBatch batch) {
-        for (AnalyticsDtos.AnalyticsEventDto dto : batch.events()) {
+        AnalyticsPolicy.SanitizedBatch sanitizedBatch = analyticsPolicy.sanitize(batch);
+        for (AnalyticsPolicy.SanitizedEvent dto : sanitizedBatch.events()) {
             AnalyticsEvent event = new AnalyticsEvent();
             event.setEventName(dto.event());
             event.setProperties(serialize(dto.properties()));
@@ -44,7 +51,7 @@ public class AnalyticsService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
-            log.warn("Could not serialize analytics properties: {}", ex.getMessage());
+            log.warn("Could not serialize accepted analytics properties.");
             return "{}";
         }
     }

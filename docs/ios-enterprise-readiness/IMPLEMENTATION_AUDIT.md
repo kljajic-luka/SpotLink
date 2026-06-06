@@ -262,7 +262,7 @@ Critical/security gaps:
 - No privacy manifest.
 - No location permission string.
 - No account deletion flow.
-- No analytics consent model.
+- First-party analytics is consent-disabled by default and privacy-filtered; owner-approved user-facing consent/policy copy remains.
 - No crash reporting or PII-redaction policy enforcement in app code.
 - License plate is displayed in list/accessibility label at `VehiclesView.swift:114-128`; that may be acceptable in the vehicle screen but needs privacy review and snapshot/test discipline.
 
@@ -325,4 +325,3 @@ Missing:
 `Needs major refactor`
 
 The implementation is moving in the right broad direction because it is native Swift/SwiftUI and roughly follows the desired module names. However, it is not a serious iOS foundation yet because it does not compile under the advertised SwiftPM test setup, lacks an app project/release assets, has many DTO and endpoint mismatches, has only placeholder product screens, and is missing major security, privacy, APNs, payment, and TestFlight foundations.
-

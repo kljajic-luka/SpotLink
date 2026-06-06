@@ -263,6 +263,7 @@ Obe provere su unsigned (`CODE_SIGNING_ALLOWED=NO`). Signed archive/export je od
 - **PrivacyInfo.xcprivacy**: deklarise `NSPrivacyTracking=false`, app-owned UserDefaults required-reason API usage (`CA92.1`), and current SpotLink-collected data classes for account/contact, location/search, vehicle/license plate, reservation/payment-attempt metadata, support/account deletion tickets, analytics, APNs token lifecycle, and diagnostics/request IDs.
 - **Info.plist legal/support keys**: `SPOTLINK_PRIVACY_POLICY_URL`, `SPOTLINK_TERMS_URL`, `SPOTLINK_SUPPORT_URL`, `SPOTLINK_SUPPORT_EMAIL`, and `SPOTLINK_ACCOUNT_DELETION_URL` are resolved from build settings or runtime env overrides. Defaults point at owner-owned `spotlink.app` destinations and must serve real policy/support content before signed TestFlight/App Review.
 - **SpotLink.entitlements**: intentionally empty. APNs, Associated Domains, and Apple Pay remain disabled until the Apple Developer portal, provisioning profiles, APNs/merchant credentials, and product/legal review are ready.
+- **Analytics**: first-party analytics has no third-party SDK, no IDFA, no ATT prompt, and no cross-app tracking. Submission is disabled by default until local analytics consent is enabled. When enabled, iOS sends the backend batch shape and strips unsafe properties before submission.
 
 Validacija:
 

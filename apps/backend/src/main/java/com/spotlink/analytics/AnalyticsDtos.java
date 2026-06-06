@@ -3,6 +3,7 @@ package com.spotlink.analytics;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
@@ -17,13 +18,13 @@ public final class AnalyticsDtos {
             @NotBlank @Size(max = 160) String event,
             Map<String, Object> properties,
             Instant timestamp,
-            @Size(max = 1000) String url,
+            @Size(max = 200) String url,
             @NotBlank @Size(max = 120) String sessionId
     ) {
     }
 
     public record AnalyticsBatch(
-            @Valid @NotEmpty List<AnalyticsEventDto> events
+            @Valid @NotNull @NotEmpty @Size(max = 20) List<AnalyticsEventDto> events
     ) {
     }
 

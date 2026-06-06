@@ -198,13 +198,13 @@ Priorities:
 
 ## SL-IOS-AUD-018
 
-- Title: Analytics payload is incompatible and lacks consent model
+- Title: Analytics privacy controls need owner-approved product/legal policy
 - Priority: P2
 - Area: API Contract, Security, Product
-- Evidence: backend `AnalyticsDtos.java:16-27`; iOS `Analytics.swift:70-93`
-- Why it matters: Analytics events will fail validation and the privacy model is undefined.
-- Recommended fix: Send `{ events: [...] }` with backend field names or update backend contract; add consent/preferences and PII allowlist.
-- Acceptance criteria: Analytics accepted test passes and opt-out prevents event submission.
+- Evidence: backend `AnalyticsPolicy`, `AnalyticsPrivacyTest`; iOS `Analytics.swift`, `AnalyticsTests`
+- Why it matters: Technical controls now exist, but owner-approved disclosure, user-facing consent/control decisions, and App Store Connect answers are still required.
+- Recommended fix: Approve policy wording and user-facing analytics controls; keep no-IDFA/no-third-party/ATT posture documented unless future tracking changes it.
+- Acceptance criteria: `make validate-analytics-privacy` remains green and privacy/legal owner signs off before broad external TestFlight.
 - Suggested owner: iOS implementation agent
 
 ## SL-IOS-AUD-019
@@ -239,4 +239,3 @@ Priorities:
 - Recommended fix: Add accessibility smoke tests and manual QA checklist runs for VoiceOver, Dynamic Type, dark mode, and reduced motion.
 - Acceptance criteria: Core customer flow passes accessibility QA with documented results.
 - Suggested owner: QA agent
-

@@ -24,7 +24,7 @@ Severity labels:
 | High | APNs physical delivery is not externally verified. | Token lifecycle, APNs-ready provider scaffolding, privacy-safe logging, metrics, and preference enforcement exist, but Apple credentials/entitlements are absent. | Configure Apple-owned APNs credentials/entitlements, run physical-device delivery smoke tests, and approve final payload policy. |
 | Medium | API versioning is missing. | Endpoints are unversioned under `/api`. | Add `/api/v1` or version header before mobile clients stabilize. |
 | Medium | Location and license plate data require explicit privacy handling. | Vehicle and location models include license plate, coordinates, address, and reservation data. | Classify PII, limit logs/caches, update privacy policy and privacy manifest. |
-| Medium | Analytics endpoint is public and consent model is undefined. | `/analytics/events` is public, CSRF-exempt, schema-validated, and rate-limited. | Add consent controls and PII stripping before broad external use. |
+| Medium | Analytics legal/user-facing consent remains owner work. | `/analytics/events` is public, CSRF-exempt, rate-limited, event/property allowlisted, and rejects PII/secrets. iOS is consent-disabled by default and has no IDFA, third-party SDK, ATT prompt, or cross-app tracking. | Approve public policy wording and user-facing analytics control/consent model before broad external use. |
 | Low | Certificate pinning should be a staged decision. | TLS is assumed but pinning is not specified. | Use ATS and strong TLS first; consider pinning only with an operational rotation plan. |
 
 ## Auth Model Recommendations

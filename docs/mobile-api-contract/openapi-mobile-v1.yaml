@@ -1986,15 +1986,47 @@ components:
         event:
           type: string
           maxLength: 160
+          enum:
+            - app_open
+            - screen_view
+            - login
+            - logout
+            - registration_started
+            - registration_completed
+            - search_performed
+            - reservation_quote_requested
+            - reservation_flow_started
+            - reservation_created
+            - reservation_create_failed
+            - payment_intent_created
+            - payment_unavailable
+            - support_ticket_created
+            - account_deletion_requested
+            - notification_preferences_updated
+            - profile_updated
+            - error
         properties:
           type: [object, "null"]
-          additionalProperties: true
+          maxProperties: 20
+          description: >
+            Privacy-safe first-party properties only. Supported keys are
+            platform, appVersion, appBuild, environment, screen, context,
+            source, flow, type, result, status, reason, category, provider,
+            registrationType, paymentMode, reservationStatus, notificationType,
+            and errorName. Values must not contain email, phone, full names,
+            license plates, bearer/refresh/reset/APNs tokens, exact addresses,
+            precise coordinates, raw payment method/card data, or free-form
+            error descriptions.
+          additionalProperties:
+            type: [string, number, boolean, "null"]
         timestamp:
           type: [string, "null"]
           format: date-time
         url:
           type: [string, "null"]
-          maxLength: 1000
+          maxLength: 200
+          deprecated: true
+          description: Accepted for backwards compatibility but not persisted by the backend.
         sessionId:
           type: string
           maxLength: 120
@@ -2005,6 +2037,7 @@ components:
         events:
           type: array
           minItems: 1
+          maxItems: 20
           items:
             $ref: "#/components/schemas/AnalyticsEvent"
 

@@ -13,6 +13,7 @@ This target runs:
 - `make release-gate`
 - focused mobile API contract checks against backend-generated OpenAPI routes and Swift fixture decoding
 - focused push delivery readiness checks for provider configuration, preference enforcement, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
+- focused first-party analytics privacy checks for event/property allowlists, PII rejection, iOS consent defaults, and backend batch-shape encoding
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -32,6 +33,12 @@ The notification preference policy slice can be run directly:
 
 ```bash
 make validate-notification-preferences
+```
+
+The analytics privacy slice can be run directly:
+
+```bash
+make validate-analytics-privacy
 ```
 
 ## Backend Protections
@@ -82,6 +89,23 @@ The backend records low-cardinality counters for:
 - account deletion fulfillment outcomes
 
 Metric tags avoid user identifiers, email, phone, device tokens, reset tokens, bearer tokens, license plates, and request payload data.
+
+## Analytics Privacy Readiness
+
+SpotLink analytics is first-party and best-effort only:
+
+- no third-party analytics SDK is included
+- no IDFA or cross-app tracking is used
+- no ATT prompt is added because current behavior is not tracking under Apple's cross-app tracking definition
+- iOS analytics submission is disabled by default unless local analytics consent is explicitly enabled
+- iOS submits the backend batch shape: `{ "events": [ { "event", "properties", "timestamp", "sessionId" } ] }`
+- iOS strips unsafe properties before building a request and never sends exact location, license plates, email/phone, raw user IDs, tokens, raw payment method/card data, or verbose error descriptions
+- backend analytics ingestion rejects unknown events, unknown/unsafe property keys, nested property values, more than 20 events, more than 20 properties per event, long property strings, and obvious PII/secrets
+- `url` remains accepted in the DTO for compatibility but is not persisted by the backend
+
+Allowed analytics events currently cover app open, screen view, auth, registration, search, reservation, payment availability/intent, support ticket creation, account deletion request, notification preference update, profile update, and coarse error events.
+
+This is engineering privacy scaffolding. Legal owner-approved analytics disclosure, consent wording, and final App Store Connect answers remain external work.
 
 ## Push Delivery Readiness
 

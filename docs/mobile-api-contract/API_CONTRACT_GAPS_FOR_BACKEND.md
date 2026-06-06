@@ -154,8 +154,8 @@ The gaps below now track remaining hardening work.
 
 - Area: Analytics privacy and schema validation
 - Priority: P2
-- Current behavior: Analytics endpoint is public, schema validated at the envelope level, and rate-limited, but still accepts a free-form properties map.
-- Desired mobile behavior: Event allowlist, consent state, app/build/platform fields, rate limiting, and PII stripping.
+- Current behavior: Analytics endpoint is public and rate-limited, with an enforced event allowlist, property allowlist, payload limits, and backend PII/secret rejection. iOS sends the backend batch shape and is consent-disabled by default.
+- Desired mobile behavior: Keep fixtures and policy aligned as new analytics events are introduced; add legal-owner-approved user-facing analytics preference/consent copy before broad external use.
 - Backend files likely affected: analytics module, security/rate limit config.
-- iOS impact: Analytics should remain disabled for external users until privacy behavior is clear.
-- Suggested acceptance criteria: Invalid events are rejected; opt-out events are not stored; rate limit exists.
+- iOS impact: Analytics remains first-party and best-effort; no IDFA, tracking domains, ATT prompt, or third-party analytics SDK is enabled.
+- Suggested acceptance criteria: New analytics events require backend allowlist, iOS sanitizer coverage, fixture/docs updates, and `make validate-analytics-privacy`.

@@ -982,8 +982,53 @@ Each event:
 - `event: string`
 - `properties?: object`
 - `timestamp?: Instant`
-- `url?: string`
+- `url?: string` (deprecated; accepted for backwards compatibility but not persisted)
 - `sessionId: string`
+
+Allowed event names:
+
+- `app_open`
+- `screen_view`
+- `login`
+- `logout`
+- `registration_started`
+- `registration_completed`
+- `search_performed`
+- `reservation_quote_requested`
+- `reservation_flow_started`
+- `reservation_created`
+- `reservation_create_failed`
+- `payment_intent_created`
+- `payment_unavailable`
+- `support_ticket_created`
+- `account_deletion_requested`
+- `notification_preferences_updated`
+- `profile_updated`
+- `error`
+
+Allowed property keys are limited to low-sensitivity first-party fields:
+
+- `platform`
+- `appVersion`
+- `appBuild`
+- `environment`
+- `screen`
+- `context`
+- `source`
+- `flow`
+- `type`
+- `result`
+- `status`
+- `reason`
+- `category`
+- `provider`
+- `registrationType`
+- `paymentMode`
+- `reservationStatus`
+- `notificationType`
+- `errorName`
+
+The backend rejects batches with unknown events, unknown/unsafe property keys, nested property values, more than 20 events, more than 20 properties per event, property string values over 120 characters, or obvious PII/secrets such as email, phone, full names, license plates, bearer/refresh/reset/APNs tokens, exact addresses, precise coordinates, card/payment method data, or free-form error descriptions. iOS strips unsafe properties client-side before best-effort submission and does not submit analytics unless local analytics consent is enabled.
 
 Success `202 Accepted`, no body.
 

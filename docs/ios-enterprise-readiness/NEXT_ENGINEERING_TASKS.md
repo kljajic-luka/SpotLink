@@ -235,9 +235,9 @@ Should wait:
 
 ### Task H4: Analytics and ATT decision
 
-- Objective: Decide analytics provider, consent policy, ATT posture, and PII allowlist.
-- Files or areas likely touched: docs, analytics implementation, privacy manifest.
+- Objective: Approve first-party analytics disclosure, user-facing consent/policy copy, and ATT posture for the already hardened no-IDFA/no-third-party implementation.
+- Files or areas likely touched: docs, privacy manifest, legal/support URL content, App Store Connect answers.
 - Conflict risk: Low
 - Estimated complexity: Medium
-- Verification command: privacy review.
-- Done criteria: Analytics behavior is compliant and testable before external TestFlight.
+- Verification command: privacy/legal review plus `make validate-analytics-privacy`.
+- Done criteria: Analytics behavior remains technically enforced and owner-approved before external TestFlight.

@@ -30,7 +30,7 @@ The current app/backend/frontend surfaces process the following data classes:
 | Reservations | reservation IDs, booking codes, start/end time, location/resource, status, cancellation/no-show/refund markers | booking lifecycle and support/admin/operator workflows |
 | Payments | provider intent/attempt IDs, amount/currency/status, mock method metadata in allowed non-production modes | payment authority and future PSP reconciliation; raw card details are not collected or stored |
 | Support/account deletion | ticket subject/category/message/status and deletion-request tickets | support intake and human-reviewed account deletion workflow |
-| Analytics | app/screen/login/reservation/payment/support events, session ID, event properties | internal product/operational analytics |
+| Analytics | first-party app/screen/login/reservation/payment/support events, session ID, allowlisted low-sensitivity event properties | internal product/operational analytics; iOS submission is disabled by default until local analytics consent is enabled |
 | Notifications | APNs device token, platform, active/deactivated state, notification preference flags | token lifecycle, server-side preference enforcement, and backend delivery readiness; real APNs delivery is not enabled or physically verified |
 | Diagnostics | request IDs, API error references, operational logs | debugging, abuse investigation, support correlation |
 
@@ -43,12 +43,12 @@ Before signed TestFlight or App Review, the owner should confirm App Store Conne
 - User content/other data: vehicle details including license plate when provided, support messages, deletion requests.
 - Purchases: reservation/payment-attempt history and parking booking state.
 - Identifiers: SpotLink user ID and APNs/device token lifecycle data.
-- Usage data: product interaction analytics.
+- Usage data: first-party product interaction analytics, only when analytics consent/local policy enables submission.
 - Diagnostics: request IDs and backend/client diagnostic records.
 - Tracking: currently no cross-app tracking and no tracking domains.
 - Payment info: do not mark raw card collection unless a future PSP integration changes the data flow.
 
-If real PSP, APNs entitlement/credentials, crash reporting, attribution, marketing, or third-party analytics SDKs are enabled later, update both the manifest and App Store Connect answers before upload.
+Current analytics does not use IDFA, tracking domains, cross-app tracking, ATT, or third-party analytics SDKs. If real PSP, APNs entitlement/credentials, crash reporting, attribution, marketing, or third-party analytics SDKs are enabled later, update both the manifest and App Store Connect answers before upload.
 
 ## Legal And Support URLs
 
