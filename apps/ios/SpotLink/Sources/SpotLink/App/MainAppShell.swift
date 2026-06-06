@@ -107,6 +107,10 @@ struct ProfileOverviewView: View {
     @State private var isSavingPreferences = false
     @State private var preferenceStatus: String?
     @State private var profileAlert: ProfileAlert?
+    #if DEBUG
+    @State private var diagnosticsEnabled = false
+    @State private var diagnosticsEvents: [DiagnosticsEvent] = []
+    #endif
     private let legalConfiguration = LegalConfiguration.current()
 
     var body: some View {
@@ -236,6 +240,10 @@ struct ProfileOverviewView: View {
                 .accessibilityIdentifier("profile.accountDeletion.infoLink")
             }
 
+            #if DEBUG
+            diagnosticsSection
+            #endif
+
             Section {
                 Button(role: .destructive) {
                     Task {
@@ -253,6 +261,9 @@ struct ProfileOverviewView: View {
         .accessibilityIdentifier("profile.screen")
         .task {
             await loadNotificationPreferencesIfNeeded()
+            #if DEBUG
+            await loadDiagnosticsSnapshot()
+            #endif
         }
         .confirmationDialog(
             "Zatrazi brisanje naloga?",
@@ -276,6 +287,69 @@ struct ProfileOverviewView: View {
             )
         }
     }
+
+    #if DEBUG
+    private var diagnosticsSection: some View {
+        Section("Dijagnostika") {
+            VStack(alignment: .leading, spacing: SpotLinkDesign.Spacing.xs) {
+                Text("Interni status")
+                    .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
+                Text("Bez tela zahteva, tokena ili licnih podataka.")
+                    .font(SpotLinkDesign.Typography.footnote)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+            }
+            .accessibilityIdentifier("profile.diagnostics.section")
+
+            infoRow(title: "Okruzenje", value: appContainer.diagnosticsContext.environment)
+                .accessibilityIdentifier("profile.diagnostics.environment")
+            infoRow(
+                title: "Verzija",
+                value: "\(appContainer.diagnosticsContext.appVersion) (\(appContainer.diagnosticsContext.appBuild))"
+            )
+            .accessibilityIdentifier("profile.diagnostics.version")
+            infoRow(title: "Status", value: diagnosticsEnabled ? "Ukljucena" : "Iskljucena")
+                .accessibilityIdentifier("profile.diagnostics.enabled")
+
+            if diagnosticsEvents.isEmpty {
+                Text("Nema nedavnih API gresaka.")
+                    .font(SpotLinkDesign.Typography.footnote)
+                    .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    .accessibilityIdentifier("profile.diagnostics.empty")
+            } else {
+                ForEach(Array(diagnosticsEvents.enumerated()), id: \.element.id) { index, event in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(event.category.rawValue)
+                            .font(SpotLinkDesign.Typography.subheadline.weight(.semibold))
+                        Text(diagnosticsSummary(for: event))
+                            .font(SpotLinkDesign.Typography.footnote)
+                            .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                    }
+                    .accessibilityIdentifier("profile.diagnostics.event.\(index)")
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func loadDiagnosticsSnapshot() async {
+        diagnosticsEnabled = await appContainer.diagnosticsReporter.isEnabled()
+        diagnosticsEvents = await appContainer.diagnosticsReporter.recentEvents(limit: 5)
+    }
+
+    private func diagnosticsSummary(for event: DiagnosticsEvent) -> String {
+        var parts: [String] = []
+        if let httpStatus = event.httpStatus {
+            parts.append("HTTP \(httpStatus)")
+        }
+        if let backendCode = event.backendCode {
+            parts.append("code \(backendCode)")
+        }
+        if let requestId = event.backendRequestId {
+            parts.append("request \(requestId)")
+        }
+        return parts.isEmpty ? "Bez dodatnog identifikatora" : parts.joined(separator: " · ")
+    }
+    #endif
 
     @MainActor
     private func loadNotificationPreferencesIfNeeded() async {

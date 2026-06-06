@@ -120,7 +120,8 @@ Required for App Store: yes if Apple Pay is offered.
 - [ ] Internal testers group created.
 - [ ] Build uses staging or approved internal backend.
 - [ ] Mock payment is clearly limited to internal builds.
-- [ ] Crash reporting enabled.
+- [x] Release/Staging dSYM generation and local diagnostics scaffold validated.
+- [ ] Crash reporting provider enabled for signed TestFlight builds.
 - [ ] Test accounts created for CUSTOMER, OPERATOR, SUPPORT, ADMIN.
 - [ ] Known limitations documented in release notes.
 
@@ -196,11 +197,16 @@ Required for App Store: yes for account-based apps.
 
 ## Crash Reporting
 
+- [x] Provider-neutral iOS diagnostics abstraction exists.
+- [x] Nonfatal API diagnostics capture only `code`, `requestId`, HTTP status, environment, version/build.
+- [x] Release/Staging build settings generate dSYMs.
+- [x] No third-party crash SDK, DSN, or dSYM upload hook is committed.
 - [ ] Crash reporting provider selected.
 - [ ] dSYM upload automated.
-- [ ] PII redaction configured.
+- [ ] Provider PII redaction/breadcrumb policy approved.
 - [ ] Crash-free sessions/users monitored.
 - [ ] Release owner receives alerts.
+- [ ] Physical-device/TestFlight test crash and nonfatal event verified with the selected provider.
 
 Required before external TestFlight.
 
@@ -269,4 +275,3 @@ Required for App Store: yes.
 - [ ] Rollback/feature flag plan documented.
 
 Required for launch day.
-

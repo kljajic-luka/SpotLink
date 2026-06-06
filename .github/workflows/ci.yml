@@ -117,6 +117,9 @@ jobs:
       - name: Auth abuse iOS error mapping validation
         run: swift test --package-path apps/ios/SpotLink --filter APIClientTests
 
+      - name: iOS diagnostics readiness validation
+        run: make validate-ios-diagnostics-readiness
+
       - name: iOS privacy/legal plist validation
         run: make validate-ios-privacy-config
 

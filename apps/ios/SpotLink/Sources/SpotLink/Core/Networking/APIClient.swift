@@ -26,11 +26,15 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let decoder: JSONDecoder
     private let tokenProvider: TokenProvider
     private let unauthorizedHandler: (@Sendable () async -> Void)?
+    private let diagnosticsReporter: DiagnosticsReporter
+    private let diagnosticsContext: AppDiagnosticsContext
 
     public convenience init(
         baseURL: URL,
         tokenProvider: TokenProvider,
-        unauthorizedHandler: (@Sendable () async -> Void)? = nil
+        unauthorizedHandler: (@Sendable () async -> Void)? = nil,
+        diagnosticsReporter: DiagnosticsReporter = NoopDiagnosticsReporter(),
+        diagnosticsContext: AppDiagnosticsContext? = nil
     ) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -39,7 +43,9 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
             baseURL: baseURL,
             tokenProvider: tokenProvider,
             session: URLSession(configuration: config),
-            unauthorizedHandler: unauthorizedHandler
+            unauthorizedHandler: unauthorizedHandler,
+            diagnosticsReporter: diagnosticsReporter,
+            diagnosticsContext: diagnosticsContext
         )
     }
 
@@ -47,11 +53,15 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
         baseURL: URL,
         tokenProvider: TokenProvider,
         session: URLSession,
-        unauthorizedHandler: (@Sendable () async -> Void)? = nil
+        unauthorizedHandler: (@Sendable () async -> Void)? = nil,
+        diagnosticsReporter: DiagnosticsReporter = NoopDiagnosticsReporter(),
+        diagnosticsContext: AppDiagnosticsContext? = nil
     ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
         self.unauthorizedHandler = unauthorizedHandler
+        self.diagnosticsReporter = diagnosticsReporter
+        self.diagnosticsContext = diagnosticsContext ?? AppDiagnosticsContext.current(environment: AppEnvironment.current())
 
         self.session = session
 
@@ -161,25 +171,29 @@ public final class APIClient: APIClientProtocol, @unchecked Sendable {
             details: errorEnvelope?.details ?? [:]
         )
 
+        let apiError: APIError
         switch httpResponse.statusCode {
         case 401:
             await unauthorizedHandler?()
-            throw APIError.unauthorized(context)
+            apiError = .unauthorized(context)
         case 403:
-            throw APIError.forbidden
+            apiError = .forbidden
         case 404:
-            throw APIError.notFound(context)
+            apiError = .notFound(context)
         case 409:
-            throw APIError.conflict(context)
+            apiError = .conflict(context)
         case 423:
-            throw APIError.locked(context)
+            apiError = .locked(context)
         case 422:
-            throw APIError.validation(context)
+            apiError = .validation(context)
         case 500...599:
-            throw APIError.serverError(httpResponse.statusCode, context)
+            apiError = .serverError(httpResponse.statusCode, context)
         default:
-            throw APIError.unknown(httpResponse.statusCode, context)
+            apiError = .unknown(httpResponse.statusCode, context)
         }
+
+        await diagnosticsReporter.record(.apiFailure(from: apiError, context: diagnosticsContext))
+        throw apiError
     }
 
     private func allowsEmptySuccessResponse(data: Data, statusCode: Int) -> Bool {

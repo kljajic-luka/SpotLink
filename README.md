@@ -129,6 +129,7 @@ make validate-push-delivery-readiness
 make validate-analytics-privacy
 make validate-email-delivery-readiness
 make validate-auth-abuse-readiness
+make validate-ios-diagnostics-readiness
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
@@ -147,6 +148,8 @@ make build-backend-image
 `make validate-email-delivery-readiness` is also part of the pre-staging gate. It proves provider-neutral SMTP password reset delivery selection, hardened-profile runtime guards, reset URL construction, enumeration-safe missing-account behavior, and logs that omit raw tokens, email addresses, full reset URLs, subjects, and message bodies.
 
 `make validate-auth-abuse-readiness` is also part of the pre-staging gate. It proves account-level lockout for repeated failed web/mobile-token login attempts, generic non-enumerating auth failures, privacy-safe lockout metrics/logs, and iOS handling for `AUTH_TEMPORARILY_LOCKED`.
+
+`make validate-ios-diagnostics-readiness` is also part of the pre-staging gate. It proves Release/Staging dSYM build settings, privacy manifest tracking state, no checked-in crash provider SDK/upload hook, and privacy-safe iOS nonfatal API diagnostics that preserve backend `code`, `requestId`, HTTP status, app environment, and app version/build only.
 
 For the local pre-staging hardening bar, run:
 
@@ -208,6 +211,7 @@ Makefile           Local development, validation, build, archive/export, release
 - Real PSP: provider selection, credentials, webhook signature verification, SCA/deep-link return, capture/refund reconciliation, settlement reporting.
 - Real email delivery: SMTP credentials, sender-domain SPF/DKIM/DMARC setup, bounce handling, and inbox-placement validation.
 - Real APNs: Push Notifications entitlement, APNs key/certificate in the deployment secret store, Apple Developer bundle/topic alignment, physical-device sandbox/production delivery validation, and final payload/privacy review.
+- Real crash reporting: provider selection, credentials/DSN, dSYM upload automation, privacy review, alert owner, and TestFlight/device proof.
 - Legal/privacy ownership: published Terms, Privacy Policy, support/account-deletion pages, App Store Connect privacy answers approved by the responsible owner.
 
 ## Source Control Standards

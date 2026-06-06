@@ -10,7 +10,7 @@ This is an engineering checklist for App Store privacy metadata and Internal Tes
 - App-owned UserDefaults access with required reason `CA92.1`.
 - Data types sent to SpotLink backend systems for app functionality, analytics, support, notification lifecycle, and diagnostics.
 
-No APNs entitlement, Apple Pay entitlement, Associated Domains entitlement, tracking entitlement, or third-party crash SDK claim is enabled in this slice. Backend APNs provider code is scaffolded but disabled by default and not physically verified without Apple credentials/provisioning.
+No APNs entitlement, Apple Pay entitlement, Associated Domains entitlement, tracking entitlement, or third-party crash SDK claim is enabled in this slice. Backend APNs provider code is scaffolded but disabled by default and not physically verified without Apple credentials/provisioning. iOS diagnostics are first-party and local/provider-neutral: DEBUG builds can retain sanitized API failure summaries, while Release/Staging default to no-op until a real crash provider is selected.
 
 Validate plist syntax:
 
@@ -32,7 +32,7 @@ The current app/backend/frontend surfaces process the following data classes:
 | Support/account deletion | ticket subject/category/message/status and deletion-request tickets | support intake and human-reviewed account deletion workflow |
 | Analytics | first-party app/screen/login/reservation/payment/support events, session ID, allowlisted low-sensitivity event properties | internal product/operational analytics; iOS submission is disabled by default until local analytics consent is enabled |
 | Notifications | APNs device token, platform, active/deactivated state, notification preference flags | token lifecycle, server-side preference enforcement, and backend delivery readiness; real APNs delivery is not enabled or physically verified |
-| Diagnostics | request IDs, API error references, operational logs | debugging, abuse investigation, support correlation |
+| Diagnostics | request IDs, backend error codes, HTTP status, app environment/version/build, operational logs | debugging, abuse investigation, support correlation; no request/response bodies, tokens, contact data, plates, precise coordinates, addresses, payment method data, or support-message content |
 
 ## App Store Connect Privacy Checklist
 
@@ -44,11 +44,23 @@ Before signed TestFlight or App Review, the owner should confirm App Store Conne
 - Purchases: reservation/payment-attempt history and parking booking state.
 - Identifiers: SpotLink user ID and APNs/device token lifecycle data.
 - Usage data: first-party product interaction analytics, only when analytics consent/local policy enables submission.
-- Diagnostics: request IDs and backend/client diagnostic records.
+- Diagnostics: request IDs, backend error codes, HTTP status, app environment/version/build, and backend/client diagnostic records.
 - Tracking: currently no cross-app tracking and no tracking domains.
 - Payment info: do not mark raw card collection unless a future PSP integration changes the data flow.
 
-Current analytics does not use IDFA, tracking domains, cross-app tracking, ATT, or third-party analytics SDKs. If real PSP, APNs entitlement/credentials, crash reporting, attribution, marketing, or third-party analytics SDKs are enabled later, update both the manifest and App Store Connect answers before upload.
+Current analytics and diagnostics do not use IDFA, tracking domains, cross-app tracking, ATT, third-party analytics SDKs, or third-party crash SDKs. If real PSP, APNs entitlement/credentials, crash reporting, attribution, marketing, or third-party analytics SDKs are enabled later, update both the manifest and App Store Connect answers before upload.
+
+## Diagnostics And Crash Reporting Status
+
+The iOS app now has a provider-neutral `DiagnosticsReporter` abstraction and a DEBUG-only Profile diagnostics surface. It captures only privacy-safe support metadata from central API failures:
+
+- backend error `code`
+- backend `requestId`
+- HTTP status
+- app environment
+- app version/build
+
+It intentionally does not capture request/response bodies, bearer or refresh tokens, APNs tokens, password-reset tokens, emails, phone numbers, license plates, precise coordinates, addresses, payment method data, or support message content. `make validate-ios-diagnostics-readiness` verifies privacy plist state, Release/Staging dSYM build settings, absence of checked-in crash SDK/upload hooks, and focused diagnostics tests. Real crash reporting still requires provider selection, credentials/DSN, dSYM upload configuration, privacy review, alert ownership, and TestFlight/device proof.
 
 ## Legal And Support URLs
 
@@ -80,3 +92,4 @@ Requests create or return an unresolved support ticket in category `ACCOUNT` wit
 - Real staging deployment and production-like domain/runtime monitoring.
 - Real PSP provider, credentials, SCA/deep-link return, webhook signature verification, capture/refund reconciliation, and settlement reporting.
 - APNs credentials, Push Notifications entitlement, physical-device delivery validation, and final privacy-reviewed payload policy.
+- Crash reporting provider, DSN/credentials, dSYM upload automation, alert owner, and device/TestFlight proof.

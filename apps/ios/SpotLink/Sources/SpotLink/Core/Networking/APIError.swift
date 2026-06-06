@@ -106,6 +106,27 @@ public enum APIError: Error, Sendable {
         }
     }
 
+    public var httpStatusCode: Int? {
+        switch self {
+        case .unauthorized:
+            return 401
+        case .forbidden:
+            return 403
+        case .notFound:
+            return 404
+        case .conflict:
+            return 409
+        case .locked:
+            return 423
+        case .validation:
+            return 422
+        case .serverError(let status, _), .unknown(let status, _):
+            return (100...599).contains(status) ? status : nil
+        case .offline, .cancelled, .decodingFailed:
+            return nil
+        }
+    }
+
     public var supportReference: String? {
         requestId ?? code
     }

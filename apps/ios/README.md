@@ -264,11 +264,13 @@ Obe provere su unsigned (`CODE_SIGNING_ALLOWED=NO`). Signed archive/export je od
 - **Info.plist legal/support keys**: `SPOTLINK_PRIVACY_POLICY_URL`, `SPOTLINK_TERMS_URL`, `SPOTLINK_SUPPORT_URL`, `SPOTLINK_SUPPORT_EMAIL`, and `SPOTLINK_ACCOUNT_DELETION_URL` are resolved from build settings or runtime env overrides. Defaults point at owner-owned `spotlink.app` destinations and must serve real policy/support content before signed TestFlight/App Review.
 - **SpotLink.entitlements**: intentionally empty. APNs, Associated Domains, and Apple Pay remain disabled until the Apple Developer portal, provisioning profiles, APNs/merchant credentials, and product/legal review are ready.
 - **Analytics**: first-party analytics has no third-party SDK, no IDFA, no ATT prompt, and no cross-app tracking. Submission is disabled by default until local analytics consent is enabled. When enabled, iOS sends the backend batch shape and strips unsafe properties before submission.
+- **Diagnostics**: `APIClient` reports privacy-safe nonfatal API failure summaries through `DiagnosticsReporter` (`code`, `requestId`, HTTP status, app environment, app version/build). DEBUG builds can show the local in-memory diagnostics surface from Profile; Release/Staging default to no-op until a real crash/diagnostics provider is selected.
 
 Validacija:
 
 ```bash
 make validate-ios-privacy-config
+make validate-ios-diagnostics-readiness
 ```
 
 Registration links to Terms and Privacy Policy. Profile exposes Privacy Policy, Terms, support URL/email, account-deletion information, and the destructive account deletion request action. Backend support admins can process approved account-deletion tickets through the admin API; the iOS app keeps the request flow and signs out with Serbian messaging if the backend later rejects the session because the account is no longer active. Legal/privacy owner retention policy and final public process wording remain operational/legal work.
@@ -282,4 +284,5 @@ Registration links to Terms and Privacy Policy. Profile exposes Privacy Policy, 
 - Release gate validira unsigned Release i Staging buildove (`CODE_SIGNING_ALLOWED=NO`); signed archive/export zahteva Apple Developer sertifikat i provisioning profile.
 - Online payment UI se vodi backend capabilities odgovorom, ali real PSP provider/credentials/SCA/capture/refund/webhook/reconciliation nisu implementirani.
 - Push token lifecycle i backend APNs delivery scaffold su spremni, ali APNs credentials, push entitlement i fizicka isporuka jos nisu implementirani/verifikovani.
+- Release/Staging generisu dSYM, a iOS diagnostics scaffold je lokalno validiran; real crash provider, DSN/credentials, dSYM upload pipeline, alert owner i TestFlight/device proof jos nisu implementirani.
 - Legal/support linkovi su tehnicki povezani, ali stvarni Privacy Policy, Terms, support stranice i App Store Connect privacy answers ostaju owner/legal odgovornost.

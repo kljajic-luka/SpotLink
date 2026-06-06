@@ -88,6 +88,11 @@ final class SpotLinkUITests: XCTestCase {
             scrollUntilExists("profile.accountDeletion.infoLink"),
             "Profil treba izloziti informacije o brisanju naloga"
         )
+        XCTAssertTrue(scrollUntilExists("profile.diagnostics.section"), "DEBUG profil treba izloziti internu dijagnostiku")
+        XCTAssertTrue(
+            scrollUntilExistsAny(["profile.diagnostics.enabled", "Ukljucena", "Iskljucena"], maxSwipes: 3),
+            "Dijagnostika treba prikazati status"
+        )
 
         XCTAssertTrue(scrollUntilExists("profile.logout.button"), "Odjava treba biti dostupna")
         let logoutButton = element("profile.logout.button")
@@ -134,6 +139,7 @@ final class SpotLinkUITests: XCTestCase {
         }
         app.launchEnvironment["SPOTLINK_ENV"] = "local"
         app.launchEnvironment["SPOTLINK_UI_TESTING"] = "1"
+        app.launchEnvironment["SPOTLINK_DEBUG_DIAGNOSTICS_ENABLED"] = "1"
     }
 
     private func element(_ identifier: String) -> XCUIElement {

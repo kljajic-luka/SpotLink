@@ -236,10 +236,61 @@ struct APIClientTests {
         }
     }
 
-    private func makeClient() -> APIClient {
+    @Test("API error diagnostics capture code, request id and HTTP status")
+    func apiErrorDiagnosticsCaptureSupportFields() async {
+        let path = "diagnostics-\(UUID().uuidString)"
+        let url = baseURL.appendingPathComponent(path)
+        await MockHTTPResponseStore.shared.set(
+            MockHTTPResponse(
+                statusCode: 500,
+                headers: ["X-Request-Id": "req-diagnostics-header"],
+                body: Data("""
+                        {
+                          "status": 500,
+                          "code": "SERVER_ERROR",
+                          "message": "Server error",
+                          "requestId": "req-diagnostics-body",
+                          "timestamp": "2026-06-06T12:00:00Z",
+                          "path": "/diagnostics"
+                        }
+                        """.utf8)
+            ),
+            for: url
+        )
+
+        let reporter = InMemoryDiagnosticsReporter(enabled: true)
+        let client = makeClient(diagnosticsReporter: reporter)
+
+        do {
+            let _: EmptyResponse = try await client.get(path, query: nil)
+            Issue.record("Ocekivana je server greska")
+        } catch let error as APIError {
+            guard case .serverError(500, _) = error else {
+                Issue.record("Ocekivana je APIError.serverError, dobijeno: \(String(describing: error))")
+                return
+            }
+        } catch {
+            Issue.record("Ocekivan je APIError.serverError, dobijeno: \(error)")
+        }
+
+        let events = await reporter.recentEvents(limit: 1)
+        #expect(events.count == 1)
+        #expect(events.first?.category == .apiFailure)
+        #expect(events.first?.backendCode == "SERVER_ERROR")
+        #expect(events.first?.backendRequestId == "req-diagnostics-body")
+        #expect(events.first?.httpStatus == 500)
+    }
+
+    private func makeClient(diagnosticsReporter: DiagnosticsReporter = NoopDiagnosticsReporter()) -> APIClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: configuration)
-        return APIClient(baseURL: baseURL, tokenProvider: TestTokenProvider(), session: session)
+        return APIClient(
+            baseURL: baseURL,
+            tokenProvider: TestTokenProvider(),
+            session: session,
+            diagnosticsReporter: diagnosticsReporter,
+            diagnosticsContext: AppDiagnosticsContext(environment: "test", appVersion: "1.0", appBuild: "1")
+        )
     }
 }

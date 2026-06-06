@@ -16,6 +16,7 @@ This target runs:
 - focused first-party analytics privacy checks for event/property allowlists, PII rejection, iOS consent defaults, and backend batch-shape encoding
 - focused SMTP email delivery readiness checks for provider selection, runtime guard behavior, reset URL construction, and privacy-safe reset logging
 - focused account-level auth lockout checks for repeated failed login/mobile-token attempts, generic auth errors, privacy-safe metrics/logs, and iOS locked-error handling
+- focused iOS diagnostics readiness checks for dSYM build settings, privacy manifest tracking state, absence of crash SDK/upload hooks, and privacy-safe API nonfatal reporting
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -53,6 +54,12 @@ The account-level auth abuse slice can be run directly:
 
 ```bash
 make validate-auth-abuse-readiness
+```
+
+The iOS diagnostics readiness slice can be run directly:
+
+```bash
+make validate-ios-diagnostics-readiness
 ```
 
 ## Backend Protections
@@ -187,4 +194,5 @@ The iOS UI test suite includes a deterministic unauthenticated registration chec
 - Apple signing/TestFlight upload credentials
 - PSP selection, credentials, webhook verification, and reconciliation
 - APNs provider credentials, entitlement enablement, physical-device delivery validation, and final payload/privacy approval
+- Crash reporting provider selection, credentials/DSN, dSYM upload automation, alert owner, privacy review, and TestFlight/device proof
 - Owner-approved legal/privacy pages and App Store Connect answers

@@ -137,14 +137,16 @@ Impact: core customer flow is not TestFlight-ready.
 
 ## Crash Reporting Readiness
 
-No crash reporting SDK or dSYM upload setup was found.
+iOS Release/Staging build settings generate dSYMs and a provider-neutral diagnostics scaffold is now present. Central API failures can be reported locally with only sanitized support metadata (`code`, `requestId`, HTTP status, app environment, app version/build), and DEBUG Profile can show recent local diagnostic summaries. No third-party crash SDK, provider credentials/DSN, dSYM upload setup, or real crash ingestion path is configured.
 
 Required before external TestFlight:
 
 - Crash provider selected.
-- dSYM upload automated.
-- PII redaction rules.
-- Alert owner.
+- Provider credentials/DSN stored outside the repo.
+- dSYM upload automated for signed builds.
+- PII redaction/privacy review for crash breadcrumbs and attachments.
+- Alert owner and triage process.
+- TestFlight/device proof that a test crash/nonfatal reaches the provider.
 
 Impact: external TestFlight blocked.
 
@@ -209,7 +211,7 @@ Blockers/gaps:
 
 1. All internal TestFlight blockers.
 2. No privacy manifest.
-3. No crash reporting.
+3. Crash diagnostics/dSYM scaffold exists, but no real crash provider, dSYM upload, credentials, alert owner, or device/TestFlight proof.
 4. No APNs entitlement/provider verification.
 5. No production-like payment provider/Apple Pay decision.
 6. No account deletion path.
