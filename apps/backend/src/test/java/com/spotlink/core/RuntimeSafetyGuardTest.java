@@ -2,6 +2,7 @@ package com.spotlink.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.spotlink.notification.MailProviderConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -97,10 +98,52 @@ class RuntimeSafetyGuardTest {
     void stagingRejectsPasswordResetDeliveryWithoutProductionReadyProvider() {
         contextRunner
                 .withPropertyValues(validStagingProperties())
-                .withPropertyValues("spotlink.password-reset.delivery-enabled=true")
+                .withPropertyValues(
+                        "spotlink.password-reset.delivery-enabled=true",
+                        "spotlink.mail.provider=safe-log")
                 .run(context -> assertStartupFailureContains(
                         context.getStartupFailure(),
                         "PASSWORD_RESET_DELIVERY_ENABLED=true requires a production-ready MailProvider"));
+    }
+
+    @Test
+    void stagingRejectsIncompleteSmtpWhenPasswordResetDeliveryEnabled() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues(
+                        "spotlink.password-reset.delivery-enabled=true",
+                        "spotlink.mail.provider=smtp",
+                        "spotlink.mail.smtp.host=smtp.example.net",
+                        "spotlink.mail.smtp.port=587",
+                        "spotlink.mail.smtp.from=no-reply@spotlink.app",
+                        "spotlink.mail.smtp.starttls-enabled=true",
+                        "spotlink.mail.smtp.auth-enabled=true",
+                        "spotlink.mail.smtp.username=spotlink")
+                .run(context -> assertStartupFailureContains(
+                        context.getStartupFailure(),
+                        "PASSWORD_RESET_DELIVERY_ENABLED=true requires a production-ready MailProvider"));
+    }
+
+    @Test
+    void stagingAcceptsCompleteSmtpWhenPasswordResetDeliveryEnabled() {
+        contextRunner
+                .withPropertyValues(validStagingProperties())
+                .withPropertyValues(completeSmtpProperties())
+                .run(context -> {
+                    assertThat(context.getStartupFailure()).isNull();
+                    assertThat(context).hasSingleBean(RuntimeSafetyGuard.class);
+                });
+    }
+
+    @Test
+    void productionAcceptsCompleteSmtpWhenPasswordResetDeliveryEnabled() {
+        contextRunner
+                .withPropertyValues(validProductionProperties())
+                .withPropertyValues(completeSmtpProperties())
+                .run(context -> {
+                    assertThat(context.getStartupFailure()).isNull();
+                    assertThat(context).hasSingleBean(RuntimeSafetyGuard.class);
+                });
     }
 
     @Test
@@ -218,6 +261,23 @@ class RuntimeSafetyGuardTest {
         };
     }
 
+    private String[] completeSmtpProperties() {
+        return new String[] {
+                "spotlink.password-reset.delivery-enabled=true",
+                "spotlink.mail.provider=smtp",
+                "spotlink.mail.smtp.host=smtp.example.net",
+                "spotlink.mail.smtp.port=587",
+                "spotlink.mail.smtp.from=no-reply@spotlink.app",
+                "spotlink.mail.smtp.starttls-enabled=true",
+                "spotlink.mail.smtp.auth-enabled=true",
+                "spotlink.mail.smtp.username=spotlink-sender",
+                "spotlink.mail.smtp.password=smtp-password-for-tests",
+                "spotlink.mail.smtp.connection-timeout-ms=5000",
+                "spotlink.mail.smtp.read-timeout-ms=5000",
+                "spotlink.mail.smtp.write-timeout-ms=5000"
+        };
+    }
+
     private String[] append(String[] values, String value) {
         String[] copy = new String[values.length + 1];
         System.arraycopy(values, 0, copy, 0, values.length);
@@ -233,7 +293,7 @@ class RuntimeSafetyGuardTest {
 
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(AppProperties.class)
-    @Import(RuntimeSafetyGuard.class)
+    @Import({RuntimeSafetyGuard.class, MailProviderConfiguration.class})
     static class TestConfig {
     }
 }

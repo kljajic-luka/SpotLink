@@ -56,7 +56,7 @@ Recommended changes:
 - Prefer OIDC/OAuth with PKCE or backend-issued short-lived access token plus rotating refresh token.
 - Add refresh/session rotation endpoint if token model is adopted.
 - Add email verification, account lockout, and suspicious login controls. Public auth/password-reset/analytics rate limits now exist as local backend guardrails.
-- Replace the local `safe-log` password reset mail provider with a real email provider before external staging; reset token material must remain out of logs.
+- Configure real SMTP credentials, sender-domain DNS, bounce handling, and inbox-placement checks before external staging; SMTP code/config readiness exists and reset token material must remain out of logs.
 - Add explicit session revocation behavior on logout.
 - Return consistent auth error codes for expired, revoked, suspended, and invalid credentials.
 - Consider device/session listing for support and user self-service later.

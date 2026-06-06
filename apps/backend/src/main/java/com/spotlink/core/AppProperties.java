@@ -241,6 +241,7 @@ public class AppProperties {
 
     public static class Mail {
         private String provider = "safe-log";
+        private final Smtp smtp = new Smtp();
 
         public String getProvider() {
             return provider;
@@ -248,6 +249,103 @@ public class AppProperties {
 
         public void setProvider(String provider) {
             this.provider = provider;
+        }
+
+        public Smtp getSmtp() {
+            return smtp;
+        }
+    }
+
+    public static class Smtp {
+        private String host = "";
+        private int port = 587;
+        private String username = "";
+        private String password = "";
+        private String from = "";
+        private boolean starttlsEnabled = true;
+        private boolean authEnabled = true;
+        private int connectionTimeoutMs = 5000;
+        private int readTimeoutMs = 5000;
+        private int writeTimeoutMs = 5000;
+
+        public String getHost() {
+            return host;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getFrom() {
+            return from;
+        }
+
+        public void setFrom(String from) {
+            this.from = from;
+        }
+
+        public boolean isStarttlsEnabled() {
+            return starttlsEnabled;
+        }
+
+        public void setStarttlsEnabled(boolean starttlsEnabled) {
+            this.starttlsEnabled = starttlsEnabled;
+        }
+
+        public boolean isAuthEnabled() {
+            return authEnabled;
+        }
+
+        public void setAuthEnabled(boolean authEnabled) {
+            this.authEnabled = authEnabled;
+        }
+
+        public int getConnectionTimeoutMs() {
+            return connectionTimeoutMs;
+        }
+
+        public void setConnectionTimeoutMs(int connectionTimeoutMs) {
+            this.connectionTimeoutMs = connectionTimeoutMs;
+        }
+
+        public int getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(int readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public int getWriteTimeoutMs() {
+            return writeTimeoutMs;
+        }
+
+        public void setWriteTimeoutMs(int writeTimeoutMs) {
+            this.writeTimeoutMs = writeTimeoutMs;
         }
     }
 

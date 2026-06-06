@@ -127,6 +127,7 @@ make validate-mobile-api-contract
 make validate-notification-preferences
 make validate-push-delivery-readiness
 make validate-analytics-privacy
+make validate-email-delivery-readiness
 make validate-pre-staging-hardening
 make validate-ios-privacy-config
 make validate-ios-signed-config
@@ -141,6 +142,8 @@ make build-backend-image
 `make validate-push-delivery-readiness` is also part of the pre-staging gate. It proves provider selection/runtime guards, post-commit notification delivery semantics, invalid-token deactivation, inactive-token skipping, preference skips, metrics, and log redaction without contacting APNs.
 
 `make validate-analytics-privacy` is also part of the pre-staging gate. It proves first-party analytics event/property allowlists, PII/secret rejection, payload limits, request ID behavior, iOS batch encoding, disabled-by-default consent behavior, and privacy-safe best-effort failures.
+
+`make validate-email-delivery-readiness` is also part of the pre-staging gate. It proves provider-neutral SMTP password reset delivery selection, hardened-profile runtime guards, reset URL construction, enumeration-safe missing-account behavior, and logs that omit raw tokens, email addresses, full reset URLs, subjects, and message bodies.
 
 For the local pre-staging hardening bar, run:
 
@@ -199,6 +202,7 @@ Makefile           Local development, validation, build, archive/export, release
 - Real staging infrastructure: cloud provider/project, DNS/TLS for `api-staging.spotlink.app`, PostgreSQL instance, secret storage, deploy/rollback owners.
 - Apple signing/TestFlight: Apple Developer team, distribution certificate, provisioning profiles, App Store Connect app records, human-controlled upload.
 - Real PSP: provider selection, credentials, webhook signature verification, SCA/deep-link return, capture/refund reconciliation, settlement reporting.
+- Real email delivery: SMTP credentials, sender-domain SPF/DKIM/DMARC setup, bounce handling, and inbox-placement validation.
 - Real APNs: Push Notifications entitlement, APNs key/certificate in the deployment secret store, Apple Developer bundle/topic alignment, physical-device sandbox/production delivery validation, and final payload/privacy review.
 - Legal/privacy ownership: published Terms, Privacy Policy, support/account-deletion pages, App Store Connect privacy answers approved by the responsible owner.
 

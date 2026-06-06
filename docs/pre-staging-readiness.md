@@ -14,6 +14,7 @@ This target runs:
 - focused mobile API contract checks against backend-generated OpenAPI routes and Swift fixture decoding
 - focused push delivery readiness checks for provider configuration, preference enforcement, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
 - focused first-party analytics privacy checks for event/property allowlists, PII rejection, iOS consent defaults, and backend batch-shape encoding
+- focused SMTP email delivery readiness checks for provider selection, runtime guard behavior, reset URL construction, and privacy-safe reset logging
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -41,6 +42,12 @@ The analytics privacy slice can be run directly:
 make validate-analytics-privacy
 ```
 
+The SMTP password reset delivery slice can be run directly:
+
+```bash
+make validate-email-delivery-readiness
+```
+
 ## Backend Protections
 
 Public abuse-prone endpoints are protected by a configurable in-process fixed-window rate limiter:
@@ -62,19 +69,27 @@ The limiter is keyed by operation plus client network address. It does not parse
 
 ## Password Reset Delivery
 
-Password reset now uses `MailProvider` instead of relying on token-generation logs. The default local provider is `safe-log`; it records only provider name, subject, and a stable recipient hash. It never logs message bodies or raw reset tokens.
+Password reset now uses `MailProvider` instead of relying on token-generation logs. The default local provider is `safe-log`; it records only provider name and a stable recipient hash. It never logs recipient email addresses, subjects, message bodies, full reset URLs, or raw reset tokens.
 
 Staging/production runtime profiles must either:
 
 - set `PASSWORD_RESET_DELIVERY_ENABLED=false`, or
-- provide a future production-ready `MailProvider`
+- set `MAIL_PROVIDER=smtp` with complete SMTP host, port, from address, TLS/auth, username/password, and timeout configuration
 
-Because the repo intentionally contains no real email provider or secrets, the checked-in staging/prod examples disable delivery:
+Because the repo intentionally contains no SMTP credentials, the checked-in staging/prod examples disable delivery by default and include placeholder-only SMTP fields:
 
 ```env
 PASSWORD_RESET_DELIVERY_ENABLED=false
 MAIL_PROVIDER=none
+# after sender-domain/DNS and secrets exist:
+# PASSWORD_RESET_DELIVERY_ENABLED=true
+# MAIL_PROVIDER=smtp
+SMTP_HOST=<smtp-host>
+SMTP_USERNAME=<smtp-username-from-secret-store>
+SMTP_PASSWORD=<smtp-password-from-secret-store>
 ```
+
+`safe-log` remains local/internal only and is never production-ready. This proves SMTP code/config readiness; it does not prove sender-domain reputation, SPF/DKIM/DMARC alignment, SMTP provider credentials, bounce handling, or inbox placement.
 
 ## Observability
 
@@ -83,6 +98,7 @@ The backend records low-cardinality counters for:
 - auth failures
 - rate-limit blocks
 - password reset request outcomes
+- SMTP password reset delivery queue outcomes
 - payment authority disabled decisions
 - push delivery attempted/succeeded/failed/invalid-token/disabled outcomes
 - push delivery preference-skipped outcomes
@@ -145,7 +161,7 @@ The iOS UI test suite includes a deterministic unauthenticated registration chec
 ## Remaining External Blockers
 
 - Real staging infrastructure and DNS/TLS
-- Real email provider, sender domain, and delivery credentials
+- Real SMTP credentials, sender domain DNS/reputation setup, bounce handling, and inbox-placement validation
 - Apple signing/TestFlight upload credentials
 - PSP selection, credentials, webhook verification, and reconciliation
 - APNs provider credentials, entitlement enablement, physical-device delivery validation, and final payload/privacy approval

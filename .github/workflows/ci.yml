@@ -63,6 +63,9 @@ jobs:
       - name: Analytics privacy backend validation
         run: mvn -B -f apps/backend/pom.xml -Dtest=AnalyticsPrivacyTest test
 
+      - name: Email delivery readiness validation
+        run: make validate-email-delivery-readiness
+
   frontend:
     name: Frontend (Node 22 / Angular)
     runs-on: ubuntu-latest

@@ -56,6 +56,26 @@ class AuthServiceLoggingTest {
         assertThat(output).contains("Mail delivery captured provider=safe-log recipientHash=");
         assertThat(output).doesNotContain("tokenPrefix");
         assertThat(output).doesNotContain("sl_reset_");
+        assertThat(output).doesNotContain("reset-password");
+        assertThat(output).doesNotContain("SpotLink password reset");
+        assertThat(output).doesNotContain(email);
+    }
+
+    @Test
+    void missingPasswordResetAccountDoesNotLeakEnumerationSignals(CapturedOutput output) throws Exception {
+        String email = "missing-%s@spotlink.test".formatted(UUID.randomUUID());
+
+        mockMvc.perform(post("/auth/password/reset-request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isNoContent());
+
+        assertThat(output).doesNotContain("Mail delivery captured");
+        assertThat(output).doesNotContain("Password reset delivery queued");
         assertThat(output).doesNotContain(email);
     }
 }

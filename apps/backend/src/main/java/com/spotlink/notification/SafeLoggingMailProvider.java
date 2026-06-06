@@ -24,10 +24,9 @@ public class SafeLoggingMailProvider implements MailProvider {
             throw new IllegalStateException("Mail provider is disabled.");
         }
         log.info(
-                "Mail delivery captured provider={} recipientHash={} subject={}",
+                "Mail delivery captured provider={} recipientHash={}",
                 providerName,
-                stableHash(to),
-                subject);
+                stableHash(to));
     }
 
     @Override

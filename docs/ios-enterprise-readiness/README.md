@@ -62,7 +62,7 @@ Core domain objects:
 | Payments | Mock foundation | Payment provider abstraction exists, but production PSP, Apple Pay decisions, webhooks, refunds, and SCA/deep-link flows are missing. |
 | Search/geospatial | Basic foundation | Search exists, but radius filtering, availability filtering, ranking, map clustering, and PostGIS-grade behavior are not production-ready. |
 | Notifications | Delivery-ready foundation | Device-token lifecycle, backend APNs-ready provider boundary, server-side preference enforcement, metrics, and token redaction exist; Apple entitlements/credentials and physical-device delivery remain. |
-| Security/privacy | Partially hardened | Local password reset delivery readiness, public auth/analytics rate limits, first-party analytics privacy controls, token lifecycle, and privacy scaffolding exist; real email provider, provider/WAF abuse controls, owner-approved privacy policy/analytics consent copy, and production secrets are not complete. |
+| Security/privacy | Partially hardened | SMTP password reset delivery readiness, public auth/analytics rate limits, first-party analytics privacy controls, token lifecycle, and privacy scaffolding exist; real SMTP credentials/sender-domain setup, provider/WAF abuse controls, owner-approved privacy policy/analytics consent copy, and production secrets are not complete. |
 | QA readiness | Early | Backend has foundation integration tests. Native iOS, API contract, accessibility, offline, push, payment, and release validation coverage still needs to be built. |
 
 ## Recommended Native iOS Direction
