@@ -21,7 +21,7 @@ The repository is intentionally positioned as internal release-readiness work, n
 - Operator dashboard/workspace for pilot inventory and operational booking management.
 - Admin/support portal for booking search, payment attempts, support cases, audit events, and account deletion fulfillment.
 - Backend payment authority layer that blocks production mock payment exposure and shapes future PSP operations without integrating a real PSP yet.
-- Push device-token lifecycle with register/reactivate/unregister semantics, ownership-safe unregister behavior, APNs-ready provider scaffolding, delivery metrics, and token redaction.
+- Push device-token lifecycle with register/reactivate/unregister semantics, ownership-safe unregister behavior, APNs-ready provider scaffolding, server-side notification preference enforcement, delivery metrics, and token redaction.
 - Account deletion request intake and admin-reviewed anonymization fulfillment using `RegistrationStatus.DELETED` rather than unsafe hard deletes.
 - Staging/production runtime hardening: no H2/default DB, required JWT secret, explicit CORS, secure cookies, and production mock-payment rejection.
 - iOS App Store privacy/legal scaffolding with conservative manifest declarations and owner-owned URL wiring.

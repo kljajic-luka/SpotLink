@@ -17,6 +17,8 @@ import com.spotlink.notification.PushDeliveryResult;
 import com.spotlink.notification.PushNotificationPayload;
 import com.spotlink.notification.PushProvider;
 import com.spotlink.notification.SafeLoggingPushProvider;
+import com.spotlink.user.UserPreferences;
+import com.spotlink.user.UserPreferencesRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.UUID;
@@ -61,6 +63,9 @@ class PushDeliveryReadinessTest {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private UserPreferencesRepository preferences;
 
     @Autowired
     private CapturingPushProvider pushProvider;
@@ -157,6 +162,112 @@ class PushDeliveryReadinessTest {
     }
 
     @Test
+    void disabledReservationAlertsSkipReservationPushDelivery() throws Exception {
+        RegisteredUser user = registerCustomer();
+        saveToken(user.userId(), "apns-reservation-pref-token-" + UUID.randomUUID(), true);
+        savePreferences(user.userId(), false, true, true);
+
+        double skippedBefore = counter("preference_skipped");
+
+        Notification notification = notificationService.create(
+                user.userId(),
+                NotificationType.RESERVATION_CONFIRMED,
+                "Rezervacija potvrdjena",
+                "Vase parking mesto je rezervisano.",
+                UUID.randomUUID());
+
+        assertThat(notifications.findById(notification.getId())).isPresent();
+        assertThat(pushProvider.attempts).hasValue(0);
+        assertThat(counter("preference_skipped")).isEqualTo(skippedBefore + 1);
+    }
+
+    @Test
+    void disabledPaymentAlertsSkipPaymentPushDelivery() throws Exception {
+        RegisteredUser user = registerCustomer();
+        saveToken(user.userId(), "apns-payment-pref-token-" + UUID.randomUUID(), true);
+        savePreferences(user.userId(), true, false, true);
+
+        double skippedBefore = counter("preference_skipped");
+
+        notificationService.create(
+                user.userId(),
+                NotificationType.PAYMENT_ACTION_REQUIRED,
+                "Placanje zahteva proveru",
+                "Potrebna je dodatna provera placanja.",
+                UUID.randomUUID());
+
+        assertThat(pushProvider.attempts).hasValue(0);
+        assertThat(counter("preference_skipped")).isEqualTo(skippedBefore + 1);
+    }
+
+    @Test
+    void disabledSupportAlertsSkipSupportAndOperatorPushDelivery() throws Exception {
+        RegisteredUser user = registerCustomer();
+        saveToken(user.userId(), "apns-support-pref-token-" + UUID.randomUUID(), true);
+        savePreferences(user.userId(), true, true, false);
+
+        double skippedBefore = counter("preference_skipped");
+
+        notificationService.create(
+                user.userId(),
+                NotificationType.SUPPORT_REPLY,
+                "Nova poruka podrske",
+                "Podrska je odgovorila na vas zahtev.",
+                UUID.randomUUID());
+        notificationService.create(
+                user.userId(),
+                NotificationType.OPERATOR_ALERT,
+                "Operativno obavestenje",
+                "Operator ima vazno obavestenje.",
+                UUID.randomUUID());
+
+        assertThat(pushProvider.attempts).hasValue(0);
+        assertThat(counter("preference_skipped")).isEqualTo(skippedBefore + 2);
+    }
+
+    @Test
+    void enabledPreferencesStillDeliverPush() throws Exception {
+        RegisteredUser user = registerCustomer();
+        saveToken(user.userId(), "apns-enabled-pref-token-" + UUID.randomUUID(), true);
+        savePreferences(user.userId(), true, true, true);
+
+        double attemptedBefore = counter("attempted");
+        double succeededBefore = counter("succeeded");
+
+        notificationService.create(
+                user.userId(),
+                NotificationType.PAYMENT_ACTION_REQUIRED,
+                "Placanje zahteva proveru",
+                "Potrebna je dodatna provera placanja.",
+                UUID.randomUUID());
+
+        assertThat(pushProvider.attempts).hasValue(1);
+        assertThat(counter("attempted")).isEqualTo(attemptedBefore + 1);
+        assertThat(counter("succeeded")).isEqualTo(succeededBefore + 1);
+    }
+
+    @Test
+    void preferenceSkippedDeliveryDoesNotLogTokenPayloadOrUserPii(CapturedOutput output) throws Exception {
+        RegisteredUser user = registerCustomer();
+        String rawToken = "apns-preference-redaction-token-" + UUID.randomUUID();
+        String sensitiveEmail = "preference-secret-%s@spotlink.test".formatted(UUID.randomUUID());
+        saveToken(user.userId(), rawToken, true);
+        savePreferences(user.userId(), true, true, false);
+
+        notificationService.create(
+                user.userId(),
+                NotificationType.SUPPORT_REPLY,
+                "Poruka za " + sensitiveEmail,
+                "Osetljiv tekst koji ne sme u log.",
+                UUID.randomUUID());
+
+        assertThat(pushProvider.attempts).hasValue(0);
+        assertThat(output).doesNotContain(rawToken);
+        assertThat(output).doesNotContain(sensitiveEmail);
+        assertThat(output).doesNotContain("Osetljiv tekst koji ne sme u log.");
+    }
+
+    @Test
     void safeLoggingProviderDoesNotLogTokenSecretsOrPayload(CapturedOutput output) {
         String rawToken = "apns-sensitive-token-" + UUID.randomUUID();
         DeviceToken token = new DeviceToken();
@@ -197,6 +308,15 @@ class PushDeliveryReadinessTest {
         deviceToken.setPlatform(DevicePlatform.IOS);
         deviceToken.setActive(active);
         deviceTokens.save(deviceToken);
+    }
+
+    private void savePreferences(UUID userId, boolean reservationAlerts, boolean paymentAlerts, boolean supportAlerts) {
+        UserPreferences preference = preferences.findByUserId(userId).orElseGet(UserPreferences::new);
+        preference.setUserId(userId);
+        preference.setReservationAlerts(reservationAlerts);
+        preference.setPaymentAlerts(paymentAlerts);
+        preference.setSupportAlerts(supportAlerts);
+        preferences.save(preference);
     }
 
     private RegisteredUser registerCustomer() throws Exception {

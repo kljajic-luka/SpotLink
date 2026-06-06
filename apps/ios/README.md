@@ -174,8 +174,10 @@ Trenutni iOS sloj je spreman za lifecycle APNs tokena, a backend ima APNs-ready 
 - Token se uploaduje kada APNs vrati token, posle uspesne prijave i posle restore-a autentifikovane sesije.
 - Odjava pokusava backend unregister pre lokalnog brisanja sesije; lokalna odjava se ipak zavrsava ako unregister/revoke poziv ne uspe.
 - Uspesan unregister brise lokalno zapamcen token state.
+- Profil prikazuje native SwiftUI toggle kontrole za obavestenja o rezervacijama, placanjima, odgovorima podrske i marketing saglasnost. Promene se cuvaju kroz `PATCH /users/me/profile` kao parcijalni `preferences` objekat.
 - Backend unregister je ownership-safe: missing/foreign token ne otkriva vlasnistvo.
-- Backend delivery radi posle commit-a notifikacije, preskace inactive tokene, deaktivira APNs tokene koje provider prijavi kao trajno nevazece i meri attempted/succeeded/failed/invalid-token/disabled ishode.
+- Backend delivery radi posle commit-a notifikacije, postuje server-side preference za rezervacije, placanja i podrsku, preskace inactive tokene, deaktivira APNs tokene koje provider prijavi kao trajno nevazece i meri attempted/succeeded/failed/invalid-token/disabled/preference-skipped ishode.
+- Marketing saglasnost se ne koristi za transakcione push notifikacije. In-app inbox redovi ostaju sacuvani i kada se push delivery preskoci zbog preference.
 - Backend logovi smeju imati samo stabilan hash tokena, ne raw APNs token, bearer token, APNs key material ili payload body.
 
 Pre pravog APNs rada jos uvek je potrebno:

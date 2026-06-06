@@ -362,7 +362,7 @@ Backend gaps to close before real APNs rollout:
 - Keep device token unregister/deactivate endpoint coverage green.
 - Token environment metadata: sandbox vs production.
 - Bundle ID/team ID metadata if backend needs it.
-- Notification preference enforcement server-side.
+- Keep server-side notification preference enforcement tests green.
 
 ## Analytics Strategy
 

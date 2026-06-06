@@ -68,15 +68,18 @@ final class SpotLinkUITests: XCTestCase {
     }
 
     func testProfileLegalSurfaceAndLogout() throws {
-        configureLaunch(.authenticated)
+        configureLaunch(.authenticated, initialTab: .profile)
         app.launch()
 
-        let profileTab = app.buttons["Profil"]
-        XCTAssertTrue(profileTab.waitForExistence(timeout: 6), "Profil tab treba biti dostupan u autentifikovanom shell-u")
-        profileTab.tap()
-
-        XCTAssertTrue(element("profile.screen").waitForExistence(timeout: 5), "Profil ekran treba biti prikazan")
-        XCTAssertTrue(element("profile.accountDeletion.requestButton").exists, "Destruktivna akcija brisanja naloga treba biti dostupna")
+        XCTAssertTrue(waitForExistsAny(["profile.screen", "Status naloga", "Test Kupac"], timeout: 5), "Profil ekran treba biti prikazan")
+        XCTAssertTrue(element("profile.notifications.reservationToggle").exists, "Preference za rezervacije treba biti dostupne")
+        XCTAssertTrue(element("profile.notifications.paymentToggle").exists, "Preference za placanja treba biti dostupne")
+        XCTAssertTrue(scrollUntilExistsAny(["profile.notifications.supportToggle", "Odgovori podrske"]), "Preference za podrsku treba biti dostupne")
+        XCTAssertTrue(scrollUntilExistsAny(["profile.notifications.marketingToggle", "Marketing saglasnost"]), "Marketing saglasnost treba biti jasno dostupna")
+        XCTAssertTrue(
+            scrollUntilExistsAny(["profile.accountDeletion.requestButton", "Zatrazi brisanje naloga"], maxSwipes: 10),
+            "Destruktivna akcija brisanja naloga treba biti dostupna"
+        )
 
         XCTAssertTrue(scrollUntilExists("profile.privacyPolicy.link"), "Profil treba izloziti politiku privatnosti")
         XCTAssertTrue(existsAny(["profile.terms.link", "Uslovi koriscenja"]), "Profil treba izloziti uslove koriscenja")
@@ -94,15 +97,16 @@ final class SpotLinkUITests: XCTestCase {
     }
 
     func testAccountDeletionRequestRequiresConfirmation() throws {
-        configureLaunch(.authenticated)
+        configureLaunch(.authenticated, initialTab: .profile)
         app.launch()
 
-        let profileTab = app.buttons["Profil"]
-        XCTAssertTrue(profileTab.waitForExistence(timeout: 6), "Profil tab treba biti dostupan u autentifikovanom shell-u")
-        profileTab.tap()
+        XCTAssertTrue(waitForExistsAny(["profile.screen", "Status naloga", "Test Kupac"], timeout: 5), "Profil ekran treba biti prikazan")
 
-        XCTAssertTrue(element("profile.accountDeletion.requestButton").waitForExistence(timeout: 5), "Brisanje naloga treba biti dostupno")
-        element("profile.accountDeletion.requestButton").tap()
+        XCTAssertTrue(
+            scrollUntilExistsAny(["profile.accountDeletion.requestButton", "Zatrazi brisanje naloga"], maxSwipes: 10),
+            "Brisanje naloga treba biti dostupno"
+        )
+        tapFirstExisting(["profile.accountDeletion.requestButton", "Zatrazi brisanje naloga"])
 
         XCTAssertTrue(app.staticTexts["Zatrazi brisanje naloga?"].waitForExistence(timeout: 3), "Brisanje naloga mora traziti potvrdu")
         XCTAssertTrue(app.buttons["Posalji zahtev"].exists, "Potvrdna destruktivna akcija treba biti jasno imenovana")
@@ -113,13 +117,20 @@ final class SpotLinkUITests: XCTestCase {
         case authenticated
     }
 
-    private func configureLaunch(_ fixture: LaunchFixture = .signedOut) {
+    private enum InitialTab {
+        case profile
+    }
+
+    private func configureLaunch(_ fixture: LaunchFixture = .signedOut, initialTab: InitialTab? = nil) {
         app.launchArguments = [
             "--uitesting",
             "--spotlink-uitest-reset-session"
         ]
         if fixture == .authenticated {
             app.launchArguments.append("--spotlink-uitest-authenticated")
+        }
+        if initialTab == .profile {
+            app.launchArguments.append("--spotlink-uitest-open-profile")
         }
         app.launchEnvironment["SPOTLINK_ENV"] = "local"
         app.launchEnvironment["SPOTLINK_UI_TESTING"] = "1"
@@ -138,15 +149,63 @@ final class SpotLinkUITests: XCTestCase {
         }
     }
 
+    private func waitForExistsAny(_ identifiersOrLabels: [String], timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if existsAny(identifiersOrLabels) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return existsAny(identifiersOrLabels)
+    }
+
     private func scrollUntilExists(_ identifier: String, maxSwipes: Int = 4) -> Bool {
-        let target = element(identifier)
-        if target.exists { return true }
+        scrollUntilExistsAny([identifier], maxSwipes: maxSwipes)
+    }
+
+    private func scrollUntilExistsAny(_ identifiersOrLabels: [String], maxSwipes: Int = 6) -> Bool {
+        if existsAny(identifiersOrLabels) { return true }
+        let scrollable = firstScrollableElement()
         for _ in 0..<maxSwipes {
-            app.swipeUp()
-            if target.waitForExistence(timeout: 1) {
+            scrollable.swipeUp()
+            if waitForExistsAny(identifiersOrLabels, timeout: 1) {
                 return true
             }
         }
         return false
+    }
+
+    private func tapFirstExisting(_ identifiersOrLabels: [String]) {
+        for value in identifiersOrLabels {
+            let candidate = element(value)
+            if candidate.exists {
+                candidate.tap()
+                return
+            }
+            if app.buttons[value].exists {
+                app.buttons[value].tap()
+                return
+            }
+            if app.links[value].exists {
+                app.links[value].tap()
+                return
+            }
+            if app.staticTexts[value].exists {
+                app.staticTexts[value].tap()
+                return
+            }
+        }
+        XCTFail("Nije pronadjen nijedan element: \(identifiersOrLabels.joined(separator: ", "))")
+    }
+
+    private func firstScrollableElement() -> XCUIElement {
+        if app.collectionViews.firstMatch.exists {
+            return app.collectionViews.firstMatch
+        }
+        if app.scrollViews.firstMatch.exists {
+            return app.scrollViews.firstMatch
+        }
+        return app
     }
 }

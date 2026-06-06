@@ -44,14 +44,41 @@ public struct UpdateProfileRequest: Encodable, Sendable {
     public let firstName: String?
     public let lastName: String?
     public let phone: String?
+    public let avatarUrl: String?
     public let bio: String?
+    public let preferences: UpdateUserPreferencesRequest?
 
     public init(firstName: String? = nil, lastName: String? = nil,
-                phone: String? = nil, bio: String? = nil) {
+                phone: String? = nil, avatarUrl: String? = nil, bio: String? = nil,
+                preferences: UpdateUserPreferencesRequest? = nil) {
         self.firstName = firstName
         self.lastName = lastName
         self.phone = phone
+        self.avatarUrl = avatarUrl
         self.bio = bio
+        self.preferences = preferences
+    }
+}
+
+public struct UpdateUserPreferencesRequest: Encodable, Sendable {
+    public let locale: String?
+    public let marketingOptIn: Bool?
+    public let reservationAlerts: Bool?
+    public let paymentAlerts: Bool?
+    public let supportAlerts: Bool?
+
+    public init(
+        locale: String? = nil,
+        marketingOptIn: Bool? = nil,
+        reservationAlerts: Bool? = nil,
+        paymentAlerts: Bool? = nil,
+        supportAlerts: Bool? = nil
+    ) {
+        self.locale = locale
+        self.marketingOptIn = marketingOptIn
+        self.reservationAlerts = reservationAlerts
+        self.paymentAlerts = paymentAlerts
+        self.supportAlerts = supportAlerts
     }
 }
 

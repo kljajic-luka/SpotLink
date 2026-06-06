@@ -148,14 +148,14 @@ Should wait:
 - Verification command: `mvn -f apps/backend/pom.xml test`
 - Done criteria: Search tests cover center/radius, viewport, availability window, EV/resource filters, and pagination.
 
-### Task B4: Add APNs token lifecycle endpoints
+### Task B4: Finish real APNs runtime validation
 
-- Objective: Support token register, deactivate/unregister, environment, and preference enforcement.
+- Objective: Configure external APNs credentials/entitlements and prove sandbox/production delivery on physical devices.
 - Files or areas likely touched: backend notification module and migration.
 - Conflict risk: Medium
 - Estimated complexity: Medium
 - Verification command: `mvn -f apps/backend/pom.xml test`
-- Done criteria: Register/deactivate/token-rotation tests pass and platform enum accepts `IOS`.
+- Done criteria: Register/deactivate/token-rotation/preference tests stay green and real APNs sandbox/production delivery is smoke-tested outside the repo.
 
 ### Task B5: Replace mock payment for release path
 
@@ -241,4 +241,3 @@ Should wait:
 - Estimated complexity: Medium
 - Verification command: privacy review.
 - Done criteria: Analytics behavior is compliant and testable before external TestFlight.
-

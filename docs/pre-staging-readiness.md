@@ -12,7 +12,7 @@ This target runs:
 
 - `make release-gate`
 - focused mobile API contract checks against backend-generated OpenAPI routes and Swift fixture decoding
-- focused push delivery readiness checks for provider configuration, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
+- focused push delivery readiness checks for provider configuration, preference enforcement, post-commit delivery semantics, invalid-token handling, metrics, and log redaction
 - focused backend runtime/security tests for hardened profiles, password-reset delivery, and abuse throttling
 - focused SwiftPM privacy-safe logging tests
 
@@ -26,6 +26,12 @@ The push delivery check is also runnable on its own:
 
 ```bash
 make validate-push-delivery-readiness
+```
+
+The notification preference policy slice can be run directly:
+
+```bash
+make validate-notification-preferences
 ```
 
 ## Backend Protections
@@ -72,6 +78,7 @@ The backend records low-cardinality counters for:
 - password reset request outcomes
 - payment authority disabled decisions
 - push delivery attempted/succeeded/failed/invalid-token/disabled outcomes
+- push delivery preference-skipped outcomes
 - account deletion fulfillment outcomes
 
 Metric tags avoid user identifiers, email, phone, device tokens, reset tokens, bearer tokens, license plates, and request payload data.
@@ -86,6 +93,13 @@ Backend push delivery is provider-shaped but credential-free by default:
 - Notification persistence publishes delivery work after transaction commit, so APNs/provider failures do not roll back the saved in-app notification.
 - Delivery is attempted only for active iOS device tokens.
 - APNs permanent token failures deactivate the stored device token; transient failures are counted and logged without raw token or payload data.
+- Transactional push delivery respects server-side user preferences before provider calls:
+  - reservation notifications (`RESERVATION_CONFIRMED`, `RESERVATION_CANCELLED`, `ACCESS_INSTRUCTIONS_READY`) require `reservationAlerts=true`
+  - payment action notifications require `paymentAlerts=true`
+  - support replies and current operator-facing alert notifications require `supportAlerts=true`
+  - `SYSTEM` remains mandatory for account/safety/security-critical notifications
+- `marketingOptIn` is not used for transactional push delivery. It remains available in the profile contract for future marketing channels.
+- In-app notification inbox persistence remains unchanged when push delivery is skipped by preference; only the outbound push attempt is suppressed.
 
 Staging/production runtime guards require an explicit push policy. If delivery is enabled in a hardened profile, the only accepted provider is `apns`; production rejects `APNS_ENVIRONMENT=sandbox`.
 
@@ -110,5 +124,5 @@ The iOS UI test suite includes a deterministic unauthenticated registration chec
 - Real email provider, sender domain, and delivery credentials
 - Apple signing/TestFlight upload credentials
 - PSP selection, credentials, webhook verification, and reconciliation
-- APNs provider credentials, entitlement enablement, physical-device delivery validation, and notification preference policy
+- APNs provider credentials, entitlement enablement, physical-device delivery validation, and final payload/privacy approval
 - Owner-approved legal/privacy pages and App Store Connect answers

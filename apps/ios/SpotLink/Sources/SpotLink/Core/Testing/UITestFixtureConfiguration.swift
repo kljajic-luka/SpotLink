@@ -5,6 +5,7 @@ enum UITestFixtureConfiguration {
     private static let testingArgument = "--uitesting"
     private static let resetSessionArgument = "--spotlink-uitest-reset-session"
     private static let authenticatedSessionArgument = "--spotlink-uitest-authenticated"
+    private static let profileTabArgument = "--spotlink-uitest-open-profile"
 
     static var isUITesting: Bool {
         let process = ProcessInfo.processInfo
@@ -28,6 +29,21 @@ enum UITestFixtureConfiguration {
 
     static var shouldSkipRemoteLogout: Bool {
         shouldUseAuthenticatedSession
+    }
+
+    static var shouldOpenProfileTab: Bool {
+        guard isUITesting else { return false }
+        return ProcessInfo.processInfo.arguments.contains(profileTabArgument)
+    }
+
+    static func authenticatedUserPreferences() -> UserPreferences {
+        UserPreferences(
+            locale: "sr-RS",
+            marketingOptIn: false,
+            reservationAlerts: true,
+            paymentAlerts: true,
+            supportAlerts: true
+        )
     }
 
     static func authenticatedTokenResponse(now: Date = Date()) -> MobileTokenResponse {

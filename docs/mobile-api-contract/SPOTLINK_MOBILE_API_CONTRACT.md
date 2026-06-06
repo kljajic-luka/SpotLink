@@ -668,6 +668,16 @@ Success `200`: `UserProfileDetails`.
 
 Preferences are updated through this endpoint. There is no standalone preferences endpoint.
 
+Notification preference behavior:
+
+- reservation push notifications (`RESERVATION_CONFIRMED`, `RESERVATION_CANCELLED`, `ACCESS_INSTRUCTIONS_READY`) require `reservationAlerts=true`
+- payment-action push notifications require `paymentAlerts=true`
+- support replies and current operator alert notifications require `supportAlerts=true`
+- `SYSTEM` notifications are reserved for account/safety/security-critical messages and are not preference-skipped
+- `marketingOptIn` is not used for transactional notification delivery
+
+Preference skips suppress outbound push delivery only. Notification inbox rows remain persisted unless a future product policy explicitly changes that behavior.
+
 ### Vehicles
 
 List:
@@ -900,7 +910,14 @@ Device token register:
 - Body: `{ "deviceToken": "...", "platform": "IOS" }`.
 - Success `204 No Content`.
 
-Current limitation: no device token delete/deactivate endpoint exists.
+Device token unregister:
+
+- `POST /api/notifications/device-tokens/unregister`
+- Auth required.
+- Body: `{ "deviceToken": "...", "platform": "IOS" }`.
+- Success `204 No Content`.
+
+Unregister is non-enumerating: missing or foreign tokens return the same no-content shape and do not reveal token ownership.
 
 ### Operator
 

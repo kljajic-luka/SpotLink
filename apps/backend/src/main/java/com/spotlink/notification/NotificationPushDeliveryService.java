@@ -17,16 +17,19 @@ public class NotificationPushDeliveryService {
     private final NotificationRepository notifications;
     private final DeviceTokenRepository deviceTokens;
     private final PushProvider pushProvider;
+    private final NotificationPreferencePolicy preferencePolicy;
     private final OperationalMetrics metrics;
 
     public NotificationPushDeliveryService(
             NotificationRepository notifications,
             DeviceTokenRepository deviceTokens,
             PushProvider pushProvider,
+            NotificationPreferencePolicy preferencePolicy,
             OperationalMetrics metrics) {
         this.notifications = notifications;
         this.deviceTokens = deviceTokens;
         this.pushProvider = pushProvider;
+        this.preferencePolicy = preferencePolicy;
         this.metrics = metrics;
     }
 
@@ -34,6 +37,14 @@ public class NotificationPushDeliveryService {
     public void deliver(UUID notificationId) {
         Notification notification = notifications.findById(notificationId).orElse(null);
         if (notification == null) {
+            return;
+        }
+
+        NotificationPreferencePolicy.PreferenceDecision preference = preferencePolicy.pushAllowed(
+                notification.getUserId(),
+                notification.getType());
+        if (!preference.allowed()) {
+            increment("preference_skipped", safeReason(preference.reason()));
             return;
         }
 

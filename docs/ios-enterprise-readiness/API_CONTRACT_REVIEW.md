@@ -221,8 +221,9 @@ Current state:
 - `GET /api/notifications/unread-count`
 - `POST /api/notifications/{notificationId}/read`
 - `POST /api/notifications/device-tokens`
+- `POST /api/notifications/device-tokens/unregister`
 - `DevicePlatform` includes `IOS`.
-- Mock notification provider logs notifications.
+- Device-token lifecycle and APNs-ready provider scaffold exist with credential-free tests.
 
 iOS readiness rating: `Needs major changes`
 
@@ -230,11 +231,9 @@ Priority: `P0`
 
 Recommended changes:
 
-- Implement APNs provider.
-- Add device token unregister/deactivate endpoint.
+- Configure real APNs provider credentials outside the repo.
 - Store APNs environment: sandbox vs production.
 - Store app bundle/build metadata if useful for operations.
-- Add notification preferences enforcement server-side.
 - Add payload schema and deep-link contract.
 - Add privacy rules for push payload content.
 - Add badge count update strategy.
@@ -520,7 +519,7 @@ Recommended changes:
 Current state:
 
 - Device token registration accepts `deviceToken` and `platform`; `IOS` is supported.
-- No APNs provider or unregister endpoint exists.
+- Device token unregister/reactivation, APNs-ready provider scaffolding, metrics, redaction, and server-side preference enforcement exist without committed credentials.
 
 iOS readiness rating: `Needs major changes`
 
@@ -528,7 +527,6 @@ Priority: `P0`
 
 Recommended changes:
 
-- Implement APNs provider and environment handling.
-- Add token deactivation endpoint.
+- Configure real APNs provider credentials and environment metadata outside the repo.
+- Keep token unregister/deactivation tests green.
 - Add notification payload schema with deep-link target and privacy constraints.
-- Add backend-side preference enforcement.

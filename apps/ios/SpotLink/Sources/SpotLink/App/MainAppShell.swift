@@ -8,12 +8,17 @@ public struct MainAppShell: View {
 
     let sessionInfo: SessionInfo
 
-    @State private var selectedTab: AppTab = .search
+    @State private var selectedTab: AppTab
     @EnvironmentObject private var session: SessionManager
     @EnvironmentObject private var appContainer: SpotLinkAppContainer
 
     public init(sessionInfo: SessionInfo) {
         self.sessionInfo = sessionInfo
+        #if DEBUG
+        _selectedTab = State(initialValue: UITestFixtureConfiguration.shouldOpenProfileTab ? .profile : .search)
+        #else
+        _selectedTab = State(initialValue: .search)
+        #endif
     }
 
     public var body: some View {
@@ -96,6 +101,11 @@ struct ProfileOverviewView: View {
     @EnvironmentObject private var pushManager: PushNotificationManager
     @State private var isRequestingAccountDeletion = false
     @State private var showAccountDeletionConfirmation = false
+    @State private var notificationPreferences = NotificationPreferenceForm()
+    @State private var preferencesLoaded = false
+    @State private var isLoadingPreferences = false
+    @State private var isSavingPreferences = false
+    @State private var preferenceStatus: String?
     @State private var profileAlert: ProfileAlert?
     private let legalConfiguration = LegalConfiguration.current()
 
@@ -120,6 +130,7 @@ struct ProfileOverviewView: View {
                             .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
                     }
                 }
+                .accessibilityIdentifier("profile.screen")
                 .padding(.vertical, SpotLinkDesign.Spacing.sm)
             }
 
@@ -141,6 +152,46 @@ struct ProfileOverviewView: View {
                     }
                 } label: {
                     Label("Omoguci push obavestenja", systemImage: "bell.badge")
+                }
+            }
+
+            Section("Podesavanja obavestenja") {
+                if isLoadingPreferences && !preferencesLoaded {
+                    ProgressView("Ucitavanje podesavanja...")
+                        .accessibilityIdentifier("profile.notifications.loading")
+                }
+
+                Toggle("Rezervacije", isOn: $notificationPreferences.reservationAlerts)
+                    .accessibilityIdentifier("profile.notifications.reservationToggle")
+                    .accessibilityLabel("Obavestenja za rezervacije")
+                Toggle("Placanja", isOn: $notificationPreferences.paymentAlerts)
+                    .accessibilityIdentifier("profile.notifications.paymentToggle")
+                    .accessibilityLabel("Obavestenja za placanja")
+                Toggle("Odgovori podrske", isOn: $notificationPreferences.supportAlerts)
+                    .accessibilityIdentifier("profile.notifications.supportToggle")
+                    .accessibilityLabel("Obavestenja za odgovore podrske")
+                Toggle("Marketing saglasnost", isOn: $notificationPreferences.marketingOptIn)
+                    .accessibilityIdentifier("profile.notifications.marketingToggle")
+                    .accessibilityLabel("Marketing saglasnost")
+
+                Button {
+                    Task {
+                        await saveNotificationPreferences()
+                    }
+                } label: {
+                    Label(
+                        isSavingPreferences ? "Cuvanje..." : "Sacuvaj podesavanja",
+                        systemImage: "checkmark.circle"
+                    )
+                }
+                .disabled(isLoadingPreferences || isSavingPreferences)
+                .accessibilityIdentifier("profile.notifications.saveButton")
+
+                if let preferenceStatus {
+                    Text(preferenceStatus)
+                        .font(SpotLinkDesign.Typography.footnote)
+                        .foregroundStyle(SpotLinkDesign.Colors.secondaryLabel)
+                        .accessibilityIdentifier("profile.notifications.statusText")
                 }
             }
 
@@ -200,6 +251,9 @@ struct ProfileOverviewView: View {
         .navigationTitle("Profil")
         .spotlinkListStyle()
         .accessibilityIdentifier("profile.screen")
+        .task {
+            await loadNotificationPreferencesIfNeeded()
+        }
         .confirmationDialog(
             "Zatrazi brisanje naloga?",
             isPresented: $showAccountDeletionConfirmation,
@@ -220,6 +274,59 @@ struct ProfileOverviewView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("U redu"))
             )
+        }
+    }
+
+    @MainActor
+    private func loadNotificationPreferencesIfNeeded() async {
+        guard !preferencesLoaded, !isLoadingPreferences else { return }
+
+        #if DEBUG
+        if UITestFixtureConfiguration.isUITesting {
+            notificationPreferences.apply(UITestFixtureConfiguration.authenticatedUserPreferences())
+            preferencesLoaded = true
+            preferenceStatus = nil
+            return
+        }
+        #endif
+
+        isLoadingPreferences = true
+        defer { isLoadingPreferences = false }
+
+        do {
+            let profile = try await appContainer.profileService.getCurrentProfile()
+            notificationPreferences.apply(profile.preferences)
+            preferencesLoaded = true
+            preferenceStatus = nil
+        } catch let error as APIError {
+            SpotLinkLogger.warn("notification_preferences_load_failed code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+            preferencesLoaded = true
+            preferenceStatus = "Podesavanja trenutno nisu dostupna."
+        } catch {
+            SpotLinkLogger.warn("notification_preferences_load_failed error=\(error.localizedDescription)")
+            preferencesLoaded = true
+            preferenceStatus = "Podesavanja trenutno nisu dostupna."
+        }
+    }
+
+    @MainActor
+    private func saveNotificationPreferences() async {
+        guard !isSavingPreferences else { return }
+        isSavingPreferences = true
+        preferenceStatus = nil
+        defer { isSavingPreferences = false }
+
+        do {
+            let profile = try await appContainer.profileService.updateNotificationPreferences(notificationPreferences.updateRequest)
+            notificationPreferences.apply(profile.preferences)
+            preferencesLoaded = true
+            preferenceStatus = "Podesavanja sacuvana."
+        } catch let error as APIError {
+            SpotLinkLogger.warn("notification_preferences_save_failed code=\(error.code ?? "-") requestId=\(error.requestId ?? "-")")
+            preferenceStatus = error.userFacingMessageWithReference
+        } catch {
+            SpotLinkLogger.warn("notification_preferences_save_failed error=\(error.localizedDescription)")
+            preferenceStatus = "Podesavanja trenutno nije moguce sacuvati."
         }
     }
 
@@ -275,5 +382,28 @@ struct ProfileOverviewView: View {
         let id = UUID()
         let title: String
         let message: String
+    }
+
+    private struct NotificationPreferenceForm {
+        var reservationAlerts = true
+        var paymentAlerts = true
+        var supportAlerts = true
+        var marketingOptIn = false
+
+        var updateRequest: UpdateUserPreferencesRequest {
+            UpdateUserPreferencesRequest(
+                marketingOptIn: marketingOptIn,
+                reservationAlerts: reservationAlerts,
+                paymentAlerts: paymentAlerts,
+                supportAlerts: supportAlerts
+            )
+        }
+
+        mutating func apply(_ preferences: UserPreferences) {
+            reservationAlerts = preferences.reservationAlerts
+            paymentAlerts = preferences.paymentAlerts
+            supportAlerts = preferences.supportAlerts
+            marketingOptIn = preferences.marketingOptIn
+        }
     }
 }

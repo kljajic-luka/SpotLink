@@ -190,7 +190,7 @@ Blockers/gaps:
 - JWT has default secret fallback and no refresh/revocation.
 - API versioning missing.
 - DTO drift between iOS and backend.
-- APNs provider and token deactivation missing.
+- APNs credentials, entitlement, and physical-device delivery validation missing.
 - Search/geospatial behavior not production-grade.
 
 ## Internal TestFlight Blockers
@@ -216,4 +216,3 @@ Blockers/gaps:
 8. No API versioning.
 9. No security hardening for JWT refresh/revocation/rate limiting.
 10. No accessibility and Dynamic Type validation.
-

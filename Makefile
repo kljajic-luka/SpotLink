@@ -1,4 +1,4 @@
-.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode validate-mobile-api-contract build build-backend validate-backend-runtime-config validate-push-delivery-readiness validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
+.PHONY: help backend frontend dev test test-backend test-frontend test-ios test-ios-xcode validate-mobile-api-contract build build-backend validate-backend-runtime-config validate-notification-preferences validate-push-delivery-readiness validate-pre-staging-hardening build-backend-image build-ios build-ios-xcode build-ios-release-unsigned build-ios-staging-unsigned validate-ios-privacy-config validate-ios-signed-config check-ios-signing-env-staging check-ios-signing-env-release generate-ios-staging-export-options generate-ios-release-export-options archive-ios-staging-signed archive-ios-release-signed export-ios-staging-testflight export-ios-release-testflight release-gate pre-staging-gate
 
 IOS_ARCHIVE_DIR ?= build/ios/archives
 IOS_EXPORT_DIR ?= build/ios/exports
@@ -73,8 +73,11 @@ build-backend: ## Pakuj backend JAR (preskoci testove)
 validate-backend-runtime-config: ## Pokreni backend staging/prod runtime guard i logging testove
 	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest,RateLimitFilterTest,HealthEndpointTest test
 
-validate-push-delivery-readiness: ## Proveri APNs-ready push provider, runtime guard i delivery semantiku bez APNs kredencijala
-	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,NotificationDeviceTokenLifecycleTest,PushDeliveryReadinessTest test
+validate-notification-preferences: ## Proveri server-side preference gate za push obavestenja
+	mvn -f apps/backend/pom.xml -Dtest=PushDeliveryReadinessTest test
+
+validate-push-delivery-readiness: validate-notification-preferences ## Proveri APNs-ready push provider, runtime guard i delivery semantiku bez APNs kredencijala
+	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,NotificationDeviceTokenLifecycleTest test
 
 validate-pre-staging-hardening: ## Fokusirani abuse, reset-delivery i privacy-safe logging testovi
 	mvn -f apps/backend/pom.xml -Dtest=RuntimeSafetyGuardTest,AuthServiceLoggingTest,PasswordResetDeliveryTest,RateLimitFilterTest test

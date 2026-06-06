@@ -296,7 +296,7 @@ Date: 2026-04-22
 - Payment webhooks and reconciliation.
 - Audit logging coverage.
 - Data export/deletion automation.
-- Notification preference enforcement.
+- Real APNs credential/entitlement setup and physical-device delivery validation.
 
 ### QA Gates
 
@@ -313,4 +313,3 @@ Date: 2026-04-22
 
 - Operational complexity grows faster than admin/support tooling.
 - Search/payment reliability becomes the limiting factor for user trust.
-

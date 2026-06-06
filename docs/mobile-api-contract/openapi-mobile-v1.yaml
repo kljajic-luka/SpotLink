@@ -821,6 +821,23 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
+  /api/notifications/device-tokens/unregister:
+    post:
+      tags: [Notifications]
+      summary: Unregister device token
+      description: Non-enumerating unregister; missing or foreign tokens still return 204.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnregisterDeviceTokenRequest"
+      responses:
+        "204":
+          description: Token unregistered or no matching owned active token found; no response body
+        default:
+          $ref: "#/components/responses/Error"
+
   /api/operator/me:
     get:
       tags: [Operator]
@@ -1828,6 +1845,15 @@ components:
           type: integer
           format: int64
     RegisterDeviceTokenRequest:
+      type: object
+      required: [deviceToken, platform]
+      properties:
+        deviceToken:
+          type: string
+          maxLength: 500
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+    UnregisterDeviceTokenRequest:
       type: object
       required: [deviceToken, platform]
       properties:

@@ -31,7 +31,7 @@ The current app/backend/frontend surfaces process the following data classes:
 | Payments | provider intent/attempt IDs, amount/currency/status, mock method metadata in allowed non-production modes | payment authority and future PSP reconciliation; raw card details are not collected or stored |
 | Support/account deletion | ticket subject/category/message/status and deletion-request tickets | support intake and human-reviewed account deletion workflow |
 | Analytics | app/screen/login/reservation/payment/support events, session ID, event properties | internal product/operational analytics |
-| Notifications | APNs device token, platform, active/deactivated state | token lifecycle and backend delivery readiness; real APNs delivery is not enabled or physically verified |
+| Notifications | APNs device token, platform, active/deactivated state, notification preference flags | token lifecycle, server-side preference enforcement, and backend delivery readiness; real APNs delivery is not enabled or physically verified |
 | Diagnostics | request IDs, API error references, operational logs | debugging, abuse investigation, support correlation |
 
 ## App Store Connect Privacy Checklist
@@ -79,4 +79,4 @@ Requests create or return an unresolved support ticket in category `ACCOUNT` wit
 - Apple Developer signing, provisioning, App Store Connect app records, and human-controlled TestFlight upload.
 - Real staging deployment and production-like domain/runtime monitoring.
 - Real PSP provider, credentials, SCA/deep-link return, webhook signature verification, capture/refund reconciliation, and settlement reporting.
-- APNs credentials, Push Notifications entitlement, physical-device delivery validation, privacy-reviewed payloads, and notification preference enforcement.
+- APNs credentials, Push Notifications entitlement, physical-device delivery validation, and final privacy-reviewed payload policy.
